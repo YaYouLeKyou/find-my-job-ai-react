@@ -1,9 +1,11 @@
 .env
 __pycache__/
 *.py[cod]
-*$py.class
-.venv/
 venv/
-ENV/
-.vscode/
+.streamlit/
+.DS_Store
 *.pdf
+*.txt
+build/
+dist/
+*.egg-info/
