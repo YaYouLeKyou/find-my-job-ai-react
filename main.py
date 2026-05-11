@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from groq import Groq
 import PyPDF2
 import json
@@ -155,6 +156,22 @@ def extract_text_from_pdf(file):
         st.error(f"Erreur lors de la lecture du PDF : {e}")
         return None
 
+def reverse_geocoding(lat, lon):
+    """Transforme des coordonnées GPS en Ville, Pays via OpenStreetMap."""
+    try:
+        url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}"
+        headers = {"User-Agent": "FindMyJobAI/1.0"}
+        response = requests.get(url, headers=headers, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            addr = data.get("address", {})
+            city = addr.get("city") or addr.get("town") or addr.get("village")
+            country = addr.get("country")
+            if city and country:
+                return f"{city}, {country}"
+    except:
+        return None
+
 def rank_jobs_with_ai(cv_data, jobs, filters, target_lang="français"):
     """Utilise l'IA pour classer les offres par pertinence par rapport au CV et aux filtres."""
     if not client or not jobs or not cv_data:
@@ -190,8 +207,7 @@ def rank_jobs_with_ai(cv_data, jobs, filters, target_lang="français"):
         for item in ranking_data:
             idx = item.get("id")
             if idx is not None and idx < len(jobs_to_rank):
-                job = jobs_to_rank[idx].copy()
-                job["match_score"] = item.get("score", 0)
+                job = {**jobs_to_rank[idx], "match_score": item.get("score", 0)}
                 ranked_list.append(job)
                 ranked_indices.append(idx)
 
@@ -212,9 +228,21 @@ def rank_jobs_with_ai(cv_data, jobs, filters, target_lang="français"):
 def get_geolocation():
     """Tente de récupérer la localisation de l'utilisateur via son adresse IP (multi-sources)."""
     headers = {"User-Agent": "Mozilla/5.0"}
+    
+    # Détection de l'IP réelle du client (indispensable sur Streamlit Cloud)
+    client_ip = ""
+    try:
+        # st.context.headers est disponible dans les versions récentes de Streamlit
+        if hasattr(st, "context") and "X-Forwarded-For" in st.context.headers:
+            # X-Forwarded-For contient souvent une liste d'IPs, on prend la première
+            client_ip = st.context.headers.get("X-Forwarded-For").split(",")[0].strip()
+    except:
+        pass
+
     # Tentative 1: ipapi.co
     try:
-        response = requests.get("https://ipapi.co/json/", headers=headers, timeout=3)
+        url = f"https://ipapi.co/{client_ip}/json/" if client_ip else "https://ipapi.co/json/"
+        response = requests.get(url, headers=headers, timeout=3)
         if response.status_code == 200:
             data = response.json()
             city, country = data.get("city"), data.get("country_name")
@@ -225,7 +253,8 @@ def get_geolocation():
 
     # Tentative 2: ip-api.com
     try:
-        response = requests.get("http://ip-api.com/json/", timeout=3)
+        url = f"http://ip-api.com/json/{client_ip}" if client_ip else "http://ip-api.com/json/"
+        response = requests.get(url, timeout=3)
         if response.status_code == 200:
             data = response.json()
             city, country = data.get("city"), data.get("country")
@@ -236,7 +265,8 @@ def get_geolocation():
 
     # Tentative 3: ipinfo.io
     try:
-        response = requests.get("https://ipinfo.io/json", timeout=3)
+        url = f"https://ipinfo.io/{client_ip}/json" if client_ip else "https://ipinfo.io/json"
+        response = requests.get(url, timeout=3)
         if response.status_code == 200:
             data = response.json()
             city, country = data.get("city"), data.get("country")
@@ -781,21 +811,15 @@ with st.sidebar:
     S = STRINGS[st.session_state['lang_code']]
 
     st.header(S['settings'])
+    
     num_ads = st.slider(S['num_ads'], min_value=1, max_value=50, value=10)
     contrat = st.selectbox(S['contract'], ["CDI", "CDD", "Interim"])
-    
+
     # Initialisation de la localisation : Paris par défaut, puis tentative de géo-détection
     # Initialisation de la localisation
     if 'user_location' not in st.session_state:
         detected_loc = get_geolocation()
         st.session_state['user_location'] = detected_loc if detected_loc else lang_data['default_loc']
-
-    # Bouton optionnel pour forcer une nouvelle détection
-    if st.button("📍 " + S.get('relaunch', 'Refresh'), key="refresh_loc", help="Relancer la détection de position"):
-        new_loc = get_geolocation()
-        if new_loc:
-            st.session_state['user_location'] = new_loc
-            st.rerun()
 
     remote = st.checkbox(S['remote'])
     global_search = False
@@ -808,6 +832,47 @@ with st.sidebar:
     else:
         ville = st.text_input(S['location'], value=st.session_state['user_location'])
         st.session_state['user_location'] = ville
+        
+        # Boutons de géolocalisation sous le champ Ville
+        c_gps, c_ip = st.columns(2)
+        with c_gps:
+            if st.button("🎯 GPS", help="Position exacte via navigateur", use_container_width=True):
+                # Script JS amélioré avec gestion des erreurs et feedback utilisateur
+                components.html("""
+                    <script>
+                    navigator.geolocation.getCurrentPosition(function(position) {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('lat', lat);
+                        url.searchParams.set('lon', lon);
+                        window.parent.location.href = url.href;
+                    }, function(error) {
+                        if (error.code == 1) {
+                            alert("📍 Accès GPS refusé. Veuillez autoriser la géolocalisation dans les paramètres de votre navigateur.");
+                        } else {
+                            alert("📍 Erreur GPS : " + error.message);
+                        }
+                    });
+                    </script>
+                """, height=0)
+        with c_ip:
+            if st.button("📍 IP", key="refresh_loc", help="Position approximative via IP", use_container_width=True):
+                new_loc = get_geolocation()
+                if new_loc:
+                    st.session_state['user_location'] = new_loc
+                    st.rerun()
+
+    # Vérification des coordonnées GPS dans l'URL
+    query_params = st.query_params
+    if "lat" in query_params and "lon" in query_params:
+        lat, lon = query_params["lat"], query_params["lon"]
+        precise_loc = reverse_geocoding(lat, lon)
+        if precise_loc:
+            st.session_state['user_location'] = precise_loc
+            # On nettoie les paramètres d'URL pour éviter de re-solliciter Nominatim inutilement
+            st.query_params.clear()
+            st.rerun()
 
     st.divider()
     sort_option = st.selectbox(S['sort_by'], [S['sort_relevant'], S['sort_recent'], S['sort_closest']])
@@ -819,6 +884,10 @@ with st.sidebar:
     for source in all_available_sources:
         if st.checkbox(source, value=True, key=f"sidebar_src_{source}"):
             selected_sources.append(source)
+            
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button(S.get('relaunch', 'Refresh'), key="sidebar_relaunch", use_container_width=True):
+        st.rerun()
 
 # --- MAIN UI ---
 st.title(S['title'])
@@ -1036,12 +1105,7 @@ if st.session_state['offres'] is not None or st.session_state['job_ads_ft'] is n
     st.divider()
     st.markdown("<br>", unsafe_allow_html=True)
     st.subheader(S['scan_state'])
-    col_h, col_r = st.columns([2, 1])
-    with col_h:
-        st.caption(S.get('scan_help', ''))
-    with col_r:
-        if st.button(S.get('relaunch', 'Refresh'), use_container_width=True):
-            st.rerun()
+    st.caption(S.get('scan_help', ''))
     
     # Extraction des statistiques
     js_df = st.session_state['offres']
