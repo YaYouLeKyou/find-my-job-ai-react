@@ -778,19 +778,23 @@ if st.session_state['offres'] is not None and not st.session_state['offres'].emp
         )
 
 # Affichage des offres via API (Plus stables)
+display_api_jobs(st.session_state.get('job_ads_apify'), "LinkedIn (Apify)")
 display_api_jobs(st.session_state.get('job_ads_serpapi'), "Google Jobs (SerpApi)")
 display_api_jobs(st.session_state.get('job_ads_jooble'), "Jooble")
 display_api_jobs(st.session_state.get('job_ads_adzuna'), "Adzuna")
 display_api_jobs(st.session_state.get('job_ads_ft'), "France Travail")
 
 # Message d'alerte si rien n'est trouvé après une recherche
-if st.session_state['offres'] is not None and st.session_state['offres'].empty and not st.session_state.get('job_ads_ft'):
-    st.warning("⚠️ Aucune offre trouvée. Essayez de simplifier l'intitulé du métier ou de changer la ville.")
-
-st.caption("Propulsé par Streamlit, Groq & Llama 3")
-
-# Message d'alerte si rien n'est trouvé après une recherche
-if st.session_state['offres'] is not None and st.session_state['offres'].empty and not st.session_state.get('job_ads_ft'):
-    st.warning("⚠️ Aucune offre trouvée. Essayez de simplifier l'intitulé du métier ou de changer la ville.")
+if st.session_state['offres'] is not None:
+    all_empty = (
+        st.session_state['offres'].empty and 
+        not st.session_state.get('job_ads_ft') and
+        not st.session_state.get('job_ads_adzuna') and
+        not st.session_state.get('job_ads_serpapi') and
+        not st.session_state.get('job_ads_jooble') and
+        not st.session_state.get('job_ads_apify')
+    )
+    if all_empty:
+        st.warning("⚠️ Aucune offre trouvée. Essayez de simplifier l'intitulé du métier ou de changer la ville.")
 
 st.caption("Propulsé par Streamlit, Groq & Llama 3")
