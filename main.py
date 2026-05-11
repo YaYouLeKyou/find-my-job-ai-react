@@ -140,19 +140,20 @@ def extract_text_from_pdf(file):
     try:
         if file is None:
             return None
-            
+        
+        # Important : Reset le pointeur de lecture pour les flux mobiles/cloud
+        file.seek(0)
+        
         pdf_reader = PyPDF2.PdfReader(file)
-        if not pdf_reader.pages:
-            return None
-
         text = ""
-        for page_num, page in enumerate(pdf_reader.pages):
+        for page in pdf_reader.pages:
             content = page.extract_text() or ""
             if content:
-                text += content
-        return text
+                text += content + "\n"
+        
+        return text.strip() if text.strip() else None
     except Exception as e:
-        st.error(f"Erreur lors de la lecture du PDF : {e}")
+        logger.error(f"Erreur lors de la lecture du PDF : {e}")
         return None
 
 def reverse_geocoding(lat, lon):
@@ -882,7 +883,8 @@ if uploaded_file is not None:
     if st.session_state.get('last_processed_file') != file_id:
         with st.spinner(S['analyze']):
             cv_text = extract_text_from_pdf(uploaded_file)
-            if cv_text:
+            # On vérifie qu'on a assez de texte (au moins 50 caractères) pour une analyse pertinente
+            if cv_text and len(cv_text) > 50:
                 data = analyze_cv(cv_text, target_lang=st.session_state['lang_label'])
                 if data:
                     logger.info("--- Données brutes de l'analyse CV ---")
@@ -893,7 +895,7 @@ if uploaded_file is not None:
                     st.success(S['analyze_success'])
                     st.divider()
             else:
-                st.warning(S['analyze_fail'])
+                st.error("⚠️ Impossible d'extraire du texte. Si c'est un scan (photo), l'IA ne pourra pas le lire sans OCR.")
 
 # --- AFFICHAGE DU PROFIL ---
 if 'user_cv_data' in st.session_state:
