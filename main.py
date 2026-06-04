@@ -37,7 +37,7 @@ STRINGS = {
         "analyze_success": "Analyse réussie !", "analyze_fail": "Impossible d'extraire du texte de ce PDF.", "metier": "Métier", "exp": "Expérience", "advice": "✨ Conseils d'amélioration",
         "pistes": "💡 Pistes d'évolution", "alt": "🔀 Métiers Alternatifs", "search_section": "🔍 Recherche d'opportunités", "search_info": "Modifiez l'intitulé ci-dessous pour lancer une recherche personnalisée.",
         "search_placeholder": "Ex: Développeur Python, Serveur...", "scan_state": "📊 État du Scan Global", "direct_access": "🚀 Accès Direct", "no_results": "⚠️ Aucune offre trouvée.", "footer": "Propulsé par Streamlit, Groq & Llama 3",
-        "global_search": "🌍 Recherche mondiale", "sort_by": "Trier par", "sort_relevant": "Pertinence (IA)", "sort_recent": "Plus récentes", "sort_closest": "Plus proches",
+        "global_search": "🌍 Recherche mondiale", "sort_by": "Trier par", "sort_relevant": "Pertinence (IA)", "sort_recent": "Plus récentes", "sort_closest": "Plus proches", "footer": "",
         "filter_active": "Filtré par", "clear_filter": "❌ Effacer le filtre", "select_sources": "📡 Sources de recherche", "top_matches": "Meilleurs résultats triés par IA",
         "scan_help": "Cliquez sur une source pour l'inclure (vert) ou l'exclure (rouge) des résultats.",
         "relaunch": "🔄 Actualiser / Appliquer les changements"
@@ -47,7 +47,7 @@ STRINGS = {
         "settings": "⚙️ Settings", "num_ads": "Number of ads", "contract": "Contract type", "location": "📍 City / Country", "remote": "Remote only", "upload": "📂 Drop your CV (PDF)",
         "analyze_success": "Analysis successful!", "analyze_fail": "Could not extract text from this PDF.", "metier": "Job", "exp": "Experience", "advice": "✨ Improvement Tips",
         "pistes": "💡 Career Paths", "alt": "🔀 Alternative Careers", "search_section": "🔍 Opportunity Search", "search_info": "Modify the title below to start a personalized search.",
-        "search_placeholder": "E.g.: Python Developer, Waiter...", "scan_state": "📊 Global Scan Status", "direct_access": "🚀 Direct Access", "no_results": "⚠️ No offers found.", "footer": "Powered by Streamlit, Groq & Llama 3",
+        "search_placeholder": "E.g.: Python Developer, Waiter...", "scan_state": "📊 Global Scan Status", "direct_access": "🚀 Direct Access", "no_results": "⚠️ No offers found.", "footer": "",
         "global_search": "🌍 Worldwide search", "sort_by": "Sort by", "sort_relevant": "Relevance (AI)", "sort_recent": "Most recent", "sort_closest": "Closest",
         "filter_active": "Filtered by", "clear_filter": "❌ Clear filter", "select_sources": "📡 Search Sources", "top_matches": "Best AI-sorted results",
         "scan_help": "Click a source to include (green) or exclude (red) it from results.",
@@ -58,7 +58,7 @@ STRINGS = {
         "settings": "⚙️ Ajustes", "num_ads": "Número de anuncios", "contract": "Tipo de contrato", "location": "📍 Ciudad / País", "remote": "Solo teletrabajo", "upload": "📂 Sube tu CV (PDF)",
         "analyze_success": "¡Análisis exitoso!", "analyze_fail": "No se pudo extraer texto de este PDF.", "metier": "Oficio", "exp": "Experiencia", "advice": "✨ Consejos de mejora",
         "pistes": "💡 Trayectorias profesionales", "alt": "🔀 Carreras alternativas", "search_section": "🔍 Búsqueda de oportunidades", "search_info": "Modifica el título a continuación para iniciar una búsqueda personalizada.",
-        "search_placeholder": "Ej: Desarrollador Python, Camarero...", "scan_state": "📊 Estado del escaneo global", "direct_access": "🚀 Acceso directo", "no_results": "⚠️ No se encontraron ofertas.", "footer": "Desarrollado par Streamlit, Groq & Llama 3",
+        "search_placeholder": "Ej: Desarrollador Python, Camarero...", "search_placeholder": "Ej: Desarrollador Python, Camarero...", "scan_state": "📊 Estado del escaneo global", "direct_access": "🚀 Acceso directo", "no_results": "⚠️ No se encontraron ofertas.", "footer": "",
         "global_search": "🌍 Búsqueda mundial", "sort_by": "Ordenar por", "sort_relevant": "Relevancia (IA)", "sort_recent": "Más recientes", "sort_closest": "Más cercanos",
         "top_matches": "Mejores resultados ordenados por IA", "filter_active": "Filtrado por", "clear_filter": "❌ Borrar filtro",
         "select_sources": "📡 Fuentes de búsqueda",
@@ -69,7 +69,7 @@ STRINGS = {
         "settings": "⚙️ Einstellungen", "num_ads": "Anzahl der Anzeigen", "contract": "Vertragstyp", "location": "📍 Stadt / Land", "remote": "Nur Homeoffice", "upload": "📂 CV hochladen (PDF)",
         "analyze_success": "Analyse erfolgreich!", "analyze_fail": "Text konnte nicht aus dieser PDF extrahiert werden.", "metier": "Beruf", "exp": "Erfahrung", "advice": "✨ Verbesserungstipps",
         "pistes": "💡 Karrierewege", "alt": "🔀 Alternative Karrieren", "search_section": "🔍 Chancensuche", "search_info": "Ändern Sie den Titel unten, um eine personalisierte Suche zu starten.",
-        "search_placeholder": "Z.B.: Python-Entwickler, Kellner...", "scan_state": "📊 Globaler Scan-Status", "direct_access": "🚀 Direktzugriff", "no_results": "⚠️ Keine Angebote gefunden.", "footer": "Präsentiert von Streamlit, Groq & Llama 3",
+        "search_placeholder": "Z.B.: Python-Entwickler, Kellner...", "scan_state": "📊 Globaler Scan-Status", "direct_access": "🚀 Direktzugriff", "no_results": "⚠️ Keine Angebote gefunden.", "footer": "",
         "global_search": "🌍 Weltweite Suche", "sort_by": "Sortieren nach", "sort_relevant": "Relevanz (KI)", "sort_recent": "Neueste", "sort_closest": "Am nächsten",
         "top_matches": "Beste KI-sortierte Ergebnisse", "filter_active": "Gefiltert nach", "clear_filter": "❌ Filter löschen",
         "select_sources": "📡 Suchquellen",
@@ -80,7 +80,7 @@ STRINGS = {
         "settings": "⚙️ الإعدادات", "num_ads": "عدد الإعلانات", "contract": "نوع العقد", "location": "📍 المدينة / الدولة", "remote": "عمل عن بعد فقط", "upload": "📂 ارفع سيرتك الذاتية (PDF)",
         "analyze_success": "نجح التحليل!", "analyze_fail": "تعذر استخراج النص من ملف PDF هذا.", "metier": "الوظيفة", "exp": "الخبرة", "advice": "✨ نصائح للتحسين",
         "pistes": "💡 المسارات الوظيفية", "alt": "🔀 وظائف بديلة", "search_section": "🔍 البحث عن فرص", "search_info": "قم بتعديل المسمى الوظيفي أدناه لبدء بحث مخصص.",
-        "search_placeholder": "مثال: مطور بايثون، نادل...", "scan_state": "📊 حالة الفحص الشامل", "direct_access": "🚀 وصول مباشر", "no_results": "⚠️ لم يتم العثور على عروض.", "footer": "مدعوم بواسطة Streamlit و Groq و Llama 3",
+        "search_placeholder": "مثال: مطور بايثون، نادل...", "scan_state": "📊 حالة الفحص الشامل", "direct_access": "🚀 وصول مباشر", "no_results": "⚠️ لم يتم العثور على عروض.", "footer": "",
         "global_search": "🌍 بحث عالمي", "sort_by": "ترتيب حسب", "sort_relevant": "الأكثر ملاءمة (ذكاء اصطناعي)", "sort_recent": "الأحدث", "sort_closest": "الأقرب",
         "top_matches": "أفضل النتائج المصنفة بواسطة الذكاء الاصطناعي", "filter_active": "مصفى حسب", "clear_filter": "❌ مسح التصفية",
         "select_sources": "📡 مصادر البحث",
@@ -91,7 +91,7 @@ STRINGS = {
         "settings": "⚙️ 設定", "num_ads": "表示件数", "contract": "雇用形態", "location": "📍 市区町村 / 国", "remote": "リモートのみ", "upload": "📂 CVをアップロード (PDF)",
         "analyze_success": "分析に成功しました！", "analyze_fail": "PDFからテキストを抽出できませんでした。", "metier": "職種", "exp": "経験", "advice": "✨ 改善のヒント",
         "pistes": "💡 キャリアパス", "alt": "🔀 代替の職業", "search_section": "🔍 求人検索", "search_info": "以下のタイトルを変更して、パーソナライズされた検索を開始します。",
-        "search_placeholder": "例：Pythonエンジニア、ウェイター...", "scan_state": "📊 全体スキャンステータス", "direct_access": "🚀 ダイレクトアクセス", "no_results": "⚠️ 求人が見つかりませんでした。", "footer": "Powered by Streamlit, Groq & Llama 3",
+        "search_placeholder": "例：Pythonエンジニア、ウェイター...", "scan_state": "📊 全体スキャンステータス", "direct_access": "🚀 ダイレクトアクセス", "no_results": "⚠️ 求人が見つかりませんでした。", "footer": "",
         "global_search": "🌍 世界的な検索", "sort_by": "並べ替え", "sort_relevant": "関連性 (AI)", "sort_recent": "最新順", "sort_closest": "近い順",
         "top_matches": "AIが選んだおすすめの結果", "filter_active": "フィルター中:", "clear_filter": "❌ 解除",
         "select_sources": "📡 検索ソース",
@@ -102,7 +102,7 @@ STRINGS = {
         "settings": "⚙️ 设置", "num_ads": "显示数量", "contract": "合同类型", "location": "📍 城市 / 国家", "remote": "仅远程", "upload": "📂 上传简历 (PDF)",
         "analyze_success": "分析成功！", "analyze_fail": "无法从此 PDF 中提取文本。", "metier": "职业", "exp": "经验", "advice": "✨ 改进建议",
         "pistes": "💡 职业路径", "alt": "🔀 替代职业", "search_section": "🔍 机会搜索", "search_info": "修改下方标题以启动个性化搜索。",
-        "search_placeholder": "例如：Python 开发人员、服务员...", "scan_state": "📊 全球扫描状态", "direct_access": "🚀 直接访问", "no_results": "⚠️ 未找到职位。", "footer": "由 Streamlit、Groq 和 Llama 3 提供支持",
+        "search_placeholder": "例如：Python 开发人员、服务员...", "scan_state": "📊 全球扫描状态", "direct_access": "🚀 直接访问", "no_results": "⚠️ 未找到职位。", "footer": "",
         "global_search": "🌍 全球搜索", "sort_by": "排序方式", "sort_relevant": "相关性 (AI)", "sort_recent": "最新发布", "sort_closest": "距离最近",
         "top_matches": "AI 排序的最佳结果", "filter_active": "筛选依据:", "clear_filter": "❌ 清除筛选",
         "select_sources": "📡 搜索来源",
@@ -113,7 +113,9 @@ STRINGS = {
 # --- CONFIGURATION INITIALE ---
 load_dotenv(override=True)  # Force le rechargement si le fichier .env change
 api_key = os.getenv("GROQ_API_KEY", "").strip()
+ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434").strip()
 gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip()
+xai_api_key = os.getenv("XAI_API_KEY", "").strip()
 ft_client_id = os.getenv("FRANCE_TRAVAIL_CLIENT_ID", "").strip()
 ft_client_secret = os.getenv("FRANCE_TRAVAIL_CLIENT_SECRET", "").strip()
 adzuna_app_id = os.getenv("ADZUNA_APP_ID", "").strip()
@@ -133,15 +135,18 @@ if api_key:
         logger.error("❌ Format invalide : Une clé Groq doit commencer par 'gsk_'")
 
 if gemini_api_key:
-    logger.info("--- Diagnostic Gemini ---")
-    logger.info(f"Clé détectée : {gemini_api_key[:4]}...{gemini_api_key[-4:]}")
+    try:
+        genai.configure(api_key=gemini_api_key)
+        # Test rapide de la clé sans générer de token (list_models est peu coûteux)
+        genai.list_models()
+        logger.info("✅ Gemini API configurée et validée")
+    except Exception as e:
+        logger.error(f"❌ Erreur de configuration Gemini : {e}")
+        gemini_api_key = None # On invalide pour éviter les crashs
 else:
-    logger.error("❌ Aucune clé API trouvée dans .env")
+    logger.warning("⚠️ Aucune clé Gemini API trouvée dans .env")
 
 client = Groq(api_key=api_key) if api_key else None
-if gemini_api_key:
-    genai.configure(api_key=gemini_api_key)
-    logger.info("✅ Gemini API configurée")
 
 def extract_text_from_pdf(file):
     """Extrait le texte d'un fichier PDF de manière sécurisée."""
@@ -183,23 +188,99 @@ def reverse_geocoding(lat, lon):
     except:
         return None
 
-def call_ai_provider(prompt, is_json=False):
+def is_ollama_online():
+    """Vérifie si le serveur Ollama répond sur l'URL configurée."""
+    try:
+        response = requests.get(f"{ollama_url}/api/tags", timeout=2)
+        return response.status_code == 200
+    except:
+        return False
+
+def get_ollama_version():
+    """Récupère la version d'Ollama via l'API."""
+    try:
+        response = requests.get(f"{ollama_url}/api/version", timeout=2)
+        if response.status_code == 200:
+            return response.json().get("version")
+    except:
+        return None
+
+def call_local_llama(prompt, model_name, is_json=False):
+    """Appelle l'instance locale d'Ollama avec gestion d'erreur détaillée."""
+    try:
+        payload = {
+            "model": model_name,
+            "prompt": prompt,
+            "stream": False,
+            "format": "json" if is_json else ""
+        }
+        # Augmentation du timeout à 90s pour les gros modèles
+        response = requests.post(f"{ollama_url}/api/generate", json=payload, timeout=90)
+        
+        if response.status_code == 200:
+            return response.json().get("response")
+        else:
+            error_data = response.json()
+            error_msg = error_data.get("error", response.text)
+            if "unknown model architecture" in error_msg.lower() or "mllama" in error_msg.lower():
+                st.error("❌ **Erreur d'architecture (mllama)** : Ollama ne reconnaît pas ce modèle. Cela peut arriver si une ancienne version (v0.3.4) tourne encore en arrière-plan ou si le modèle est corrompu. Essayez de supprimer et ré-installer le modèle : `ollama rm llama3.2-vision` puis relancez l'analyse.")
+            else:
+                st.error(f"❌ Erreur Ollama ({response.status_code}) : {error_msg}")
+            return None
+    except Exception as e:
+        logger.error(f"Ollama Local Error: {e}")
+        return None
+
+def call_ai_provider(prompt, selected_model, is_json=False):
     """Fonction centralisée pour appeler Gemini ou Groq."""
-    selected_model = st.session_state.get('ai_engine', 'Gemini 3.5')
-    
     try:
         if "Gemini" in selected_model:
-            # Mapping technique : 3.5 -> 2.0 Flash, 2.5 -> 1.5 Flash
-            model_id = "gemini-2.0-flash-exp" if "3.5" in selected_model else "gemini-1.5-flash"
+            # Mapping : 3.5 -> 2.0 Flash (Stable), 2.5 -> 1.5 Flash
+            model_id = "models/gemini-2.0-flash" if "3.5" in selected_model else "models/gemini-1.5-flash"
+            
+            logger.info(f"Utilisation du modèle Gemini : {model_id}")
             model = genai.GenerativeModel(model_id)
             
             config = {"response_mime_type": "application/json"} if is_json else None
             response = model.generate_content(prompt, generation_config=config)
+            
+            if not response.text:
+                raise Exception("Réponse vide de Gemini (possible blocage de sécurité)")
+                
             return response.text
+        elif "(Local)" in selected_model:
+            # Mapping des noms d'affichage vers les tags Ollama
+            # Simplification du mapping local
+            model_map = {
+                "Llama 3.2 Vision (Local)": "llama3.2-vision",
+                "Llama 3.2 (Local)": "llama3.2",
+                "Qwen 3 4B (Local)": "qwen3:4b"
+            }
+            ollama_model = model_map.get(selected_model, "llama3.2")
+            return call_local_llama(prompt, ollama_model, is_json=is_json)
+        elif "Grok" in selected_model:
+            if not xai_api_key:
+                raise Exception("Clé API xAI (Grok) non configurée dans le fichier .env")
+            
+            headers = {
+                "Authorization": f"Bearer {xai_api_key}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": "grok-beta",
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False
+            }
+            if is_json:
+                payload["response_format"] = {"type": "json_object"}
+            
+            response = requests.post("https://api.x.ai/v1/chat/completions", headers=headers, json=payload, timeout=60)
+            response.raise_for_status()
+            return response.json()['choices'][0]['message']['content']
         else:
             # Groq / Llama 3.3
             if not client:
-                raise Exception("Client Groq non initialisé")
+                raise Exception("Clé Groq non configurée")
                 
             params = {
                 "messages": [{"role": "user", "content": prompt}],
@@ -211,14 +292,33 @@ def call_ai_provider(prompt, is_json=False):
             response = client.chat.completions.create(**params)
             return response.choices[0].message.content
     except Exception as e:
-        logger.error(f"Erreur AI Provider ({selected_model}): {e}")
+        err_msg = str(e)
+        if "Gemini" in selected_model:
+            if "API_KEY_INVALID" in err_msg or "403" in err_msg:
+                st.error(f"🔑 **Erreur {selected_model}** : Votre clé API est invalide ou restreinte.")
+            elif "quota" in err_msg.lower() or "429" in err_msg:
+                st.error(f"⏳ **Erreur {selected_model}** : Quota dépassé (Rate Limit). Réessayez dans une minute.")
+            elif "safety" in err_msg.lower():
+                st.error(f"🛡️ **Erreur {selected_model}** : Le contenu a été bloqué par les filtres de sécurité.")
+            elif "not found" in err_msg.lower() or "404" in err_msg:
+                st.error(f"❌ **Erreur {selected_model}** : Modèle non trouvé. Essayez de mettre à jour la bibliothèque ou vérifiez vos quotas sur Google AI Studio.")
+            else:
+                st.error(f"❌ **Erreur {selected_model}** : {err_msg}")
+        else:
+            if "401" in err_msg:
+                st.error("🔑 **Erreur Groq** : Clé API invalide.")
+            else:
+                st.error(f"❌ **Erreur Groq** : {err_msg}")
+        
+        logger.error(f"Détails Erreur {selected_model}: {e}")
         raise e
 
 def rank_jobs_with_ai(cv_data, jobs, filters, target_lang="français"):
     """Utilise l'IA pour classer les offres par pertinence par rapport au CV et aux filtres."""
     if not jobs or not cv_data:
         return jobs
-    
+
+    selected_model = st.session_state.get('ranking_engine', 'Gemini 3.5')
     # On limite le tri aux 20 premières offres pour la rapidité
     limit_tri = 20
     jobs_to_rank = jobs[:limit_tri]
@@ -237,7 +337,7 @@ def rank_jobs_with_ai(cv_data, jobs, filters, target_lang="français"):
     """
     
     try:
-        response_text = call_ai_provider(prompt, is_json=True)
+        response_text = call_ai_provider(prompt, selected_model, is_json=True)
         ranking_data = json.loads(response_text).get("ranking", [])
         
         ranked_list = []
@@ -318,6 +418,11 @@ def get_geolocation():
 def clean_job_title(title):
     """Nettoie le titre du poste pour optimiser la recherche (le dénominateur optimisé)."""
     if not title: return ""
+    
+    # Gestion sécurisée si l'IA renvoie une liste au lieu d'une chaîne
+    if isinstance(title, list):
+        title = " ".join(map(str, title))
+        
     clean = title.lower()
     # Suppression des mentions H/F, F/H, etc., de manière robuste avec regex
     # Ajout de flags pour ignorer la casse et gestion des espaces multiples
@@ -328,6 +433,7 @@ def clean_job_title(title):
 
 def analyze_cv(text, target_lang="français"):
     """Envoie le texte à Groq et parse la réponse JSON."""
+    selected_model = st.session_state.get('analysis_engine', 'Llama Vision (Local)')
     prompt = f"""
     Tu es un expert en recrutement. Analyse ce CV et retourne uniquement un objet JSON en {target_lang} avec les clés suivantes :
     "nom_complet", "contact", "metier", "mots_cles" (liste de chaînes), "resume" (maximum 3 lignes), "annees_experience" (nombre entier), "recommandations_metiers" (liste de 5 métiers suggérés), "metiers_alternatifs" (liste de 3 métiers radicalement différents utilisant les mêmes compétences transférables), "suggestions_amelioration" (liste de 3 à 5 conseils concrets pour améliorer l'impact de ce CV).
@@ -342,22 +448,19 @@ def analyze_cv(text, target_lang="français"):
     """
     
     try:
-        response_text = call_ai_provider(prompt, is_json=True)
+        response_text = call_ai_provider(prompt, selected_model, is_json=True)
         return json.loads(response_text)
     except json.JSONDecodeError as je:
-        st.error(f"L'IA n'a pas renvoyé un JSON valide : {je}")
+        logger.error(f"JSONDecodeError: {je}")
         return None
-    except Exception as e:
-        if "401" in str(e):
-            st.error("🔑 **Erreur d'authentification** : Votre clé `GROQ_API_KEY` est invalide. Vérifiez qu'elle est correcte dans votre fichier `.env` et qu'il s'agit bien d'une clé Groq (et non Gemini).")
-        else:
-            st.error(f"❌ **Erreur API Groq** : {str(e)}")
+    except Exception:
         return None
 
 def generate_cover_letter(cv_data, job_title, company, job_description="", target_lang="français"):
     """Génère une lettre de motivation personnalisée via Groq."""
     if not cv_data:
         return None
+    selected_model = st.session_state.get('ranking_engine', 'Gemini 3.5')
 
     prompt = f"""
     Tu es un expert en recrutement. Rédige une lettre de motivation percutante, professionnelle et personnalisée en {target_lang}.
@@ -380,12 +483,8 @@ def generate_cover_letter(cv_data, job_title, company, job_description="", targe
     """
     
     try:
-        return call_ai_provider(prompt, is_json=False)
-    except Exception as e:
-        if "401" in str(e):
-            st.error("🔑 **Erreur d'authentification** : Clé API Groq invalide lors de la génération de la lettre.")
-        else:
-            st.error(f"❌ **Erreur lors de la génération de la lettre** : {e}")
+        return call_ai_provider(prompt, selected_model, is_json=False)
+    except Exception:
         return None
 
 def generate_job_search_links(job_title, lang_code="fr"):
@@ -853,8 +952,37 @@ with st.sidebar:
 
     st.header(S['settings'])
 
-    # --- SÉLECTION DE L'IA (Utilisation de key pour la persistence automatique) ---
-    st.selectbox("🤖 Intelligence Artificielle", ["Gemini 3.5", "Gemini 2.5", "Groq (Llama 3.3)"], index=0, key='ai_engine')
+    # --- DOUBLE SÉLECTION DE L'IA ---
+    st.subheader("🤖 Configuration IA")
+    
+    # Indicateur de statut Ollama
+    if is_ollama_online():
+        ver = get_ollama_version()
+        if ver:
+            st.success(f"🟢 Ollama est en ligne (v{ver})", icon="✅")
+            # Vérification de compatibilité pour Llama 3.2 Vision (nécessite 0.3.10+)
+            try:
+                v_parts = [int(p) for p in ver.split('.')]
+                if v_parts[0] == 0 and (v_parts[1] < 3 or (v_parts[1] == 3 and v_parts[2] < 10)):
+                    st.warning(f"⚠️ v{ver} détectée : Llama 3.2 **Vision** nécessite la v0.3.10+. Utilisez la version texte ou mettez à jour Ollama.")
+            except:
+                pass
+        else:
+            st.success("🟢 Ollama est en ligne", icon="✅")
+    else:
+        st.error("🔴 Ollama est hors ligne", icon="⚠️")
+        st.caption("Lancez Ollama sur votre machine pour utiliser les modèles (Local).")
+
+    # --- SÉLECTION DES MOTEURS IA ---
+    st.selectbox("🔬 Analyse du CV", 
+                 ["Llama 3.2 (Local)", "Llama 3.2 Vision (Local)", "Grok", "Gemini 3.5", "Gemini 2.5"], 
+                 index=0, key='analysis_engine',
+                 help="Llama 3.2 (Local) est compatible avec les anciennes versions d'Ollama.")
+    
+    st.selectbox("⚖️ Tri & Rédaction", 
+                 ["Gemini 3.5", "Gemini 2.5", "Grok", "Llama 3.2 (Local)", "Qwen 3 4B (Local)"], 
+                 index=0, key='ranking_engine',
+                 help="Choisissez le moteur pour le classement des offres et les lettres.")
 
     # --- Rendu des Filtres ---
     num_ads = st.slider(S['num_ads'], min_value=1, max_value=50, value=10)
@@ -1212,5 +1340,3 @@ if st.session_state['offres'] is not None:
     )
     if all_empty:
         st.warning(S['no_results'])
-
-st.caption(S['footer'])
