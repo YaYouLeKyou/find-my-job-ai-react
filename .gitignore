@@ -1,10 +1,7 @@
-# Environments
+# Environnement et clés
 .env
-.venv
-env/
-venv/
 
 # Python
 __pycache__/
 *.py[cod]
-*.pdf
+.virtualenv/

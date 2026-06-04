@@ -11,8 +11,11 @@ An intelligent job search assistant that analyzes your CV, suggests career paths
    ```
 3. Create a `.env` file with your API keys:
    - `GROQ_API_KEY`
-   - `FRANCE_TRAVAIL_CLIENT_ID` (Optional)
-   - `FRANCE_TRAVAIL_CLIENT_SECRET` (Optional)
+   - `GEMINI_API_KEY`
+4. Run the application:
+   ```bash
+   python -m streamlit run main.py
+   ```
 
 ## 🌍 Deployment (Streamlit Cloud)
 
@@ -21,8 +24,8 @@ An intelligent job search assistant that analyzes your CV, suggests career paths
    git init
    git add .
    git commit -m "Initial commit"
-   git remote add origin git@github.com:YaYouLeKyou/FindMyJobAI.git
-   git pull origin main --allow-unrelated-histories
+   git branch -M main
+   git remote add origin https://github.com/YaYouLeKyou/FindMyJobAI.git
    git push -u origin main
    ```
 2. Go to share.streamlit.io.

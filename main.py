@@ -1,5 +1,6 @@
 import streamlit as st
 from groq import Groq
+import google.generativeai as genai
 import PyPDF2
 import json
 import os
@@ -112,6 +113,7 @@ STRINGS = {
 # --- CONFIGURATION INITIALE ---
 load_dotenv(override=True)  # Force le rechargement si le fichier .env change
 api_key = os.getenv("GROQ_API_KEY", "").strip()
+gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip()
 ft_client_id = os.getenv("FRANCE_TRAVAIL_CLIENT_ID", "").strip()
 ft_client_secret = os.getenv("FRANCE_TRAVAIL_CLIENT_SECRET", "").strip()
 adzuna_app_id = os.getenv("ADZUNA_APP_ID", "").strip()
@@ -129,11 +131,17 @@ if api_key:
     logger.info(f"Clé détectée : {api_key[:4]}...{api_key[-4:]}")
     if not api_key.startswith("gsk_"):
         logger.error("❌ Format invalide : Une clé Groq doit commencer par 'gsk_'")
+
+if gemini_api_key:
+    logger.info("--- Diagnostic Gemini ---")
+    logger.info(f"Clé détectée : {gemini_api_key[:4]}...{gemini_api_key[-4:]}")
 else:
-    logger.warning("--- Diagnostic Groq ---")
-    logger.error("❌ Aucune clé Groq détectée dans .env")
+    logger.error("❌ Aucune clé API trouvée dans .env")
 
 client = Groq(api_key=api_key) if api_key else None
+if gemini_api_key:
+    genai.configure(api_key=gemini_api_key)
+    logger.info("✅ Gemini API configurée")
 
 def extract_text_from_pdf(file):
     """Extrait le texte d'un fichier PDF de manière sécurisée."""
@@ -175,9 +183,40 @@ def reverse_geocoding(lat, lon):
     except:
         return None
 
+def call_ai_provider(prompt, is_json=False):
+    """Fonction centralisée pour appeler Gemini ou Groq."""
+    selected_model = st.session_state.get('ai_engine', 'Gemini 3.5')
+    
+    try:
+        if "Gemini" in selected_model:
+            # Mapping technique : 3.5 -> 2.0 Flash, 2.5 -> 1.5 Flash
+            model_id = "gemini-2.0-flash-exp" if "3.5" in selected_model else "gemini-1.5-flash"
+            model = genai.GenerativeModel(model_id)
+            
+            config = {"response_mime_type": "application/json"} if is_json else None
+            response = model.generate_content(prompt, generation_config=config)
+            return response.text
+        else:
+            # Groq / Llama 3.3
+            if not client:
+                raise Exception("Client Groq non initialisé")
+                
+            params = {
+                "messages": [{"role": "user", "content": prompt}],
+                "model": "llama-3.3-70b-versatile",
+            }
+            if is_json:
+                params["response_format"] = {"type": "json_object"}
+                
+            response = client.chat.completions.create(**params)
+            return response.choices[0].message.content
+    except Exception as e:
+        logger.error(f"Erreur AI Provider ({selected_model}): {e}")
+        raise e
+
 def rank_jobs_with_ai(cv_data, jobs, filters, target_lang="français"):
     """Utilise l'IA pour classer les offres par pertinence par rapport au CV et aux filtres."""
-    if not client or not jobs or not cv_data:
+    if not jobs or not cv_data:
         return jobs
     
     # On limite le tri aux 20 premières offres pour la rapidité
@@ -198,12 +237,8 @@ def rank_jobs_with_ai(cv_data, jobs, filters, target_lang="français"):
     """
     
     try:
-        response = client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="llama-3.3-70b-versatile",
-            response_format={"type": "json_object"}
-        )
-        ranking_data = json.loads(response.choices[0].message.content).get("ranking", [])
+        response_text = call_ai_provider(prompt, is_json=True)
+        ranking_data = json.loads(response_text).get("ranking", [])
         
         ranked_list = []
         ranked_indices = []
@@ -293,9 +328,6 @@ def clean_job_title(title):
 
 def analyze_cv(text, target_lang="français"):
     """Envoie le texte à Groq et parse la réponse JSON."""
-    if not client:
-        return None
-    
     prompt = f"""
     Tu es un expert en recrutement. Analyse ce CV et retourne uniquement un objet JSON en {target_lang} avec les clés suivantes :
     "nom_complet", "contact", "metier", "mots_cles" (liste de chaînes), "resume" (maximum 3 lignes), "annees_experience" (nombre entier), "recommandations_metiers" (liste de 5 métiers suggérés), "metiers_alternatifs" (liste de 3 métiers radicalement différents utilisant les mêmes compétences transférables), "suggestions_amelioration" (liste de 3 à 5 conseils concrets pour améliorer l'impact de ce CV).
@@ -310,17 +342,8 @@ def analyze_cv(text, target_lang="français"):
     """
     
     try:
-        chat_completion = client.chat.completions.create(
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            model="llama-3.3-70b-versatile",
-            response_format={"type": "json_object"},
-        )
-        return json.loads(chat_completion.choices[0].message.content)
+        response_text = call_ai_provider(prompt, is_json=True)
+        return json.loads(response_text)
     except json.JSONDecodeError as je:
         st.error(f"L'IA n'a pas renvoyé un JSON valide : {je}")
         return None
@@ -333,7 +356,7 @@ def analyze_cv(text, target_lang="français"):
 
 def generate_cover_letter(cv_data, job_title, company, job_description="", target_lang="français"):
     """Génère une lettre de motivation personnalisée via Groq."""
-    if not client or not cv_data:
+    if not cv_data:
         return None
 
     prompt = f"""
@@ -357,11 +380,7 @@ def generate_cover_letter(cv_data, job_title, company, job_description="", targe
     """
     
     try:
-        completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="llama-3.3-70b-versatile",
-        )
-        return completion.choices[0].message.content
+        return call_ai_provider(prompt, is_json=False)
     except Exception as e:
         if "401" in str(e):
             st.error("🔑 **Erreur d'authentification** : Clé API Groq invalide lors de la génération de la lettre.")
@@ -833,6 +852,9 @@ with st.sidebar:
         logger.info(f"📍 Localisation initiale définie : {st.session_state['user_location']}")
 
     st.header(S['settings'])
+
+    # --- SÉLECTION DE L'IA (Utilisation de key pour la persistence automatique) ---
+    st.selectbox("🤖 Intelligence Artificielle", ["Gemini 3.5", "Gemini 2.5", "Groq (Llama 3.3)"], index=0, key='ai_engine')
 
     # --- Rendu des Filtres ---
     num_ads = st.slider(S['num_ads'], min_value=1, max_value=50, value=10)
