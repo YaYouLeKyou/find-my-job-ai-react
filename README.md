@@ -252,7 +252,7 @@ Distribué sous la licence MIT. Voir `LICENSE` pour plus d'informations.
 
 ## 👨‍💻 Auteur
 
-**Yanès HADIOUCHE** - *Développeur Full Stack*
+**Yanès Hadiouche** - *Développeur Full Stack*
 
 ---
 
