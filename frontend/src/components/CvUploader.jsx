@@ -53,16 +53,23 @@ export default function CvUploader({
       });
 
       const contentType = response.headers.get("content-type");
+      const responseText = await response.text();
+      
+      console.log("Response status:", response.status);
+      console.log("Response content-type:", contentType);
+      console.log("Response text (first 200 chars):", responseText.substring(0, 200));
       
       if (!response.ok) {
-        let errorMessage = "Une erreur est survenue lors de l'analyse.";
+        let errorMessage = `Erreur HTTP ${response.status}`;
         if (contentType && contentType.includes("application/json")) {
           try {
-            const errorData = await response.json();
+            const errorData = JSON.parse(responseText);
             errorMessage = errorData.detail || errorMessage;
           } catch (e) {
             console.error("Erreur lors du parsing de la réponse d'erreur:", e);
           }
+        } else if (responseText.includes("<!doctype") || responseText.includes("<html")) {
+          errorMessage = "Le backend n'est pas accessible. Vérifiez que le serveur est démarré sur " + API_BASE;
         }
         throw new Error(errorMessage);
       }
@@ -71,10 +78,10 @@ export default function CvUploader({
         throw new Error("Le serveur a retourné une réponse invalide. Vérifiez que le backend est bien configuré.");
       }
 
-      const data = await response.json();
+      const data = JSON.parse(responseText);
       onAnalysisSuccess(data);
     } catch (err) {
-      console.error(err);
+      console.error("Erreur lors de l'upload:", err);
       setError(err.message);
     } finally {
       setLoading(false);

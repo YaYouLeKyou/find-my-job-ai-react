@@ -530,28 +530,51 @@ async def api_analyze_cv(
     lang_label: str = Form("français")
 ):
     try:
-        if not file.filename.endswith('.pdf'):
+        logger.info(f"Received CV upload request: filename={file.filename}, content_type={file.content_type}, model={selected_model}")
+        
+        # Check file extension (more permissive)
+        if not file.filename.lower().endswith('.pdf'):
+            logger.warning(f"Rejected file: not a PDF (filename={file.filename})")
             raise HTTPException(status_code=400, detail="Only PDF files are supported.")
         
         # Read PDF text
         try:
             contents = await file.read()
+            logger.info(f"Read {len(contents)} bytes from PDF")
+            
+            if len(contents) == 0:
+                raise HTTPException(status_code=400, detail="Le fichier PDF est vide.")
+            
             import io
             pdf_file = io.BytesIO(contents)
             text = extract_text_from_pdf(pdf_file)
+        except HTTPException:
+            raise
         except Exception as e:
-            logger.error(f"Error reading PDF: {e}")
+            logger.error(f"Error reading PDF: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to read PDF file: {str(e)}")
 
         if not text or len(text) <= 50:
+            logger.warning(f"Insufficient text extracted from PDF (length={len(text) if text else 0})")
             raise HTTPException(status_code=400, detail="Could not extract sufficient text from PDF. Please ensure your PDF contains readable text.")
 
+        logger.info(f"Extracted {len(text)} characters from PDF, calling AI analysis...")
+        
         # Call AI CV analysis
-        data = analyze_cv(text, target_lang=lang_label, selected_model=selected_model, custom_gemini_key=custom_gemini_key)
-        if not data:
-            raise HTTPException(status_code=500, detail="CV Analysis failed. Please check AI key or model availability.")
+        try:
+            data = analyze_cv(text, target_lang=lang_label, selected_model=selected_model, custom_gemini_key=custom_gemini_key)
+            if not data:
+                logger.error("CV analysis returned None")
+                raise HTTPException(status_code=500, detail="CV Analysis failed. Please check AI key or model availability.")
             
-        return data
+            logger.info(f"CV analysis successful: metier={data.get('metier')}")
+            return data
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"AI analysis error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
+            
     except HTTPException:
         raise
     except Exception as e:
