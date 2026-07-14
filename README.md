@@ -252,7 +252,7 @@ Distribué sous la licence MIT. Voir `LICENSE` pour plus d'informations.
 
 ## 👨‍💻 Auteur
 
-**Ounaïssa BENKASSEM** - *Développeur Full Stack*
+**Yanès HADIOUCHE** - *Développeur Full Stack*
 
 ---
 
@@ -260,7 +260,7 @@ Distribué sous la licence MIT. Voir `LICENSE` pour plus d'informations.
 
 - **GitHub**: [@YaYouLeKyou](https://github.com/YaYouLeKyou)
 - **Repository**: [find-my-job-ai-react](https://github.com/YaYouLeKyou/find-my-job-ai-react)
-- **Email**: ounaissa.benkassem@gmail.com
+- **Email**: yanes75@hotmail.fr
 
 ---
 
