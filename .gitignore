@@ -5,3 +5,4 @@ __pycache__/
 .streamlit/config.toml
 *.py[cod]
 virtualenv/
+frontend/.env

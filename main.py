@@ -10,23 +10,12 @@ import requests
 from bs4 import BeautifulSoup
 from jobspy import scrape_jobs
 import pandas as pd
-import time
 import re
 import concurrent.futures
 import logging
 
-# Force OAUTHLIB to allow insecure transport for local development (http)
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
-
 # Configuration de la page Streamlit (Doit être la TOUTE PREMIÈRE commande)
 st.set_page_config(page_title="Find me a job AI", page_icon="🚀", layout="wide")
-
-# Tentative d'import pour l'authentification Google
-try:
-    from streamlit_google_auth import Authenticate
-    HAS_GOOGLE_AUTH = True
-except ImportError:
-    HAS_GOOGLE_AUTH = False
 
 # --- LOGGING CONFIGURATION ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -123,7 +112,7 @@ STRINGS = {
 }
 
 # --- CONFIGURATION INITIALE ---
-load_dotenv(override=True)  # Force le rechargement si le fichier .env change
+load_dotenv(override=True)
 api_key = os.getenv("GROQ_API_KEY", "").strip()
 ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434").strip()
 gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip()
@@ -135,15 +124,6 @@ adzuna_app_key = os.getenv("ADZUNA_APP_KEY", "").strip()
 serpapi_key = os.getenv("SERPAPI_KEY", "").strip()
 jooble_api_key = os.getenv("JOOBLE_API_KEY", "").strip()
 apify_api_key = os.getenv("APIFY_API_KEY", "").strip()
-
-# Configuration Google OAuth
-# Utilisation de st.secrets comme fallback pour le déploiement Streamlit Cloud
-try:
-    google_client_id = os.getenv("GOOGLE_CLIENT_ID") or st.secrets.get("GOOGLE_CLIENT_ID", "")
-    google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET") or st.secrets.get("GOOGLE_CLIENT_SECRET", "")
-except Exception:
-    google_client_id = os.getenv("GOOGLE_CLIENT_ID", "")
-    google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
 # Diagnostic de la clé Groq (Console)
 if api_key:
@@ -903,54 +883,6 @@ def display_api_jobs(job_list, source_name):
 
 # --- SIDEBAR CONFIGURATION (Language first) ---
 with st.sidebar:
-    # --- GESTION DE L'AUTHENTIFICATION GOOGLE ---
-    if HAS_GOOGLE_AUTH:
-        if not (google_client_id and google_client_secret):
-            st.sidebar.warning("🔑 Google OAuth : Variables client_id ou secret manquantes dans les paramètres de déploiement.")
-        else:
-            # Détecter dynamiquement l'URL pour la redirection (Local vs Prod)
-            # Vous pouvez définir GOOGLE_REDIRECT_URI dans vos secrets en prod (ex: https://votre-app.streamlit.app)
-            redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8501")
-            
-            google_secrets = {
-                "web": {
-                    "client_id": google_client_id,
-                    "client_secret": google_client_secret,
-                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                    "token_uri": "https://oauth2.googleapis.com/token",
-                    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                    "redirect_uris": [redirect_uri]
-                }
-            }
-            with open("client_secrets.json", "w") as f:
-                json.dump(google_secrets, f)
-
-            authenticator = Authenticate(
-                secret_credentials_path="client_secrets.json",
-                cookie_name="google_auth_session",
-                cookie_key="super_secret_cookie_key",
-                redirect_uri=redirect_uri
-            )
-            
-            authenticator.check_authentification()
-            
-            if st.session_state.get('connected', False):
-                user_info = st.session_state.get('user_info', {})
-                col_img, col_txt = st.columns([1, 3])
-                if user_info.get('picture'):
-                    col_img.image(user_info['picture'], width=45)
-                col_txt.write(f"Bonjour, {user_info.get('name', 'Utilisateur')}")
-                
-                if st.button("Se déconnecter", use_container_width=True):
-                    authenticator.logout()
-                    st.rerun()
-            else:
-                st.info("Connectez-vous pour sauvegarder votre profil.")
-                authenticator.login()
-    else:
-        st.sidebar.error("📦 Bibliothèque 'streamlit-google-auth' manquante. Vérifiez votre requirements.txt.")
-        
-        st.divider()
 
     lang_choice = st.selectbox("🌐 Langue / Language", list(LANGS.keys()), index=0)
     lang_data = LANGS[lang_choice]
@@ -1000,15 +932,11 @@ with st.sidebar:
                  index=2, key='ranking_engine',
                  help="Choisissez le moteur pour le classement des offres et les lettres.")
 
-    is_logged_in = st.session_state.get('connected', False)
     st.text_input("🔑 Clé API Gemini personnelle", 
                   type="password", 
                   key="custom_gemini_key",
-                  help="Utilisez votre propre clé de Google AI Studio pour éviter les limites de quota partagées." + 
-                       (" (Mémorisée pour votre session Google)" if is_logged_in else ""))
+                  help="Utilisez votre propre clé de Google AI Studio pour éviter les limites de quota partagées.")
     
-    if is_logged_in:
-        st.caption("✅ Votre clé est sauvegardée pour cette session Google.")
     st.caption("ℹ️ [Obtenir une clé API gratuite ici](https://aistudio.google.com/app/apikey)")
 
 # --- MAIN UI ---
