@@ -252,7 +252,7 @@ Distribué sous la licence MIT. Voir `LICENSE` pour plus d'informations.
 
 ## 👨‍💻 Auteur
 
-**Ounaïssa BENKASSEM** - *Développeur Full Stack*
+**Yanès HADIOUCHE** - *Développeur Full Stack*
 
 ---
 
