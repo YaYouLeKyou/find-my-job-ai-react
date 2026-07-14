@@ -8,4 +8,7 @@ python-jobspy
 pandas
 google-generativeai
 lxml
-streamlit-google-auth
+fastapi
+uvicorn
+python-multipart
+aiofiles
