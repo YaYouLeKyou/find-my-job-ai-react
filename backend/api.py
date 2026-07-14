@@ -529,27 +529,34 @@ async def api_analyze_cv(
     custom_gemini_key: Optional[str] = Form(None),
     lang_label: str = Form("français")
 ):
-    if not file.filename.endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
-    
-    # Read PDF text
     try:
-        contents = await file.read()
-        import io
-        pdf_file = io.BytesIO(contents)
-        text = extract_text_from_pdf(pdf_file)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read PDF file: {str(e)}")
-
-    if not text or len(text) <= 50:
-        raise HTTPException(status_code=400, detail="Could not extract sufficient text from PDF.")
-
-    # Call AI CV analysis
-    data = analyze_cv(text, target_lang=lang_label, selected_model=selected_model, custom_gemini_key=custom_gemini_key)
-    if not data:
-        raise HTTPException(status_code=500, detail="CV Analysis failed. Please check AI key or model availability.")
+        if not file.filename.endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="Only PDF files are supported.")
         
-    return data
+        # Read PDF text
+        try:
+            contents = await file.read()
+            import io
+            pdf_file = io.BytesIO(contents)
+            text = extract_text_from_pdf(pdf_file)
+        except Exception as e:
+            logger.error(f"Error reading PDF: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to read PDF file: {str(e)}")
+
+        if not text or len(text) <= 50:
+            raise HTTPException(status_code=400, detail="Could not extract sufficient text from PDF. Please ensure your PDF contains readable text.")
+
+        # Call AI CV analysis
+        data = analyze_cv(text, target_lang=lang_label, selected_model=selected_model, custom_gemini_key=custom_gemini_key)
+        if not data:
+            raise HTTPException(status_code=500, detail="CV Analysis failed. Please check AI key or model availability.")
+            
+        return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in api_analyze_cv: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.post("/api/search-jobs")
 def api_search_jobs(req: JobSearchRequest):

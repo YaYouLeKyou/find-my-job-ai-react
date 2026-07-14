@@ -52,9 +52,23 @@ export default function CvUploader({
         body: formData,
       });
 
+      const contentType = response.headers.get("content-type");
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || "Une erreur est survenue lors de l'analyse.");
+        let errorMessage = "Une erreur est survenue lors de l'analyse.";
+        if (contentType && contentType.includes("application/json")) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.detail || errorMessage;
+          } catch (e) {
+            console.error("Erreur lors du parsing de la réponse d'erreur:", e);
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Le serveur a retourné une réponse invalide. Vérifiez que le backend est bien configuré.");
       }
 
       const data = await response.json();
