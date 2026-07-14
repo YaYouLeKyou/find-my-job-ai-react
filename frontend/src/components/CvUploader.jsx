@@ -71,6 +71,12 @@ export default function CvUploader({
         } else if (responseText.includes("<!doctype") || responseText.includes("<html")) {
           errorMessage = "Le backend n'est pas accessible. Vérifiez que le serveur est démarré sur " + API_BASE;
         }
+        
+        // Add more context for 400 errors
+        if (response.status === 400) {
+          errorMessage += "\n\nCauses possibles :\n- Le fichier n'est pas un PDF\n- Le fichier est vide\n- Le PDF ne contient pas de texte extractible\n- Le texte extrait est trop court (< 50 caractères)";
+        }
+        
         throw new Error(errorMessage);
       }
 
