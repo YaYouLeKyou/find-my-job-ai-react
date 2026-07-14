@@ -69,7 +69,7 @@ flyctl deploy
 3. **Configurez le build**
    - **Base directory**: `frontend`
    - **Build command**: `npm run build`
-   - **Publish directory**: `frontend/dist`
+   - **Publish directory**: `dist`
    - **Node version**: `20`
 
 4. **Ajoutez les variables d'environnement**
@@ -106,23 +106,16 @@ netlify deploy
 
 ## 🔧 Configuration du fichier `netlify.toml`
 
-Le fichier `frontend/netlify.toml` est déjà configuré. Modifiez-le avec votre URL de backend :
+Le fichier `netlify.toml` à la racine est déjà configuré pour construire le frontend :
 
 ```toml
 [build]
   base = "frontend"
-  publish = "frontend/dist"
   command = "npm run build"
+  publish = "dist"
 
 [build.environment]
   NODE_VERSION = "20"
-
-# Redirection API vers votre backend
-[[redirects]]
-  from = "/api/*"
-  to = "https://votre-backend-url.com/api/:splat"
-  status = 200
-  force = true
 
 # SPA fallback pour React Router
 [[redirects]]
@@ -131,7 +124,7 @@ Le fichier `frontend/netlify.toml` est déjà configuré. Modifiez-le avec votre
   status = 200
 ```
 
-**Important** : Remplacez `https://votre-backend-url.com` par l'URL réelle de votre backend.
+**Important** : définissez `VITE_API_URL` dans les variables d'environnement Netlify avec l'URL réelle de votre backend Railway. Le frontend utilise directement cette variable pour les appels API.
 
 ---
 
