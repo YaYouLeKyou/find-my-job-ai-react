@@ -37,6 +37,19 @@ serpapi_key = os.getenv("SERPAPI_KEY", "").strip()
 jooble_api_key = os.getenv("JOOBLE_API_KEY", "").strip()
 apify_api_key = os.getenv("APIFY_API_KEY", "").strip()
 
+# --- STARTUP DIAGNOSTIC ---
+logger.info("=" * 60)
+logger.info("FindMyJobAI Backend Startup Diagnostic")
+logger.info("=" * 60)
+logger.info(f"GROQ_API_KEY configured: {bool(api_key)}")
+if api_key:
+    logger.info(f"GROQ_API_KEY format valid (gsk_...): {api_key.startswith('gsk_')}")
+    logger.info(f"GROQ_API_KEY preview: {api_key[:4]}...{api_key[-4:]}")
+logger.info(f"GEMINI_API_KEY configured: {bool(gemini_api_key)}")
+logger.info(f"Default model for CV analysis: Groq / Llama 3.3")
+logger.info(f"If GROQ_API_KEY is missing, users must switch to Gemini 3.5 in the UI")
+logger.info("=" * 60)
+
 app = FastAPI(title="FindMyJobAI API", description="Backend API for React Prototype")
 
 # CORS middleware to allow connection from React (usually on port 5173 or 3000)
@@ -522,6 +535,23 @@ def health_check():
         "ollama_online": is_ollama_online()
     }
 
+@app.get("/api/diagnostic")
+def diagnostic():
+    """Diagnostic endpoint to check API key configuration."""
+    return {
+        "groq_key_configured": bool(api_key and api_key.startswith("gsk_")),
+        "gemini_key_configured": bool(gemini_api_key),
+        "xai_key_configured": bool(xai_api_key),
+        "ollama_configured": bool(ollama_url),
+        "france_travail_configured": bool(ft_client_id and ft_client_secret),
+        "adzuna_configured": bool(adzuna_app_id and adzuna_app_key),
+        "serpapi_configured": bool(serpapi_key),
+        "jooble_configured": bool(jooble_api_key),
+        "apify_configured": bool(apify_api_key),
+        "default_model": "Groq / Llama 3.3",
+        "recommendation": "Configure GROQ_API_KEY in Railway environment variables, or switch to Gemini with a custom key in the UI."
+    }
+
 @app.post("/api/analyze-cv")
 async def api_analyze_cv(
     file: UploadFile = File(...),
@@ -560,20 +590,77 @@ async def api_analyze_cv(
 
         logger.info(f"Extracted {len(text)} characters from PDF, calling AI analysis...")
         
-        # Call AI CV analysis
-        try:
-            data = analyze_cv(text, target_lang=lang_label, selected_model=selected_model, custom_gemini_key=custom_gemini_key)
-            if not data:
-                logger.error("CV analysis returned None")
-                raise HTTPException(status_code=500, detail="CV Analysis failed. Please check AI key or model availability.")
-            
+        # Call AI CV analysis with automatic fallback
+        active_gemini_key = (custom_gemini_key or gemini_api_key or "").strip()
+        fallback_used = None
+        
+        # Try the selected model first, then fallback
+        models_to_try = []
+        
+        if "(Local/dev)" in selected_model:
+            models_to_try.append(("local", selected_model))
+            # Fallback: try Gemini if user provided a key
+            if active_gemini_key:
+                models_to_try.append(("gemini", "Gemini 3.5"))
+            # Final fallback: try Groq if key exists
+            if api_key and api_key.startswith("gsk_"):
+                models_to_try.append(("groq", "Groq / Llama 3.3"))
+        elif "Grok" in selected_model:
+            if xai_api_key:
+                models_to_try.append(("grok", selected_model))
+            if active_gemini_key:
+                models_to_try.append(("gemini", "Gemini 3.5"))
+            if api_key and api_key.startswith("gsk_"):
+                models_to_try.append(("groq", "Groq / Llama 3.3"))
+        elif "Gemini" in selected_model:
+            if active_gemini_key:
+                models_to_try.append(("gemini", selected_model))
+            if api_key and api_key.startswith("gsk_"):
+                models_to_try.append(("groq", "Groq / Llama 3.3"))
+        else:  # Groq / Llama 3.3 (default)
+            if api_key and api_key.startswith("gsk_"):
+                models_to_try.append(("groq", selected_model))
+            if active_gemini_key:
+                models_to_try.append(("gemini", "Gemini 3.5"))
+
+        if not models_to_try:
+            missing_keys = []
+            if not active_gemini_key:
+                missing_keys.append("- Clé Gemini (ajoutez votre clé personnelle dans le panneau latéral)")
+            if not api_key:
+                missing_keys.append("- Clé Groq (GROQ_API_KEY manquante sur le serveur)")
+            error_msg = "Aucune clé API disponible pour l'analyse.\n" + "\n".join(missing_keys)
+            raise HTTPException(status_code=500, detail=error_msg)
+
+        data = None
+        last_error = ""
+        for provider, model in models_to_try:
+            try:
+                logger.info(f"Trying CV analysis with {provider} ({model})")
+                data = analyze_cv(text, target_lang=lang_label, selected_model=model, custom_gemini_key=custom_gemini_key)
+                if data:
+                    if model != selected_model:
+                        fallback_used = model
+                    break
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"Fallback {model} failed: {e}")
+                continue
+
+        if not data:
+            logger.error("All CV analysis attempts failed")
+            raise HTTPException(
+                status_code=500,
+                detail=f"L'analyse CV a échoué avec tous les modèles disponibles. Dernière erreur: {last_error}"
+            )
+
+        if fallback_used:
+            data["_fallback"] = fallback_used
+            logger.info(f"CV analysis succeeded with fallback model: {fallback_used}")
+        else:
             logger.info(f"CV analysis successful: metier={data.get('metier')}")
-            return data
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"AI analysis error: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
+            
+        return data
             
     except HTTPException:
         raise
