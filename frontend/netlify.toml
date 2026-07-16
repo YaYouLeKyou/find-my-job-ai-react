@@ -6,10 +6,10 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# Redirection API vers le backend
+# Redirection API vers le backend Railway
 [[redirects]]
   from = "/api/*"
-  to = "https://votre-backend-url.com/api/:splat"
+  to = "https://find-my-job-ai-react-findmyjobai.up.railway.app/api/:splat"
   status = 200
   force = true
 
