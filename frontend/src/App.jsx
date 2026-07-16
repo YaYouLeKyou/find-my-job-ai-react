@@ -5,7 +5,7 @@ import CvProfile from './components/CvProfile';
 import JobFilters from './components/JobFilters';
 import JobCard from './components/JobCard';
 import { LANGS, STRINGS } from './utils/translations';
-import { Search, Loader2, RefreshCw } from 'lucide-react';
+import { Search, Loader2, RefreshCw, Key, ExternalLink, X } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
@@ -28,6 +28,8 @@ export default function App() {
   ]);
   const [excludedSources, setExcludedSources] = useState([]);
   
+  const [dismissKeyPrompt, setDismissKeyPrompt] = useState(false);
+
   // Results & UI states
   const [jobs, setJobs] = useState([]);
   const [sourceCounts, setSourceCounts] = useState({});
@@ -213,6 +215,59 @@ export default function App() {
           <h1>{S.title}</h1>
           <p>{S.subtitle}</p>
         </header>
+
+        {/* Gemini Key Prompt - visible when no key is set */}
+        {!customGeminiKey && !dismissKeyPrompt && (
+          <div className="alert alert-info" style={{
+            background: 'linear-gradient(135deg, rgba(124,77,255,0.12), rgba(68,138,255,0.08))',
+            border: '1px solid rgba(124,77,255,0.25)',
+            padding: '16px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            flexWrap: 'wrap',
+            borderRadius: 'var(--radius-md)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '1 1 auto' }}>
+              <Key size={22} style={{ color: 'var(--primary-color)', flexShrink: 0 }} />
+              <div>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Clé API Gemini manquante
+                </span>
+                <span style={{
+                  display: 'block',
+                  fontSize: '0.8rem',
+                  color: 'var(--text-secondary)',
+                  marginTop: '2px'
+                }}>
+                  Ajoutez votre clé personnelle dans le panneau latéral pour utiliser Gemini 3.5 / 2.5 (recommandé).
+                  Sans clé, seuls les modèles Groq et locaux sont disponibles.
+                </span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary"
+                style={{ textDecoration: 'none', fontSize: '0.85rem', padding: '10px 16px', whiteSpace: 'nowrap' }}
+              >
+                <ExternalLink size={14} />
+                Obtenir une clé gratuite
+              </a>
+              <button
+                className="btn btn-secondary"
+                style={{ padding: '10px 12px' }}
+                onClick={() => setDismissKeyPrompt(true)}
+                title="Ignorer"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Drag and Drop PDF Uploader */}
         <CvUploader
