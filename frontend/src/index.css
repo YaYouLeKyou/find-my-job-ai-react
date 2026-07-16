@@ -83,6 +83,7 @@ body {
   display: flex;
   min-height: 100vh;
   position: relative;
+  align-items: flex-start;
 }
 
 /* Sidebar Styling */
@@ -99,6 +100,7 @@ body {
   position: sticky;
   top: 0;
   overflow-y: auto;
+  align-self: flex-start;
 }
 
 .sidebar-logo {
