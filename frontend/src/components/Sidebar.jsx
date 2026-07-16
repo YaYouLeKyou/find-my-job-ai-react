@@ -326,40 +326,40 @@ export default function Sidebar({
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>Groq / Llama 3.3</span>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>Groq / Llama 3.3</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {getStatusIcon(modelStatus.groq)}
-                      <span style={{ color: modelStatus.groq ? 'var(--success-color)' : 'var(--error-color)', fontSize: '0.75rem' }}>
+                      <span style={{ color: modelStatus.groq ? '#4caf50' : '#f44336', fontSize: '0.75rem', fontWeight: '600' }}>
                         {getStatusText(modelStatus.groq)}
                       </span>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>Gemini 3.5 / 2.5</span>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>Gemini 3.5 / 2.5</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {getStatusIcon(modelStatus.gemini)}
-                      <span style={{ color: modelStatus.gemini ? 'var(--success-color)' : 'var(--error-color)', fontSize: '0.75rem' }}>
+                      <span style={{ color: modelStatus.gemini ? '#4caf50' : '#f44336', fontSize: '0.75rem', fontWeight: '600' }}>
                         {getStatusText(modelStatus.gemini)}
                       </span>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>xAI / Grok</span>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>xAI / Grok</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {getStatusIcon(modelStatus.xai)}
-                      <span style={{ color: modelStatus.xai ? 'var(--success-color)' : 'var(--error-color)', fontSize: '0.75rem' }}>
+                      <span style={{ color: modelStatus.xai ? '#4caf50' : '#f44336', fontSize: '0.75rem', fontWeight: '600' }}>
                         {getStatusText(modelStatus.xai)}
                       </span>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>Ollama (Local)</span>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>Ollama (Local)</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {modelStatus.ollama ? 
-                        <Wifi size={14} style={{ color: 'var(--success-color)' }} /> : 
-                        <WifiOff size={14} style={{ color: 'var(--error-color)' }} />
+                        <Wifi size={14} style={{ color: '#4caf50' }} /> : 
+                        <WifiOff size={14} style={{ color: '#f44336' }} />
                       }
-                      <span style={{ color: modelStatus.ollama ? 'var(--success-color)' : 'var(--error-color)', fontSize: '0.75rem' }}>
+                      <span style={{ color: modelStatus.ollama ? '#4caf50' : '#f44336', fontSize: '0.75rem', fontWeight: '600' }}>
                         {modelStatus.ollama ? 'En ligne' : 'Hors ligne'}
                       </span>
                     </div>
