@@ -230,17 +230,6 @@ export default function App() {
     }
   };
 
-  // Pagination
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentJobs = displayedJobs.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(displayedJobs.length / itemsPerPage);
-
-  const handlePageChange = (pageNumber) => {
-    setCurrentPage(pageNumber);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
   // Direct access link utility
   const generateJobSearchLinks = (jobTitle, langCode) => {
     const q = encodeURIComponent(jobTitle);
@@ -338,6 +327,17 @@ export default function App() {
 
   // Filter jobs by excluded sources
   const displayedJobs = jobs.filter(job => !excludedSources.includes(job.source));
+
+  // Pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentJobs = displayedJobs.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(displayedJobs.length / itemsPerPage);
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Get dynamic chips (primary job and recommendations)
   const chips = [];
