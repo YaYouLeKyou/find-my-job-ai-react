@@ -6,3 +6,8 @@ __pycache__/
 *.py[cod]
 virtualenv/
 frontend/.env
+
+# Documentation interne (ne pas pousser sur GitHub)
+AMELIORATIONS.md
+AMELIORATIONS_SUPPLEMENTAIRES.md
+AGENTS_SPECIALISES.md
