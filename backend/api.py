@@ -3,10 +3,13 @@ import re
 import json
 import urllib.parse
 import logging
+import time
+import hashlib
 import concurrent.futures
-from typing import List, Optional
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Body
+from typing import List, Optional, Dict, Any
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import PyPDF2
 from groq import Groq
@@ -16,6 +19,26 @@ from bs4 import BeautifulSoup
 from jobspy import scrape_jobs
 import pandas as pd
 from dotenv import load_dotenv
+from shared.ai import call_ai_provider, analyze_cv as shared_analyze_cv, rank_jobs_with_ai as shared_rank_jobs, generate_cover_letter as shared_generate_letter
+
+# Redis cache setup
+try:
+    import redis
+    redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True, socket_connect_timeout=2)
+    redis_client.ping()
+    REDIS_AVAILABLE = True
+    logger.info("✅ Redis cache connected")
+except Exception as e:
+    REDIS_AVAILABLE = False
+    logger.warning(f"⚠️ Redis not available: {e}. Caching disabled.")
+
+# Rate limiting setup
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+
+limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute", "10/second"])
 
 # Config logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -51,11 +74,16 @@ logger.info(f"If GROQ_API_KEY is missing, users must switch to Gemini 3.5 in the
 logger.info("=" * 60)
 
 app = FastAPI(title="FindMyJobAI API", description="Backend API for React Prototype")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # CORS middleware to allow connection from React (usually on port 5173 or 3000)
+# In production, replace ["*"] with specific origins
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:8501").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For prototype, allow all origins
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -82,100 +110,6 @@ def is_ollama_online() -> bool:
     except:
         return False
 
-def call_local_llama(prompt: str, model_name: str, is_json: bool = False) -> Optional[str]:
-    try:
-        payload = {
-            "model": model_name,
-            "prompt": prompt,
-            "stream": False,
-            "format": "json" if is_json else ""
-        }
-        response = requests.post(f"{ollama_url}/api/generate", json=payload, timeout=90)
-        if response.status_code == 200:
-            return response.json().get("response")
-        else:
-            logger.error(f"Ollama error: {response.text}")
-            return None
-    except Exception as e:
-        logger.error(f"Ollama local error: {e}")
-        return None
-
-def call_ai_provider(prompt: str, selected_model: str, is_json: bool = False, custom_gemini_key: Optional[str] = None) -> Optional[str]:
-    active_gemini_key = (custom_gemini_key or gemini_api_key or "").strip()
-    try:
-        if "Gemini" in selected_model:
-            if not active_gemini_key:
-                raise Exception("Clé API Gemini manquante.")
-            genai.configure(api_key=active_gemini_key)
-            model_id = "models/gemini-2.0-flash" if "3.5" in selected_model else "models/gemini-1.5-flash"
-            logger.info(f"Calling Gemini AI: {model_id}")
-            model = genai.GenerativeModel(model_id)
-            generation_config = {"response_mime_type": "application/json", "temperature": 0.1} if is_json else {"temperature": 0.7}
-            safety_settings = [
-                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-            ]
-            response = model.generate_content(prompt, generation_config=generation_config, safety_settings=safety_settings)
-            
-            if response.candidates and response.candidates[0].finish_reason != 1:
-                reason = response.candidates[0].finish_reason
-                if reason == 3:
-                    raise Exception("L'analyse a été bloquée par les filtres de sécurité de Google.")
-            
-            text = response.text
-            if is_json:
-                json_match = re.search(r'(\{.*\}|\[.*\])', text, re.DOTALL)
-                if json_match:
-                    text = json_match.group(1)
-            return text
-            
-        elif "(Local/dev)" in selected_model:
-            model_map = {
-                "Llama 3.2 Vision (Local/dev)": "llama3.2-vision",
-                "Llama 3.2 (Local/dev)": "llama3.2",
-                "Qwen 3 4B (Local/dev)": "qwen3:4b"
-            }
-            ollama_model = model_map.get(selected_model, "llama3.2")
-            return call_local_llama(prompt, ollama_model, is_json=is_json)
-            
-        elif "Grok" in selected_model:
-            if not xai_api_key:
-                raise Exception("Clé API xAI (Grok) non configurée.")
-            headers = {
-                "Authorization": f"Bearer {xai_api_key}",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "model": "grok-beta",
-                "messages": [{"role": "user", "content": prompt}],
-                "stream": False
-            }
-            if is_json:
-                payload["response_format"] = {"type": "json_object"}
-            response = requests.post("https://api.x.ai/v1/chat/completions", headers=headers, json=payload, timeout=60)
-            response.raise_for_status()
-            return response.json()['choices'][0]['message']['content']
-            
-        else:
-            # Groq / Llama 3.3
-            if not api_key:
-                raise Exception("Clé Groq non configurée")
-            client = Groq(api_key=api_key)
-            params = {
-                "messages": [{"role": "user", "content": prompt}],
-                "model": "llama-3.3-70b-versatile",
-            }
-            if is_json:
-                params["response_format"] = {"type": "json_object"}
-            response = client.chat.completions.create(**params)
-            return response.choices[0].message.content
-            
-    except Exception as e:
-        logger.error(f"Error calling AI Provider ({selected_model}): {e}")
-        raise e
-
 def clean_job_title(title: str) -> str:
     if not title: return ""
     if isinstance(title, list):
@@ -184,28 +118,6 @@ def clean_job_title(title: str) -> str:
     clean = re.sub(r'\b(h/f|f/h|hf|fh|métier:|poste:)\b', '', clean, flags=re.IGNORECASE)
     clean = re.split(r'[,(\-:&/|]', clean)[0]
     return " ".join(clean.split()).capitalize()
-
-def analyze_cv(text: str, target_lang: str = "français", selected_model: str = "Groq / Llama 3.3", custom_gemini_key: Optional[str] = None) -> Optional[dict]:
-    prompt = f"""
-    Tu es un expert en recrutement. Analyse ce CV et retourne uniquement un objet JSON en {target_lang} avec les clés suivantes :
-    "nom_complet", "contact", "metier", "mots_cles" (liste de chaînes), "resume" (maximum 3 lignes), "annees_experience" (nombre entier), "recommandations_metiers" (liste de 5 métiers suggérés), "metiers_alternatifs" (liste de 3 métiers radicalement différents utilisant les mêmes compétences transférables), "suggestions_amelioration" (liste de 3 à 5 conseils concrets pour améliorer l'impact de ce CV).
-
-    LOGIQUE D'IDENTIFICATION DU MÉTIER :
-    - Si le profil contient des métiers multiples (ex: "Consultant & Développeur"), NE les regroupe PAS.
-    - Sélectionne le métier le plus porteur/pertinent pour une recherche d'emploi actuelle comme "metier" principal.
-    - Place le second métier (ou les métiers connexes identifiés) en priorité absolue au début de la liste "recommandations_metiers".
-
-    Texte du CV :
-    {text}
-    """
-    try:
-        response_text = call_ai_provider(prompt, selected_model, is_json=True, custom_gemini_key=custom_gemini_key)
-        if not response_text:
-            return None
-        return json.loads(response_text)
-    except Exception as e:
-        logger.error(f"Error in CV analysis: {e}")
-        return None
 
 # Scraping / Job Search functions
 def clean_html(text: str) -> str:
@@ -440,62 +352,24 @@ def get_apify_jobs(job_title: str, location: str = "France", limit: int = 10) ->
         return []
 
 def rank_jobs_with_ai(cv_data: dict, jobs: List[dict], filters: dict, ranking_engine: str = "Groq / Llama 3.3", custom_gemini_key: Optional[str] = None) -> List[dict]:
-    if not jobs or not cv_data:
-        return jobs
-    limit_tri = 20
-    jobs_to_rank = jobs[:limit_tri]
-    job_list_text = "\n".join([f"{i} | {j['title']} @ {j['company']}" for i, j in enumerate(jobs_to_rank)])
-    
-    prompt = f"""
-    Tu es un expert en recrutement. Évalue la compatibilité (0 à 100%) entre le profil du candidat et les offres d'emploi suivantes.
-    
-    FILTRES CRITIQUES :
-    - Type de contrat recherché : {filters.get('contrat')}
-    - Télétravail : {'Oui' if filters.get('remote') else 'Non spécifié'}
+    """Wrapper pour utiliser la fonction partagée."""
+    return shared_rank_jobs(
+        cv_data=cv_data,
+        jobs=jobs,
+        filters=filters,
+        target_lang="français",
+        selected_model=ranking_engine,
+        gemini_api_key=gemini_api_key,
+        xai_api_key=xai_api_key,
+        groq_api_key=api_key,
+        ollama_url=ollama_url,
+        custom_gemini_key=custom_gemini_key
+    )
 
-    PROFIL CANDIDAT : {cv_data.get('metier')} ({cv_data.get('annees_experience')} ans d'exp). Compétences clés: {', '.join(cv_data.get('mots_cles', []))}
-    
-    LISTE DES OFFRES (format "index | titre @ entreprise") :
-    {job_list_text}
-
-    INSTRUCTIONS :
-    Retourne UNIQUEMENT un objet JSON avec une clé "ranking" contenant une liste d'objets : 
-    {{"ranking": [{{"id": index_numérique, "score": score_entier_0_a_100}}]}}
-    L'ID doit être uniquement le numéro d'index fourni.
-    """
-    try:
-        response_text = call_ai_provider(prompt, ranking_engine, is_json=True, custom_gemini_key=custom_gemini_key)
-        if not response_text:
-            return jobs
-        ranking_data = json.loads(response_text).get("ranking", [])
-        ranked_list = []
-        ranked_indices = []
-        for item in ranking_data:
-            try:
-                idx_raw = item.get("id")
-                score_raw = item.get("score")
-                if isinstance(idx_raw, str):
-                    idx_match = re.search(r'\d+', idx_raw)
-                    if idx_match:
-                        idx_raw = idx_match.group()
-                if idx_raw is not None:
-                    idx = int(idx_raw)
-                    score = int(score_raw) if score_raw is not None else 0
-                    if idx < len(jobs_to_rank):
-                        job = {**jobs_to_rank[idx], "match_score": score}
-                        ranked_list.append(job)
-                        ranked_indices.append(idx)
-            except:
-                continue
-        for i in range(len(jobs_to_rank)):
-            if i not in ranked_indices:
-                ranked_list.append(jobs_to_rank[i])
-        if len(jobs) > limit_tri:
-            ranked_list.extend(jobs[limit_tri:])
-        return ranked_list
-    except Exception as e:
-        logger.error(f"Error ranking jobs: {e}")
-        return jobs
+def get_cache_key(params: Dict[str, Any]) -> str:
+    """Generate cache key from request parameters."""
+    param_str = json.dumps(params, sort_keys=True)
+    return f"job_search:{hashlib.md5(param_str.encode()).hexdigest()}"
 
 # FastAPI schemas
 class CvAnalysisRequest(BaseModel):
@@ -553,7 +427,9 @@ def diagnostic():
     }
 
 @app.post("/api/analyze-cv")
+@limiter.limit("10/minute")  # Max 10 CV analyses per minute per IP
 async def api_analyze_cv(
+    request: Request,
     file: UploadFile = File(...),
     selected_model: str = Form("Groq / Llama 3.3"),
     custom_gemini_key: Optional[str] = Form(None),
@@ -590,7 +466,7 @@ async def api_analyze_cv(
 
         logger.info(f"Extracted {len(text)} characters from PDF, calling AI analysis...")
         
-        # Call AI CV analysis with automatic fallback
+        # Call AI CV analysis with automatic fallback using shared function
         active_gemini_key = (custom_gemini_key or gemini_api_key or "").strip()
         fallback_used = None
         
@@ -637,7 +513,16 @@ async def api_analyze_cv(
         for provider, model in models_to_try:
             try:
                 logger.info(f"Trying CV analysis with {provider} ({model})")
-                data = analyze_cv(text, target_lang=lang_label, selected_model=model, custom_gemini_key=custom_gemini_key)
+                data = shared_analyze_cv(
+                    text=text,
+                    target_lang=lang_label,
+                    selected_model=model,
+                    gemini_api_key=gemini_api_key,
+                    xai_api_key=xai_api_key,
+                    groq_api_key=api_key,
+                    ollama_url=ollama_url,
+                    custom_gemini_key=custom_gemini_key
+                )
                 if data:
                     if model != selected_model:
                         fallback_used = model
@@ -669,8 +554,21 @@ async def api_analyze_cv(
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.post("/api/search-jobs")
-def api_search_jobs(req: JobSearchRequest):
+@limiter.limit("20/minute")  # Max 20 searches per minute per IP
+def api_search_jobs(request: Request, req: JobSearchRequest):
     all_results = []
+    
+    # Check cache first
+    cache_key = None
+    if REDIS_AVAILABLE:
+        cache_key = get_cache_key(req.dict())
+        try:
+            cached_result = redis_client.get(cache_key)
+            if cached_result:
+                logger.info(f"Cache hit for query: {req.query}")
+                return json.loads(cached_result)
+        except Exception as e:
+            logger.warning(f"Cache read error: {e}")
     
     # Concurrency using ThreadPool
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -808,34 +706,38 @@ def api_search_jobs(req: JobSearchRequest):
         src = res.get('source', 'Inconnue')
         source_counts[src] = source_counts.get(src, 0) + 1
 
-    return {
+    result = {
         "results": all_results,
         "source_counts": source_counts
     }
 
+    # Cache result for 1 hour
+    if REDIS_AVAILABLE and all_results and cache_key:
+        try:
+            redis_client.setex(cache_key, 3600, json.dumps(result))
+            logger.info(f"Cached result for query: {req.query}")
+        except Exception as e:
+            logger.warning(f"Cache write error: {e}")
+
+    return result
+
 @app.post("/api/generate-letter")
-def api_generate_letter(req: CoverLetterRequest):
-    prompt = f"""
-    Tu es un expert en recrutement. Rédige une lettre de motivation percutante, professionnelle et personnalisée en {req.lang_label}.
-    
-    INFORMATIONS DU CANDIDAT :
-    - Nom : {req.cv_data.get('nom_complet')}
-    - Contact : {req.cv_data.get('contact')}
-    - Métier : {req.cv_data.get('metier')}
-    - Compétences : {', '.join(req.cv_data.get('mots_cles', []))}
-    - Expérience : {req.cv_data.get('annees_experience')} ans
-    - Résumé : {req.cv_data.get('resume')}
-
-    INFORMATIONS DU POSTE :
-    - Titre : {req.job_title}
-    - Entreprise : {req.company}
-    - Description (si dispo) : {req.job_description}
-
-    La lettre doit être structurée (Vous/Moi/Nous), montrer une réelle adéquation entre le profil et le poste, et rester concise.
-    Utilise les informations de contact pour l'en-tête et signe la lettre avec le nom du candidat. Réponds uniquement par le texte de la lettre, sans commentaires additionnels.
-    """
+@limiter.limit("30/minute")  # Max 30 letter generations per minute per IP
+def api_generate_letter(request: Request, req: CoverLetterRequest):
     try:
-        letter = call_ai_provider(prompt, req.ranking_engine, is_json=False, custom_gemini_key=req.custom_gemini_key)
+        letter = shared_generate_letter(
+            cv_data=req.cv_data,
+            job_title=req.job_title,
+            company=req.company,
+            job_description=req.job_description or "",
+            target_lang=req.lang_label,
+            selected_model=req.ranking_engine,
+            gemini_api_key=gemini_api_key,
+            xai_api_key=xai_api_key,
+            groq_api_key=api_key,
+            ollama_url=ollama_url,
+            custom_gemini_key=req.custom_gemini_key
+        )
         if not letter:
             raise HTTPException(status_code=500, detail="Cover letter generation failed.")
         return {"letter": letter}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { LANGS, STRINGS } from '../utils/translations';
-import { ExternalLink, FileText, ChevronDown, ChevronUp, Download, Loader2 } from 'lucide-react';
+import { ExternalLink, FileText, ChevronDown, ChevronUp, Download, Loader2, Copy, Check } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
@@ -9,18 +9,32 @@ export default function JobCard({
   job,
   cvData,
   rankingEngine,
-  customGeminiKey
+  customGeminiKey,
+  onSaveJob,
+  isSaved
 }) {
   const S = STRINGS[LANGS[lang].code];
   const [expanded, setExpanded] = useState(false);
   const [letterLoading, setLetterLoading] = useState(false);
   const [letterContent, setLetterContent] = useState("");
   const [letterError, setLetterError] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const getScoreColorClass = (score) => {
     if (score > 70) return "high";
     if (score > 40) return "medium";
     return "low";
+  };
+
+  const handleCopyLetter = async () => {
+    if (!letterContent) return;
+    try {
+      await navigator.clipboard.writeText(letterContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
   };
 
   const handleGenerateLetter = async () => {
@@ -102,6 +116,16 @@ export default function JobCard({
           <ExternalLink size={16} />
           {S.see_job_btn}
         </a>
+        {onSaveJob && (
+          <button 
+            className="btn btn-secondary"
+            onClick={() => onSaveJob(job)}
+            title={isSaved ? "Retirer des favoris" : "Sauvegarder l'offre"}
+            style={{ flexGrow: 0, padding: '8px 12px' }}
+          >
+            {isSaved ? '⭐' : '☆'}
+          </button>
+        )}
         <button 
           className="btn btn-primary"
           style={{ flexGrow: 1 }}
@@ -138,13 +162,22 @@ export default function JobCard({
                   )}
                 </button>
                 {letterContent && (
-                  <button 
-                    className="btn btn-secondary"
-                    onClick={handleDownload}
-                  >
-                    <Download size={16} />
-                    {S.download_letter}
-                  </button>
+                  <>
+                    <button 
+                      className="btn btn-secondary"
+                      onClick={handleCopyLetter}
+                      title="Copier la lettre"
+                    >
+                      {copied ? <Check size={16} /> : <Copy size={16} />}
+                    </button>
+                    <button 
+                      className="btn btn-secondary"
+                      onClick={handleDownload}
+                    >
+                      <Download size={16} />
+                      {S.download_letter}
+                    </button>
+                  </>
                 )}
               </div>
 

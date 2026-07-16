@@ -6,6 +6,7 @@ import JobFilters from './components/JobFilters';
 import JobCard from './components/JobCard';
 import { LANGS, STRINGS } from './utils/translations';
 import { Search, Loader2, RefreshCw, Key, ExternalLink, X } from 'lucide-react';
+import './styles/global.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
@@ -37,6 +38,12 @@ export default function App() {
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [errorJobs, setErrorJobs] = useState("");
   const [ollamaOnline, setOllamaOnline] = useState(false);
+  const [searchTime, setSearchTime] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [searchHistory, setSearchHistory] = useState([]);
+  const [savedJobs, setSavedJobs] = useState([]);
+  const [toast, setToast] = useState(null);
 
   const currentLangCode = LANGS[lang].code;
   const S = STRINGS[currentLangCode];
@@ -60,6 +67,24 @@ export default function App() {
         }
       })
       .catch(err => console.error("Geolocation failed:", err));
+
+    // Load search history from localStorage
+    const savedHistory = localStorage.getItem('searchHistory');
+    if (savedHistory) {
+      setSearchHistory(JSON.parse(savedHistory));
+    }
+
+    // Load saved jobs from localStorage
+    const savedJobsData = localStorage.getItem('savedJobs');
+    if (savedJobsData) {
+      setSavedJobs(JSON.parse(savedJobsData));
+    }
+
+    // Load dark mode preference
+    const darkMode = localStorage.getItem('darkMode');
+    if (darkMode === 'true') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
   }, []);
 
   // Set default query and details on CV analysis success
@@ -76,15 +101,22 @@ export default function App() {
     handleSearchJobs(query);
   };
 
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   const handleSearchJobs = async (customQuery) => {
     const activeQuery = customQuery || searchQuery;
     if (!activeQuery) return;
 
+    const startTime = Date.now();
     setLoadingJobs(true);
     setErrorJobs("");
     setJobs([]);
     setSourceCounts({});
     setExcludedSources([]);
+    setCurrentPage(1);
 
     try {
       const response = await fetch(`${API_BASE}/api/search-jobs`, {
@@ -116,9 +148,22 @@ export default function App() {
       const data = await response.json();
       setJobs(data.results || []);
       setSourceCounts(data.source_counts || {});
+      
+      // Calculate search time
+      const endTime = Date.now();
+      const duration = ((endTime - startTime) / 1000).toFixed(2);
+      setSearchTime(duration);
+
+      // Add to search history
+      const newHistory = [{ query: activeQuery, time: new Date().toISOString(), count: data.results?.length || 0 }, ...searchHistory.filter(h => h.query !== activeQuery)].slice(0, 10);
+      setSearchHistory(newHistory);
+      localStorage.setItem('searchHistory', JSON.stringify(newHistory));
+
+      showToast(`✅ ${data.results?.length || 0} offres trouvées en ${duration}s`, 'success');
     } catch (err) {
       console.error(err);
       setErrorJobs(err.message);
+      showToast(`❌ Erreur: ${err.message}`, 'error');
     } finally {
       setLoadingJobs(false);
     }
@@ -130,6 +175,70 @@ export default function App() {
     } else {
       setExcludedSources([...excludedSources, source]);
     }
+  };
+
+  const toggleSaveJob = (job) => {
+    const isSaved = savedJobs.some(j => j.id === job.id);
+    let newSavedJobs;
+    if (isSaved) {
+      newSavedJobs = savedJobs.filter(j => j.id !== job.id);
+      showToast('Offre retirée des favoris', 'info');
+    } else {
+      newSavedJobs = [...savedJobs, job];
+      showToast('⭐ Offre sauvegardée', 'success');
+    }
+    setSavedJobs(newSavedJobs);
+    localStorage.setItem('savedJobs', JSON.stringify(newSavedJobs));
+  };
+
+  const exportToCSV = () => {
+    if (jobs.length === 0) {
+      showToast('Aucune offre à exporter', 'error');
+      return;
+    }
+
+    const headers = ['Titre', 'Entreprise', 'Source', 'Localisation', 'Date', 'Score', 'Lien'];
+    const csvContent = [
+      headers.join(','),
+      ...jobs.map(job => [
+        `"${job.title || ''}"`,
+        `"${job.company || ''}"`,
+        `"${job.source || ''}"`,
+        `"${job.location || ''}"`,
+        `"${job.date || ''}"`,
+        job.match_score || '',
+        `"${job.link || ''}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `offres_${searchQuery.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    showToast('📊 CSV exporté avec succès', 'success');
+  };
+
+  const toggleDarkMode = () => {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    if (isDark) {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('darkMode', 'false');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('darkMode', 'true');
+    }
+  };
+
+  // Pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentJobs = displayedJobs.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(displayedJobs.length / itemsPerPage);
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Direct access link utility
@@ -215,7 +324,12 @@ export default function App() {
       "CareerBuilder": `https://www.careerbuilder.com/jobs?q=${q}`,
       "SimplyHired": `https://www.simplyhired.com/jobs?q=${q}`,
       "ZipRecruiter": `https://www.ziprecruiter.com/jobs/search?search=${q}`,
-      "Google Jobs": `https://www.google.com/search?q=${q}+jobs&ibp=htl;jobs`
+      "Google Jobs": `https://www.google.com/search?q=${q}+jobs&ibp=htl;jobs`,
+      "France Travail (API)": `https://candidat.pole-emploi.fr/offres/recherche?motsCles=${q}&offresPartenaires=true`,
+      "Adzuna (API)": `https://www.adzuna.fr/emploi?q=${q}`,
+      "Jooble (API)": `https://fr.jooble.org/emploi-${qSlug}`,
+      "SerpApi Google Jobs": `https://www.google.com/search?q=${q}+jobs&ibp=htl;jobs`,
+      "Apify LinkedIn": `https://www.linkedin.com/jobs/search/?keywords=${q}`
     };
     return { ...(links[langCode] || {}), ...globalLinks };
   };
@@ -238,6 +352,25 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {/* Toast Notification */}
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          padding: '16px 24px',
+          borderRadius: 'var(--radius-md)',
+          background: toast.type === 'success' ? 'var(--success-color)' : toast.type === 'error' ? 'var(--error-color)' : 'var(--primary-color)',
+          color: 'white',
+          fontWeight: '600',
+          zIndex: 1000,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          animation: 'slideIn 0.3s ease'
+        }}>
+          {toast.message}
+        </div>
+      )}
+
       {/* Sidebar Setting Controls */}
       <Sidebar
         lang={lang}
@@ -249,6 +382,10 @@ export default function App() {
         customGeminiKey={customGeminiKey}
         setCustomGeminiKey={setCustomGeminiKey}
         ollamaOnline={ollamaOnline}
+        searchHistory={searchHistory}
+        savedJobs={savedJobs}
+        onSelectHistory={handleSelectJobQuery}
+        onToggleDarkMode={toggleDarkMode}
       />
 
       {/* Main Container */}
@@ -478,11 +615,22 @@ export default function App() {
 
         {displayedJobs.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: '800', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
-              {S.top_matches}
-            </h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: '800', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', flex: '1 1 auto' }}>
+                {S.top_matches} {searchTime && <span style={{ fontSize: '0.9rem', fontWeight: '400', color: 'var(--text-secondary)' }}>({searchTime}s)</span>}
+              </h2>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button onClick={exportToCSV} className="btn btn-secondary" style={{ fontSize: '0.85rem' }}>
+                  📊 Exporter CSV
+                </button>
+                <button onClick={toggleDarkMode} className="btn btn-secondary" style={{ fontSize: '0.85rem' }}>
+                  🌓 Mode
+                </button>
+              </div>
+            </div>
+            
             <div className="job-list">
-              {displayedJobs.map((job) => (
+              {currentJobs.map((job) => (
                 <JobCard
                   key={job.id}
                   lang={lang}
@@ -490,9 +638,36 @@ export default function App() {
                   cvData={cvData}
                   rankingEngine={rankingEngine}
                   customGeminiKey={customGeminiKey}
+                  onSaveJob={toggleSaveJob}
+                  isSaved={savedJobs.some(j => j.id === job.id)}
                 />
               ))}
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '24px', flexWrap: 'wrap' }}>
+                <button 
+                  className="btn btn-secondary"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  style={{ padding: '8px 16px' }}
+                >
+                  ← Précédent
+                </button>
+                <span style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontWeight: '600' }}>
+                  Page {currentPage} / {totalPages}
+                </span>
+                <button 
+                  className="btn btn-secondary"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  style={{ padding: '8px 16px' }}
+                >
+                  Suivant →
+                </button>
+              </div>
+            )}
           </div>
         )}
 
