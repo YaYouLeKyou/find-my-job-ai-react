@@ -347,7 +347,7 @@ export default function App() {
               <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
                 {S.direct_access_desc}
               </span>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+              <div className="direct-links-grid">
                 {Object.entries(directLinks).map(([name, url]) => (
                   <a
                     key={name}

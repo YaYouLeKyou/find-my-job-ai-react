@@ -46,7 +46,7 @@ export default function JobFilters({
       <div className="card-content" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         
         {/* Row 1: Limit & Sort */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
+        <div className="filters-row-1">
           
           <div className="form-group">
             <label>{S.num_ads} ({numAds})</label>
@@ -97,7 +97,7 @@ export default function JobFilters({
         </div>
 
         {/* Row 2: Location & Remote */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px', alignItems: 'center' }}>
+        <div className="filters-row-2">
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <label className="checkbox-container">

@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { LANGS, STRINGS } from '../utils/translations';
-import { Settings, Cpu, Key, Globe, LogIn } from 'lucide-react';
+import { Settings, Cpu, Key, Globe, LogIn, Save, ExternalLink, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function Sidebar({
   lang,
@@ -14,6 +14,23 @@ export default function Sidebar({
   ollamaOnline
 }) {
   const S = STRINGS[LANGS[lang].code];
+  const [saved, setSaved] = useState(!!customGeminiKey);
+
+  const handleSaveKey = () => {
+    if (customGeminiKey && customGeminiKey.trim()) {
+      localStorage.setItem('gemini_api_key', customGeminiKey.trim());
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    }
+  };
+
+  // Load saved key on mount
+  React.useEffect(() => {
+    const savedKey = localStorage.getItem('gemini_api_key');
+    if (savedKey && !customGeminiKey) {
+      setCustomGeminiKey(savedKey);
+    }
+  }, []);
 
   return (
     <aside className="sidebar">
@@ -88,16 +105,51 @@ export default function Sidebar({
           {S.personal_key}
         </h3>
         <div className="form-group">
-          <input
-            type="password"
-            className="input-control"
-            placeholder="Clé Gemini API..."
-            value={customGeminiKey}
-            onChange={(e) => setCustomGeminiKey(e.target.value)}
-          />
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            {S.personal_key_help}
-          </span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input
+              type="password"
+              className="input-control"
+              style={{ flexGrow: 1 }}
+              placeholder="Clé Gemini API..."
+              value={customGeminiKey}
+              onChange={(e) => {
+                setCustomGeminiKey(e.target.value);
+                setSaved(false);
+              }}
+            />
+            <button
+              className="btn btn-primary"
+              style={{ padding: '8px 12px', flexShrink: 0 }}
+              onClick={handleSaveKey}
+              disabled={!customGeminiKey || !customGeminiKey.trim()}
+              title="Enregistrer la clé pour la session"
+            >
+              <Save size={16} />
+            </button>
+          </div>
+          {saved && (
+            <span style={{ fontSize: '0.75rem', color: 'var(--success-color)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <CheckCircle2 size={12} />
+              Clé enregistrée pour cette session
+            </span>
+          )}
+          <a
+            href="https://aistudio.google.com/app/apikey"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              fontSize: '0.75rem',
+              color: 'var(--primary-color)',
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              marginTop: '4px'
+            }}
+          >
+            <ExternalLink size={12} />
+            Obtenir une clé Gemini API gratuite
+          </a>
         </div>
       </div>
 
