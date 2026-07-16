@@ -21,6 +21,10 @@ import pandas as pd
 from dotenv import load_dotenv
 from shared.ai import call_ai_provider, analyze_cv as shared_analyze_cv, rank_jobs_with_ai as shared_rank_jobs, generate_cover_letter as shared_generate_letter
 
+# Config logging (must be before Redis setup)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 # Redis cache setup
 try:
     import redis
@@ -39,10 +43,6 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute", "10/second"])
-
-# Config logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv(override=True)

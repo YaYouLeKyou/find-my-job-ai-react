@@ -58,7 +58,7 @@ export default function App() {
       })
       .catch(err => console.error("Backend not running or unreachable:", err));
 
-    // Geolocate user via IP
+    // Geolocate user via IP (with fallback)
     fetch("https://ipapi.co/json/")
       .then(res => res.json())
       .then(data => {
@@ -66,7 +66,10 @@ export default function App() {
           setLocation(`${data.city}, ${data.country_name}`);
         }
       })
-      .catch(err => console.error("Geolocation failed:", err));
+      .catch(err => {
+        console.error("Geolocation failed, using default:", err);
+        // Keep default location "Paris, France"
+      });
 
     // Load search history from localStorage
     const savedHistory = localStorage.getItem('searchHistory');
