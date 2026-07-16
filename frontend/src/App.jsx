@@ -135,46 +135,87 @@ export default function App() {
   // Direct access link utility
   const generateJobSearchLinks = (jobTitle, langCode) => {
     const q = encodeURIComponent(jobTitle);
+    const qSlug = q.replace(/%20/g, '-');
     const links = {
       fr: {
         "Welcome to the Jungle": `https://www.welcometothejungle.com/fr/jobs?query=${q}`,
         "HelloWork": `https://www.hellowork.com/fr-fr/emploi/recherche.html?k=${q}`,
-        "Service Public": `https://www.choisirleservicepublic.gouv.fr/nos-offres/filtres/mots-cles/${q}/`
+        "Service Public": `https://www.choisirleservicepublic.gouv.fr/nos-offres/filtres/mots-cles/${q}/`,
+        "Indeed France": `https://fr.indeed.com/jobs?q=${q}`,
+        "Glassdoor FR": `https://www.glassdoor.fr/emploi/emploi.htm?sc.keyword=${q}`,
+        "APEC": `https://www.apec.fr/offres-d-emploi-cadre/recherche.html?motsCles=${q}`,
+        "Monster FR": `https://www.monster.fr/emploi/recherche?q=${q}`,
+        "LinkedIn FR": `https://fr.linkedin.com/jobs/search/?keywords=${q}`,
+        "Pôle Emploi": `https://candidat.pole-emploi.fr/offres/recherche?motsCles=${q}`,
+        "JobTeaser": `https://www.jobteaser.com/fr/jobs?query=${q}`
       },
       en: {
         "LinkedIn US": `https://www.linkedin.com/jobs/search/?keywords=${q}`,
-        "Reed.co.uk": `https://www.reed.co.uk/jobs/${q.replace(/%20/g, '-')}-jobs`,
-        "Dice (Tech US)": `https://www.dice.com/jobs?q=${q}`
+        "Reed.co.uk": `https://www.reed.co.uk/jobs/${qSlug}-jobs`,
+        "Dice (Tech US)": `https://www.dice.com/jobs?q=${q}`,
+        "Indeed US": `https://www.indeed.com/jobs?q=${q}`,
+        "Glassdoor US": `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${q}`,
+        "Monster US": `https://www.monster.com/jobs/search?q=${q}`,
+        "CareerBuilder": `https://www.careerbuilder.com/jobs?q=${q}`,
+        "SimplyHired": `https://www.simplyhired.com/jobs?q=${q}`,
+        "ZipRecruiter": `https://www.ziprecruiter.com/jobs/search?search=${q}`,
+        "Google Jobs": `https://www.google.com/search?q=${q}+jobs&ibp=htl;jobs`
       },
       es: {
         "InfoJobs ES": `https://www.infojobs.net/jobsearch/search-results.xhtml?keywords=${q}`,
         "Tecnoempleo": `https://www.tecnoempleo.com/busqueda-empleo.php?te=${q}`,
-        "Turijobs": `https://www.turijobs.com/ofertas-trabajo/${q.replace(/%20/g, '-')}`
+        "Turijobs": `https://www.turijobs.com/ofertas-trabajo/${qSlug}`,
+        "LinkedIn ES": `https://es.linkedin.com/jobs/search/?keywords=${q}`,
+        "Indeed ES": `https://es.indeed.com/jobs?q=${q}`,
+        "Glassdoor ES": `https://www.glassdoor.es/empleo/empleo.htm?sc.keyword=${q}`,
+        "Monster ES": `https://www.monster.es/empleo/buscar?q=${q}`,
+        "JobisJob": `https://www.jobisjob.es/buscar/empleo?q=${q}`
       },
       de: {
         "Xing DE": `https://www.xing.com/jobs/search?keywords=${q}`,
-        "StepStone DE": `https://www.stepstone.de/jobs/${q.replace(/%20/g, '-')}`,
-        "Honeypot.io": `https://app.honeypot.io/vacancies?q=${q}`
+        "StepStone DE": `https://www.stepstone.de/jobs/${qSlug}`,
+        "Honeypot.io": `https://app.honeypot.io/vacancies?q=${q}`,
+        "LinkedIn DE": `https://de.linkedin.com/jobs/search/?keywords=${q}`,
+        "Indeed DE": `https://de.indeed.com/jobs?q=${q}`,
+        "Glassdoor DE": `https://www.glassdoor.de/Job/jobs.htm?sc.keyword=${q}`,
+        "Monster DE": `https://www.monster.de/jobs/suche?q=${q}`,
+        "Jobvector": `https://www.jobvector.de/jobs?keywords=${q}`
       },
       ar: {
         "Bayt (Middle East)": `https://www.bayt.com/en/international/jobs/?keyword=${q}`,
         "GulfTalent": `https://www.gulftalent.com/jobs/search?q=${q}`,
-        "Naukrigulf": `https://www.naukrigulf.com/${q}-jobs`
+        "Naukrigulf": `https://www.naukrigulf.com/${q}-jobs`,
+        "LinkedIn AR": `https://ar.linkedin.com/jobs/search/?keywords=${q}`,
+        "Indeed AE": `https://ae.indeed.com/jobs?q=${q}`,
+        "Glassdoor AE": `https://www.glassdoor.ae/Job/jobs.htm?sc.keyword=${q}`
       },
       ja: {
         "Indeed Japan": `https://jp.indeed.com/jobs?q=${q}`,
         "Mynavi Tenshoku": `https://tenshoku.mynavi.jp/list/kw${q}/`,
-        "Rikunabi Next": `https://next.rikunabi.com/rnc/docs/cp_s0070.jsp?sayonara_word=${q}`
+        "Rikunabi Next": `https://next.rikunabi.com/rnc/docs/cp_s0070.jsp?sayonama_word=${q}`,
+        "LinkedIn JP": `https://jp.linkedin.com/jobs/search/?keywords=${q}`,
+        "Green": `https://www.green-japan.com/search?keyword=${q}`,
+        "Daijob": `https://www.daijob.com/en/jobs/search?keywords=${q}`
       },
       zh: {
         "51job": `https://search.51job.com/list/000000,000000,0000,00,9,99,${q},2,1.html`,
         "Liepin": `https://www.liepin.com/zhaopin/?key=${q}`,
-        "Zhaopin": `https://sou.zhaopin.com/?jl=489&kw=${q}&kt=3`
+        "Zhaopin": `https://sou.zhaopin.com/?jl=489&kw=${q}&kt=3`,
+        "LinkedIn CN": `https://cn.linkedin.com/jobs/search/?keywords=${q}`,
+        "Indeed CN": `https://cn.indeed.com/jobs?q=${q}`,
+        "Boss Zhipin": `https://www.zhipin.com/web/geek/job?query=${q}`
       }
     };
     const globalLinks = {
-      "Remote OK": `https://remoteok.com/remote-${q.replace(/%20/g, '-')}-jobs`,
-      "Indeed Global": `https://www.indeed.com/jobs?q=${q}`
+      "Remote OK": `https://remoteok.com/remote-${qSlug}-jobs`,
+      "Indeed Global": `https://www.indeed.com/jobs?q=${q}`,
+      "LinkedIn Global": `https://www.linkedin.com/jobs/search/?keywords=${q}`,
+      "Glassdoor Global": `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${q}`,
+      "Monster Global": `https://www.monster.com/jobs/search?q=${q}`,
+      "CareerBuilder": `https://www.careerbuilder.com/jobs?q=${q}`,
+      "SimplyHired": `https://www.simplyhired.com/jobs?q=${q}`,
+      "ZipRecruiter": `https://www.ziprecruiter.com/jobs/search?search=${q}`,
+      "Google Jobs": `https://www.google.com/search?q=${q}+jobs&ibp=htl;jobs`
     };
     return { ...(links[langCode] || {}), ...globalLinks };
   };
