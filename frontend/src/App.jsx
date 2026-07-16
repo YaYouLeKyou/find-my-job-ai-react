@@ -24,7 +24,8 @@ export default function App() {
   const [remote, setRemote] = useState(false);
   const [globalSearch, setGlobalSearch] = useState(false);
   const [selectedSources, setSelectedSources] = useState([
-    "LinkedIn", "Indeed", "France Travail", "Google Jobs", "Adzuna"
+    "LinkedIn", "Indeed", "France Travail", "Google Jobs", "Adzuna",
+    "Jooble", "Glassdoor", "ZipRecruiter", "Simplyhired", "Careerbuilder", "Monster"
   ]);
   const [excludedSources, setExcludedSources] = useState([]);
   
