@@ -324,42 +324,33 @@ export default function Sidebar({
                   <Cpu size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
                   Statut des modèles AI
                 </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>Groq / Llama 3.3</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)' }}>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: '600' }}>Groq / Llama 3.3</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {getStatusIcon(modelStatus.groq)}
-                      <span style={{ color: modelStatus.groq ? '#4caf50' : '#f44336', fontSize: '0.75rem', fontWeight: '600' }}>
+                      <span style={{ color: modelStatus.groq ? '#2e7d32' : '#c62828', fontSize: '0.8rem', fontWeight: '700' }}>
                         {getStatusText(modelStatus.groq)}
                       </span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>Gemini 3.5 / 2.5</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)' }}>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: '600' }}>Gemini 3.5 / 2.5</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {getStatusIcon(modelStatus.gemini)}
-                      <span style={{ color: modelStatus.gemini ? '#4caf50' : '#f44336', fontSize: '0.75rem', fontWeight: '600' }}>
+                      <span style={{ color: modelStatus.gemini ? '#2e7d32' : '#c62828', fontSize: '0.8rem', fontWeight: '700' }}>
                         {getStatusText(modelStatus.gemini)}
                       </span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>xAI / Grok</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      {getStatusIcon(modelStatus.xai)}
-                      <span style={{ color: modelStatus.xai ? '#4caf50' : '#f44336', fontSize: '0.75rem', fontWeight: '600' }}>
-                        {getStatusText(modelStatus.xai)}
-                      </span>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>Ollama (Local)</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)' }}>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: '600' }}>Ollama (Local)</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {modelStatus.ollama ? 
-                        <Wifi size={14} style={{ color: '#4caf50' }} /> : 
-                        <WifiOff size={14} style={{ color: '#f44336' }} />
+                        <Wifi size={16} style={{ color: '#2e7d32' }} /> : 
+                        <WifiOff size={16} style={{ color: '#c62828' }} />
                       }
-                      <span style={{ color: modelStatus.ollama ? '#4caf50' : '#f44336', fontSize: '0.75rem', fontWeight: '600' }}>
+                      <span style={{ color: modelStatus.ollama ? '#2e7d32' : '#c62828', fontSize: '0.8rem', fontWeight: '700' }}>
                         {modelStatus.ollama ? 'En ligne' : 'Hors ligne'}
                       </span>
                     </div>
