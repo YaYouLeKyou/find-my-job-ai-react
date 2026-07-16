@@ -8,15 +8,7 @@ python-jobspy
 pandas
 google-generativeai
 lxml
-<<<<<<< HEAD
 fastapi
 uvicorn
 python-multipart
 aiofiles
-=======
-streamlit-google-auth
-fastapi
-uvicorn
-python-multipart
-aiofiles
->>>>>>> origin/railway/code-change-ii_vIc
