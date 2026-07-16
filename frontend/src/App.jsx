@@ -492,7 +492,7 @@ export default function App() {
           <div className="card">
             <div className="card-title">
               <Search size={20} style={{ color: 'var(--primary-color)' }} />
-              <span>{S.search_section}</span>
+              <span>{S.search_section.replace('🔍 ', '')}</span>
             </div>
 
             <div className="card-content">
