@@ -6,7 +6,6 @@ import JobFilters from './components/JobFilters';
 import JobCard from './components/JobCard';
 import { LANGS, STRINGS } from './utils/translations';
 import { Search, Loader2, RefreshCw, Key, ExternalLink, X } from 'lucide-react';
-import './styles/global.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
