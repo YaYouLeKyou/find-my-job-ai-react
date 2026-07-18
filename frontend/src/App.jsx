@@ -541,5 +541,5 @@ export default function App() {
     return <FreelanceMissionApp onBackToHub={handleBackToHub} initialLang={selectedLang} />;
   }
 
-  return <LandingHub onSelectApp={handleSelectApp} />;
+  return <LandingHub onSelectApp={handleSelectApp} lang={selectedLang} setLang={setSelectedLang} />;
 }

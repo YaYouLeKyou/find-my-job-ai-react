@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { LANGS } from '../utils/translations';
+import { LANGS, STRINGS } from '../utils/translations';
 
 const APPS = [
   {
@@ -36,10 +36,10 @@ const APPS = [
   },
 ];
 
-export default function LandingHub({ onSelectApp }) {
+export default function LandingHub({ onSelectApp, lang, setLang }) {
   const [hovered, setHovered] = useState(null);
   const [visible, setVisible] = useState(false);
-  const [lang, setLang] = useState("Français");
+  const S = STRINGS[LANGS[lang].code];
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 80);
@@ -78,7 +78,7 @@ export default function LandingHub({ onSelectApp }) {
               maxWidth: '100%',
             }}
           >
-            Find my work AI
+            {S.hub_title}
           </h1>
         </div>
 
@@ -103,7 +103,7 @@ export default function LandingHub({ onSelectApp }) {
           }}
         >
           <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#7c4dff', display: 'inline-block', animation: 'pulse-dot 1.5s ease-in-out infinite' }} />
-          Plateforme IA multi-agents
+          {S.hub_badge}
         </div>
 
         {/* Language Selector */}
@@ -144,8 +144,7 @@ export default function LandingHub({ onSelectApp }) {
             padding: '0 20px',
           }}
         >
-          Votre plateforme d'agents IA spécialisés pour booster votre carrière.
-          Choisissez votre agent et laissez l'IA travailler pour vous.
+          {S.hub_subtitle}
         </p>
       </div>
 
@@ -343,7 +342,7 @@ export default function LandingHub({ onSelectApp }) {
                 boxShadow: hovered === app.id ? `0 6px 20px ${app.glowColor}` : 'none',
               }}
             >
-              <span>Lancer l'agent</span>
+              <span>{S.hub_cta_job}</span>
               <span style={{ fontSize: '1.1rem', transition: 'transform 0.3s ease', transform: hovered === app.id ? 'translateX(4px)' : 'translateX(0)' }}>→</span>
             </div>
           </button>
