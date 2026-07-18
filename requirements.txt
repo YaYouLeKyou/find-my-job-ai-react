@@ -6,7 +6,7 @@ requests
 beautifulsoup4
 python-jobspy
 pandas
-google-genai>=0.3.0
+google-generativeai
 lxml
 fastapi
 uvicorn

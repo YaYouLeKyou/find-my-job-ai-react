@@ -19,7 +19,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import PyPDF2
 from groq import Groq
-import google.generativeai as genai
+try:
+    import google.genai as genai
+except ImportError:
+    import google.generativeai as genai
 import requests
 from bs4 import BeautifulSoup
 from jobspy import scrape_jobs
