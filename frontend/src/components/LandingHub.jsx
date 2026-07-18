@@ -76,7 +76,7 @@ export default function LandingHub({ onSelectApp }) {
               maxWidth: '100%',
             }}
           >
-            Find Me ... AI
+            Find my work AI
           </h1>
         </div>
 

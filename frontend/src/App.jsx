@@ -317,7 +317,7 @@ function FindMyJobApp({ onBackToHub }) {
           style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', padding: '8px 16px' }}
         >
           <ArrowLeft size={16} />
-          Find Me ... AI
+          Find my work AI
         </button>
 
         <header className="header">

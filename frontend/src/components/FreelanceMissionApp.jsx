@@ -287,7 +287,7 @@ export default function FreelanceMissionApp({ onBackToHub }) {
           }}
         >
           <ArrowLeft size={16} />
-          Find Me ... AI
+          Find my work AI
         </button>
 
         {/* Header */}
