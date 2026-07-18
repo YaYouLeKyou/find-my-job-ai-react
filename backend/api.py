@@ -1,13 +1,19 @@
 import os
 import re
 import json
+import sys
 import urllib.parse
 import logging
 import time
 import hashlib
 import concurrent.futures
+from pathlib import Path
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Body, Request
+
+# Ensure the parent directory is in sys.path so 'shared' module is found
+# This is needed because Railway starts the app from /app/backend/ but shared/ is at /app/shared/
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
