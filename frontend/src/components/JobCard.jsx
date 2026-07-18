@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { LANGS, STRINGS } from '../utils/translations';
 import { ExternalLink, FileText, ChevronDown, ChevronUp, Download, Loader2, Copy, Check } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 export default function JobCard({
   lang,

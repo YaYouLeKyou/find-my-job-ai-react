@@ -19,7 +19,7 @@ from bs4 import BeautifulSoup
 from jobspy import scrape_jobs
 import pandas as pd
 from dotenv import load_dotenv
-from shared.ai import call_ai_provider, analyze_cv as shared_analyze_cv, rank_jobs_with_ai as shared_rank_jobs, generate_cover_letter as shared_generate_letter
+from shared.ai import call_ai_provider, analyze_cv as shared_analyze_cv, rank_jobs_with_ai as shared_rank_jobs, generate_cover_letter as shared_generate_letter, estimate_workload as shared_estimate_workload
 
 # Config logging (must be before Redis setup)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -80,7 +80,7 @@ app.add_middleware(SlowAPIMiddleware)
 
 # CORS middleware to allow connection from React (usually on port 5173 or 3000)
 # In production, replace ["*"] with specific origins
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:8501").split(",")
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:8501,https://findmyjobai.netlify.app,https://*.netlify.app").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -397,6 +397,15 @@ class CoverLetterRequest(BaseModel):
     job_title: str
     company: str
     job_description: Optional[str] = ""
+    ranking_engine: str = "Groq / Llama 3.3"
+    custom_gemini_key: Optional[str] = None
+    lang_label: str = "français"
+    is_freelance: Optional[bool] = False
+
+class WorkloadEstimationRequest(BaseModel):
+    mission_title: str
+    mission_description: str
+    cv_data: Optional[dict] = None
     ranking_engine: str = "Groq / Llama 3.3"
     custom_gemini_key: Optional[str] = None
     lang_label: str = "français"
@@ -741,6 +750,28 @@ def api_generate_letter(request: Request, req: CoverLetterRequest):
         if not letter:
             raise HTTPException(status_code=500, detail="Cover letter generation failed.")
         return {"letter": letter}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/estimate-workload")
+@limiter.limit("20/minute")  # Max 20 workload estimations per minute per IP
+def api_estimate_workload(request: Request, req: WorkloadEstimationRequest):
+    try:
+        workload = shared_estimate_workload(
+            mission_description=req.mission_description,
+            mission_title=req.mission_title,
+            cv_data=req.cv_data,
+            target_lang=req.lang_label,
+            selected_model=req.ranking_engine,
+            gemini_api_key=gemini_api_key,
+            xai_api_key=xai_api_key,
+            groq_api_key=api_key,
+            ollama_url=ollama_url,
+            custom_gemini_key=req.custom_gemini_key
+        )
+        if not workload:
+            raise HTTPException(status_code=500, detail="Workload estimation failed.")
+        return {"workload": workload}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

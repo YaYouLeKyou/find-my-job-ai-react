@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { LANGS, STRINGS } from '../utils/translations';
-import { Settings, Cpu, Key, Globe, Save, ExternalLink, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Wifi, WifiOff } from 'lucide-react';
+import { Settings, Cpu, Key, Globe, Save, ExternalLink, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Wifi, WifiOff, Menu, X } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 export default function Sidebar({
   lang,
@@ -22,6 +22,7 @@ export default function Sidebar({
   const S = STRINGS[LANGS[lang].code];
   const [saved, setSaved] = useState(!!customGeminiKey);
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [modelStatus, setModelStatus] = useState({
     groq: false,
     gemini: false,
@@ -71,6 +72,17 @@ export default function Sidebar({
     fetchStatus();
   }, []);
 
+  // Close mobile sidebar on window resize above breakpoint
+  React.useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 599 && mobileOpen) {
+        setMobileOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [mobileOpen]);
+
   const getStatusIcon = (isAvailable) => {
     if (loadingStatus) return <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>...</span>;
     return isAvailable ? 
@@ -83,8 +95,29 @@ export default function Sidebar({
     return isAvailable ? 'Disponible' : 'Non configuré';
   };
 
+  const closeMobile = () => setMobileOpen(false);
+
   return (
-    <aside className="sidebar" style={{ width: collapsed ? '60px' : '320px', transition: 'width 0.3s ease' }}>
+    <>
+      {/* Mobile hamburger toggle button */}
+      <button
+        className="sidebar-toggle-mobile"
+        onClick={() => setMobileOpen(!mobileOpen)}
+        aria-label="Toggle sidebar"
+        title={mobileOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+      >
+        {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+      </button>
+
+      {/* Mobile overlay backdrop */}
+      {mobileOpen && (
+        <div className="sidebar-overlay" onClick={closeMobile} />
+      )}
+
+      <aside
+        className={`sidebar ${mobileOpen ? 'open' : ''}`}
+        style={{ width: collapsed ? '60px' : '320px', transition: 'width 0.3s ease' }}
+      >
       <div className="sidebar-logo" style={{ justifyContent: collapsed ? 'center' : 'space-between', padding: collapsed ? '16px 0' : '16px' }}>
         {!collapsed && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -491,5 +524,6 @@ export default function Sidebar({
         </div>
       )}
     </aside>
+    </>
   );
 }

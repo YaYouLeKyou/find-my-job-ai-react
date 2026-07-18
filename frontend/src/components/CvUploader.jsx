@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Upload, AlertCircle, FileText, CheckCircle2 } from 'lucide-react';
 import { LANGS, STRINGS } from '../utils/translations';
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 export default function CvUploader({
   lang,

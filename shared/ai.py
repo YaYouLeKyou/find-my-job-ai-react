@@ -338,3 +338,74 @@ def rank_jobs_with_ai(
     except Exception as e:
         logger.error(f"Erreur tri IA: {e}")
         return jobs
+
+
+def estimate_workload(
+    mission_description: str,
+    mission_title: str = "",
+    cv_data: Optional[dict] = None,
+    target_lang: str = "français",
+    selected_model: str = "Groq / Llama 3.3",
+    gemini_api_key: str = "",
+    xai_api_key: str = "",
+    groq_api_key: str = "",
+    ollama_url: str = "http://localhost:11434",
+    custom_gemini_key: Optional[str] = None,
+) -> Optional[dict]:
+    """Estime la charge de travail d'une mission freelance via l'IA."""
+    
+    # Build context about the candidate if available
+    candidate_context = ""
+    if cv_data:
+        candidate_context = f"""
+        PROFIL DU CANDIDAT :
+        - Métier : {cv_data.get('metier', 'Non spécifié')}
+        - Années d'expérience : {cv_data.get('annees_experience', 'Non spécifié')}
+        - Compétences clés : {', '.join(cv_data.get('mots_cles', []))}
+        """
+    
+    prompt = f"""
+    Tu es un expert en estimation de projets freelance. Analyse cette mission et estime la charge de travail.
+    
+    TITRE DE LA MISSION : {mission_title}
+    DESCRIPTION DE LA MISSION :
+    {mission_description}
+    
+    {candidate_context}
+    
+    INSTRUCTIONS :
+    Retourne UNIQUEMENT un objet JSON avec les clés suivantes :
+    {{
+        "estimated_hours": nombre entier d'heures estimées (arrondi à la dizaine la plus proche),
+        "complexity_level": "low", "medium", "high", ou "very_high",
+        "complexity_description": brève description du niveau de complexité (1-2 phrases),
+        "key_tasks": liste de 3-5 tâches principales pour cette mission,
+        "recommended_duration": durée recommandée en jours ou semaines
+    }}
+    
+    Pour estimated_hours :
+    - Faible complexité : 8-40 heures
+    - Complexité moyenne : 40-80 heures  
+    - Haute complexité : 80-160 heures
+    - Très haute complexité : 160+ heures
+    """
+    
+    try:
+        response_text = call_ai_provider(
+            prompt, selected_model, is_json=True,
+            gemini_api_key=gemini_api_key, xai_api_key=xai_api_key,
+            groq_api_key=groq_api_key, ollama_url=ollama_url,
+            custom_gemini_key=custom_gemini_key
+        )
+        if not response_text:
+            return None
+            
+        return json.loads(response_text)
+    except json.JSONDecodeError as je:
+        logger.error(f"JSONDecodeError in workload estimation: {je}")
+        if response_text:
+            logger.error(f"Response text: {response_text}")
+        return None
+    except Exception as e:
+        logger.error(f"Erreur lors de l'estimation de la charge de travail: {e}")
+        return None
