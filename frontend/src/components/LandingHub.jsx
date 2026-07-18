@@ -5,11 +5,11 @@ const APPS = [
   {
     id: 'job',
     emoji: '🔍',
-    title: 'Find my job AI',
-    subtitle: 'Recherche d\'emploi CDI / CDD',
-    description: 'Analysez votre CV, recevez des recommandations de carrière IA, et trouvez les meilleures offres sur 10+ plateformes en un clic.',
-    features: ['Analyse CV intelligente', 'Lettre de motivation IA', 'Multi-sources simultanés', 'Score de compatibilité'],
-    sources: ['LinkedIn', 'Indeed', 'France Travail', 'Glassdoor', 'Monster'],
+    titleKey: 'hub_card_job_title',
+    subtitleKey: 'hub_card_job_subtitle',
+    descriptionKey: 'hub_card_job_description',
+    featuresKey: 'hub_card_job_features',
+    sourcesKey: 'hub_card_job_sources',
     gradient: 'linear-gradient(135deg, #7c4dff 0%, #448aff 100%)',
     glowColor: 'rgba(124, 77, 255, 0.25)',
     accentColor: '#7c4dff',
@@ -21,11 +21,11 @@ const APPS = [
   {
     id: 'freelance',
     emoji: '🚀',
-    title: 'Find my freelance mission AI',
-    subtitle: 'Recherche de missions freelance',
-    description: 'Trouvez des missions freelance adaptées à vos compétences, calculez votre TJM optimal et générez des propositions commerciales percutantes.',
-    features: ['Calcul TJM IA', 'Proposition commerciale', 'Gestion de portefeuille', 'Missions remote/hybride'],
-    sources: ['Malt', 'Upwork', 'Freelancer', 'Toptal', 'Codeur.com'],
+    titleKey: 'hub_card_freelance_title',
+    subtitleKey: 'hub_card_freelance_subtitle',
+    descriptionKey: 'hub_card_freelance_description',
+    featuresKey: 'hub_card_freelance_features',
+    sourcesKey: 'hub_card_freelance_sources',
     gradient: 'linear-gradient(135deg, #00bcd4 0%, #00897b 100%)',
     glowColor: 'rgba(0, 188, 212, 0.25)',
     accentColor: '#00bcd4',
@@ -224,7 +224,7 @@ export default function LandingHub({ onSelectApp, lang, setLang }) {
                     overflow: 'hidden',
                   }}
                 >
-                  {app.title}
+                  {S[app.titleKey]}
                 </h2>
                 <span
                   style={{
@@ -238,7 +238,7 @@ export default function LandingHub({ onSelectApp, lang, setLang }) {
                     display: 'inline-block',
                   }}
                 >
-                  {app.subtitle}
+                  {S[app.subtitleKey]}
                 </span>
               </div>
             </div>
@@ -252,12 +252,12 @@ export default function LandingHub({ onSelectApp, lang, setLang }) {
                 margin: 0,
               }}
             >
-              {app.description}
+              {S[app.descriptionKey]}
             </p>
 
             {/* Feature List */}
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '8px', margin: 0, padding: 0 }}>
-              {app.features.map((f) => (
+              {S[app.featuresKey].map((f) => (
                 <li
                   key={f}
                   style={{
@@ -293,7 +293,7 @@ export default function LandingHub({ onSelectApp, lang, setLang }) {
 
             {/* Platform Sources */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-              {app.sources.map((s) => (
+              {S[app.sourcesKey].map((s) => (
                 <span
                   key={s}
                   style={{

@@ -75,7 +75,18 @@ export const STRINGS = {
     export_missions: "📊 Exporter CSV",
     tjm_calculator: "💰 Calculateur TJM",
     portfolio_management: "📁 Gestion de portefeuille",
-    mission_history: "📋 Historique des missions"
+    mission_history: "📋 Historique des missions",
+    // Hub cards
+    hub_card_job_title: "Find my job AI",
+    hub_card_job_subtitle: "Recherche d'emploi CDI / CDD",
+    hub_card_job_description: "Analysez votre CV, recevez des recommandations de carrière IA, et trouvez les meilleures offres sur 10+ plateformes en un clic.",
+    hub_card_job_features: ["Analyse CV intelligente", "Lettre de motivation IA", "Multi-sources simultanés", "Score de compatibilité"],
+    hub_card_job_sources: ["LinkedIn", "Indeed", "France Travail", "Glassdoor", "Monster"],
+    hub_card_freelance_title: "Find my freelance mission AI",
+    hub_card_freelance_subtitle: "Recherche de missions freelance",
+    hub_card_freelance_description: "Trouvez des missions freelance adaptées à vos compétences, calculez votre TJM optimal et générez des propositions commerciales percutantes.",
+    hub_card_freelance_features: ["Calcul TJM IA", "Proposition commerciale", "Gestion de portefeuille", "Missions remote/hybride"],
+    hub_card_freelance_sources: ["Malt", "Upwork", "Freelancer", "Toptal", "Codeur.com"]
   },
   en: {
     title: "🚀 Find me a job AI", subtitle: "Find your next job with AI assistance", analyze: "Analyzing document...", search: "Search", profile: "📋 My Profile",
@@ -143,7 +154,18 @@ export const STRINGS = {
     export_missions: "📊 Export CSV",
     tjm_calculator: "💰 Rate calculator",
     portfolio_management: "📁 Portfolio management",
-    mission_history: "📋 Mission history"
+    mission_history: "📋 Mission history",
+    // Hub cards
+    hub_card_job_title: "Find my job AI",
+    hub_card_job_subtitle: "Job search CDI / CDD",
+    hub_card_job_description: "Analyze your CV, get AI career recommendations, and find the best offers on 10+ platforms in one click.",
+    hub_card_job_features: ["Smart CV analysis", "AI cover letter", "Multi-source search", "Compatibility score"],
+    hub_card_job_sources: ["LinkedIn", "Indeed", "France Travail", "Glassdoor", "Monster"],
+    hub_card_freelance_title: "Find my freelance mission AI",
+    hub_card_freelance_subtitle: "Freelance mission search",
+    hub_card_freelance_description: "Find freelance missions adapted to your skills, calculate your optimal daily rate, and generate impactful commercial proposals.",
+    hub_card_freelance_features: ["AI rate calculator", "Commercial proposal", "Portfolio management", "Remote/hybrid missions"],
+    hub_card_freelance_sources: ["Malt", "Upwork", "Freelancer", "Toptal", "Codeur.com"]
   },
   es: {
     title: "🚀 Find me a job AI", subtitle: "Encuentra tu próximo empleo con IA", analyze: "Analizando documento...", search: "Buscar", profile: "📋 Mi Perfil",
@@ -211,7 +233,18 @@ export const STRINGS = {
     export_missions: "📊 Exportar CSV",
     tjm_calculator: "💰 Calculadora de tarifa",
     portfolio_management: "📁 Gestión de portafolio",
-    mission_history: "📋 Historial de misiones"
+    mission_history: "📋 Historial de misiones",
+    // Hub cards
+    hub_card_job_title: "Find my job AI",
+    hub_card_job_subtitle: "Búsqueda de empleo CDI / CDD",
+    hub_card_job_description: "Analiza tu CV, recibe recomendaciones de carrera IA y encuentra las mejores ofertas en más de 10 plataformas con un clic.",
+    hub_card_job_features: ["Análisis CV inteligente", "Carta de presentación IA", "Búsqueda multi-fuente", "Puntuación de compatibilidad"],
+    hub_card_job_sources: ["LinkedIn", "Indeed", "France Travail", "Glassdoor", "Monster"],
+    hub_card_freelance_title: "Find my freelance mission AI",
+    hub_card_freelance_subtitle: "Búsqueda de misiones freelance",
+    hub_card_freelance_description: "Encuentra misiones freelance adaptadas a tus habilidades, calcula tu tarifa diaria óptima y genera propuestas comerciales impactantes.",
+    hub_card_freelance_features: ["Calculadora de tarifa IA", "Propuesta comercial", "Gestión de portafolio", "Misiones remote/híbridas"],
+    hub_card_freelance_sources: ["Malt", "Upwork", "Freelancer", "Toptal", "Codeur.com"]
   },
   de: {
     title: "🚀 Find me a job AI", subtitle: "Finden Sie Ihren nächsten Job mit KI", analyze: "Analysiere Dokument...", search: "Suchen", profile: "📋 Mein Profil",
@@ -279,7 +312,18 @@ export const STRINGS = {
     export_missions: "📊 CSV exportieren",
     tjm_calculator: "💰 Satzrechner",
     portfolio_management: "📁 Portfolio-Verwaltung",
-    mission_history: "📋 Auftragsverlauf"
+    mission_history: "📋 Auftragsverlauf",
+    // Hub cards
+    hub_card_job_title: "Find my job AI",
+    hub_card_job_subtitle: "Stellensuche CDI / CDD",
+    hub_card_job_description: "Analysieren Sie Ihren Lebenslauf, erhalten Sie KI-Karriereempfehlungen und finden Sie die besten Angebote auf über 10 Plattformen mit einem Klick.",
+    hub_card_job_features: ["Intelligente Lebenslaufanalyse", "KI-Anschreiben", "Multi-Quellen-Suche", "Kompatibilitätsbewertung"],
+    hub_card_job_sources: ["LinkedIn", "Indeed", "France Travail", "Glassdoor", "Monster"],
+    hub_card_freelance_title: "Find my freelance mission AI",
+    hub_card_freelance_subtitle: "Freelance-Auftragssuche",
+    hub_card_freelance_description: "Finden Sie Freelance-Aufträge, die Ihren Fähigkeiten entsprechen, berechnen Sie Ihren optimalen Tagessatz und generieren Sie wirkungsvolle Geschäftsvorschläge.",
+    hub_card_freelance_features: ["KI-Satzrechner", "Geschäftsvorschlag", "Portfolio-Verwaltung", "Remote/Hybride Aufträge"],
+    hub_card_freelance_sources: ["Malt", "Upwork", "Freelancer", "Toptal", "Codeur.com"]
   },
   ar: {
     title: "🚀 Find me a job AI", subtitle: "ابحث عن وظيفتك القادمة بمساعدة الذكاء الاصطناعي", analyze: "تحليل المستند...", search: "بحث", profile: "📋 ملفي الشخصي",
@@ -347,7 +391,18 @@ export const STRINGS = {
     export_missions: "📊 تصدير CSV",
     tjm_calculator: "💰 حاسبة المعدل",
     portfolio_management: "📁 إدارة المحفظة",
-    mission_history: "📋 سجل المهام"
+    mission_history: "📋 سجل المهام",
+    // Hub cards
+    hub_card_job_title: "Find my job AI",
+    hub_card_job_subtitle: "البحث عن وظائف CDI / CDD",
+    hub_card_job_description: "حلل سيرتك الذاتية، واحصل على توصيات مهنية من الذكاء الاصطناعي، واعثر على أفضل العروض على أكثر من 10 منصات بنقرة واحدة.",
+    hub_card_job_features: ["تحليل ذكي للسيرة الذاتية", "خطاب تحفيز بالذكاء الاصطناعي", "بحث متعدد المصادر", "درجة توافق"],
+    hub_card_job_sources: ["LinkedIn", "Indeed", "France Travail", "Glassdoor", "Monster"],
+    hub_card_freelance_title: "Find my freelance mission AI",
+    hub_card_freelance_subtitle: "البحث عن مهام حرة",
+    hub_card_freelance_description: "ابحث عن مهام حرة مناسبة لمهاراتك، واحسب معدلك اليومي الأمثل، وأنشئ مقترحات تجارية مؤثرة.",
+    hub_card_freelance_features: ["حاسبة معدل الذكاء الاصطناعي", "اقتراح تجاري", "إدارة المحفظة", "مهام عن بعد / هجينة"],
+    hub_card_freelance_sources: ["Malt", "Upwork", "Freelancer", "Toptal", "Codeur.com"]
   },
   ja: {
     title: "🚀 Find me a job AI", subtitle: "AIの力で次の仕事を見つける", analyze: "分析中...", search: "検索", profile: "📋 プロフィール",
@@ -415,10 +470,26 @@ export const STRINGS = {
     export_missions: "📊 CSVエクスポート",
     tjm_calculator: "💰 レート計算機",
     portfolio_management: "📁 ポートフォリオ管理",
-    mission_history: "📋 案件履歴"
+    mission_history: "📋 案件履歴",
+    // Hub cards
+    hub_card_job_title: "Find my job AI",
+    hub_card_job_subtitle: "求人検索 CDI / CDD",
+    hub_card_job_description: "履歴書を分析し、AIキャリア推奨を受け取り、10以上のプラットフォームで最高の求人をワンクリックで見つけましょう。",
+    hub_card_job_features: ["スマート履歴書分析", "AIカバーレター", "マルチソース検索", "互換性スコア"],
+    hub_card_job_sources: ["LinkedIn", "Indeed", "France Travail", "Glassdoor", "Monster"],
+    hub_card_freelance_title: "Find my freelance mission AI",
+    hub_card_freelance_subtitle: "フリーランス案件検索",
+    hub_card_freelance_description: "スキルに適したフリーランス案件を見つけ、最適な日当を計算し、影響力のある商業提案を生成しましょう。",
+    hub_card_freelance_features: ["AIレート計算機", "商業提案", "ポートフォリオ管理", "リモート/ハイブリッド案件"],
+    hub_card_freelance_sources: ["Malt", "Upwork", "Freelancer", "Toptal", "Codeur.com"]
   },
   zh: {
     title: "🚀 Find me a job AI", subtitle: "利用 AI 找到你的下一份工作", analyze: "分析中...", search: "搜索", profile: "📋 我的档案",
+    hub_title: "Find my work AI",
+    hub_subtitle: "您的专业AI智能体平台，助力职业发展。选择您的智能体，让AI为您工作。",
+    hub_badge: "多智能体AI平台",
+    hub_cta_job: "Find my job AI",
+    hub_cta_freelance: "Find my freelance mission AI",
     settings: "⚙️ 设置", num_ads: "显示数量", contract: "合同类型", location: "📍 城市 / 国家", remote: "仅远程", upload: "📂 在此处拖放您的简历 (PDF)",
     analyze_success: "分析成功！", analyze_fail: "无法从此 PDF 中提取文本。", metier: "职业", exp: "经验", advice: "✨ 改进建议",
     pistes: "💡 职业路径", alt: "🔀 替代职业", search_section: "🔍 机会搜索", search_info: "修改下方标题以启动个性化搜索。",
@@ -478,6 +549,17 @@ export const STRINGS = {
     export_missions: "📊 导出 CSV",
     tjm_calculator: "💰 费率计算器",
     portfolio_management: "📁 作品集管理",
-    mission_history: "📋 任务历史"
+    mission_history: "📋 任务历史",
+    // Hub cards
+    hub_card_job_title: "Find my job AI",
+    hub_card_job_subtitle: "求职搜索 CDI / CDD",
+    hub_card_job_description: "分析您的简历，获取AI职业推荐，一键在10多个平台上找到最佳职位。",
+    hub_card_job_features: ["智能简历分析", "AI求职信", "多源搜索", "匹配度评分"],
+    hub_card_job_sources: ["LinkedIn", "Indeed", "France Travail", "Glassdoor", "Monster"],
+    hub_card_freelance_title: "Find my freelance mission AI",
+    hub_card_freelance_subtitle: "自由职业任务搜索",
+    hub_card_freelance_description: "找到适合您技能的自由职业任务，计算您的最佳日薪，并生成有影响力的商业提案。",
+    hub_card_freelance_features: ["AI费率计算器", "商业提案", "作品集管理", "远程/混合任务"],
+    hub_card_freelance_sources: ["Malt", "Upwork", "Freelancer", "Toptal", "Codeur.com"]
   }
 };
