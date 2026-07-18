@@ -28,8 +28,8 @@ const generateFreelanceLinks = (query) => {
   };
 };
 
-export default function FreelanceMissionApp({ onBackToHub }) {
-  const [lang, setLang] = useState("Français");
+export default function FreelanceMissionApp({ onBackToHub, initialLang }) {
+  const [lang, setLang] = useState(initialLang || "Français");
   const [analysisEngine, setAnalysisEngine] = useState("Groq / Llama 3.3");
   const [rankingEngine, setRankingEngine] = useState("Groq / Llama 3.3");
   const [customGeminiKey, setCustomGeminiKey] = useState("");

@@ -12,9 +12,9 @@ import { Search, Loader2, RefreshCw, Key, ExternalLink, X, ArrowLeft } from 'luc
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 // ─── FindMyJobAI Inner App ───────────────────────────────────────────────────
-function FindMyJobApp({ onBackToHub }) {
+function FindMyJobApp({ onBackToHub, initialLang }) {
   // Global States
-  const [lang, setLang] = useState("Français");
+  const [lang, setLang] = useState(initialLang || "Français");
   const [analysisEngine, setAnalysisEngine] = useState("Groq / Llama 3.3");
   const [rankingEngine, setRankingEngine] = useState("Groq / Llama 3.3");
   const [customGeminiKey, setCustomGeminiKey] = useState("");
@@ -520,8 +520,10 @@ function FindMyJobApp({ onBackToHub }) {
 // ─── Root App with Hub Routing ───────────────────────────────────────────────
 export default function App() {
   const [currentApp, setCurrentApp] = useState(null); // null = hub, 'job', 'freelance'
+  const [selectedLang, setSelectedLang] = useState("Français");
 
-  const handleSelectApp = (appId) => {
+  const handleSelectApp = (appId, lang) => {
+    setSelectedLang(lang || selectedLang);
     setCurrentApp(appId);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -532,11 +534,11 @@ export default function App() {
   };
 
   if (currentApp === 'job') {
-    return <FindMyJobApp onBackToHub={handleBackToHub} />;
+    return <FindMyJobApp onBackToHub={handleBackToHub} initialLang={selectedLang} />;
   }
 
   if (currentApp === 'freelance') {
-    return <FreelanceMissionApp onBackToHub={handleBackToHub} />;
+    return <FreelanceMissionApp onBackToHub={handleBackToHub} initialLang={selectedLang} />;
   }
 
   return <LandingHub onSelectApp={handleSelectApp} />;

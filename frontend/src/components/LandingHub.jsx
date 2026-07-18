@@ -165,7 +165,7 @@ export default function LandingHub({ onSelectApp }) {
           <button
             key={app.id}
             id={`hub-app-${app.id}`}
-            onClick={() => onSelectApp(app.id)}
+            onClick={() => onSelectApp(app.id, lang)}
             onMouseEnter={() => setHovered(app.id)}
             onMouseLeave={() => setHovered(null)}
             style={{
