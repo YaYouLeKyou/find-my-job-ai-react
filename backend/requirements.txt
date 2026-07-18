@@ -9,5 +9,7 @@ requests
 beautifulsoup4
 python-jobspy
 pandas
-google-generativeai
+google-genai>=0.3.0
 lxml
+slowapi>=0.1.8
+redis>=4.0
