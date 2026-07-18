@@ -1,93 +1,93 @@
-# 🚀 FindMyJobAI - Assistant de Recherche d'Emploi Intelligent
+# 🚀 Find my work AI - Intelligent Job Search Assistant
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue)
 ![React](https://img.shields.io/badge/React-19-cyan)
 ![FastAPI](https://img.shields.io/badge/FastAPI-latest-green)
 ![Streamlit](https://img.shields.io/badge/Streamlit-latest-red)
 
-**FindMyJobAI** est un assistant de recherche d'emploi intelligent qui analyse votre CV, suggère des pistes de carrière et génère des lettres de motivation personnalisées grâce à l'IA.
+**Find my work AI** is an intelligent job search assistant that analyzes your CV, suggests career paths, and generates personalized cover letters using AI.
 
 ---
 
-## ✨ Fonctionnalités
+## ✨ Features
 
-### 📄 Analyse de CV
-- Upload de CV au format PDF
-- Extraction automatique des compétences, expériences et métier
-- Suggestions de métiers compatibles et alternatives
-- Conseils d'amélioration personnalisés
+### 📄 CV Analysis
+- PDF CV upload
+- Automatic extraction of skills, experience, and job title
+- Suggestions for compatible jobs and alternatives
+- Personalized improvement tips
 
-### 🔍 Recherche d'Emploi Multi-Sources
+### 🔍 Multi-Source Job Search
 - **LinkedIn, Indeed, Glassdoor, ZipRecruiter** (via JobSpy)
-- **France Travail** (API officielle + scraping)
+- **France Travail** (official API + scraping)
 - **Google Jobs, Adzuna, Jooble, Apify**
-- Filtres avancés : contrat, télétravail, localisation
-- Tri par pertinence IA, date ou proximité
+- Advanced filters: contract type, remote work, location
+- Sort by AI relevance, date, or proximity
 
-### 🤖 Intelligence Artificielle
-- **Classement IA** des offres par compatibilité avec votre profil
-- **Génération de lettres de motivation** personnalisées
-- Support multi-modèles : Groq/Llama 3.3, Gemini 2.5/3.5, Ollama (local), xAI/Grok
+### 🤖 Artificial Intelligence
+- **AI ranking** of job offers by compatibility with your profile
+- **Personalized cover letter** generation
+- Multi-model support: Groq/Llama 3.3, Gemini 2.5/3.5, Ollama (local), xAI/Grok
 
-### 🌍 Multilingue
-- Interface disponible en **7 langues** : Français, English, Español, Deutsch, العربية, 日本語, 中文
-- Adaptation automatique de la localisation
+### 🌍 Multilingual
+- Interface available in **7 languages**: Français, English, Español, Deutsch, العربية, 日本語, 中文
+- Automatic location adaptation
 
 ---
 
-## 🛠️ Stack Technique
+## 🛠️ Tech Stack
 
 ### Backend
-- **FastAPI** - API REST haute performance
-- **Groq** - Inference IA ultra-rapide (Llama 3.3)
-- **Google Gemini** - Analyse de CV avancée
-- **JobSpy** - Agrégation multi-plateformes
+- **FastAPI** - High-performance REST API
+- **Groq** - Ultra-fast AI inference (Llama 3.3)
+- **Google Gemini** - Advanced CV analysis
+- **JobSpy** - Multi-platform job aggregation
 - **Python 3.11+**
 
 ### Frontend
-- **React 19** avec Vite
-- **Lucide React** - Icônes modernes
-- **CSS moderne** - Design responsive et glassmorphism
+- **React 19** with Vite
+- **Lucide React** - Modern icons
+- **Modern CSS** - Responsive design and glassmorphism
 
 ### Alternative
-- **Streamlit** - Version standalone tout-en-un
+- **Streamlit** - All-in-one standalone version
 
 ---
 
 ## 📦 Installation
 
-### Prérequis
+### Prerequisites
 - Python 3.11+
 - Node.js 20+
-- npm ou yarn
+- npm or yarn
 
-### 1. Cloner le repository
+### 1. Clone the repository
 
 ```bash
 git clone git@github.com:YaYouLeKyou/find-my-job-ai-react.git
 cd find-my-job-ai-react
 ```
 
-### 2. Configuration des variables d'environnement
+### 2. Environment variables configuration
 
 ```bash
 cp .env.example .env
 ```
 
-Éditez `.env` avec vos clés API :
+Edit `.env` with your API keys:
 ```env
 GROQ_API_KEY=gsk_...
 GEMINI_API_KEY=AIza...
 ```
 
-### 3. Installation du Backend
+### 3. Backend Installation
 
 ```bash
 pip install -r requirements.txt
 pip install -r backend/requirements.txt
 ```
 
-### 4. Installation du Frontend
+### 4. Frontend Installation
 
 ```bash
 cd frontend
@@ -97,17 +97,17 @@ cd ..
 
 ---
 
-## 🚀 Démarrage
+## 🚀 Getting Started
 
-### Option 1: Application Streamlit (Tout-en-un)
+### Option 1: Streamlit Application (All-in-One)
 
 ```bash
 python -m streamlit run main.py
 ```
 
-Accédez à **http://localhost:8501**
+Access **http://localhost:8501**
 
-### Option 2: Backend + Frontend React
+### Option 2: Backend + React Frontend
 
 **Terminal 1 - Backend:**
 ```bash
@@ -121,52 +121,31 @@ cd frontend
 npm run dev
 ```
 
-Accédez à **http://localhost:5173**
+Access **http://localhost:5173**
 
 ---
 
-## 🐳 Déploiement avec Docker
-
-```bash
-# Configuration
-cp .env.example .env
-# Éditez .env avec vos clés API
-
-# Lancement
-docker-compose up -d
-
-# Vérification
-docker-compose ps
-docker-compose logs -f
-```
-
-Accédez à **http://localhost**
-
-📖 **Guide de déploiement détaillé** : [DEPLOYMENT.md](DEPLOYMENT.md)
-
----
-
-## 📊 Architecture du Projet
+## 📊 Project Architecture
 
 ```
 find-my-job-ai-react/
-├── main.py                    # Application Streamlit (standalone)
+├── main.py                    # Streamlit application (standalone)
 ├── backend/
-│   ├── api.py                 # API FastAPI
+│   ├── api.py                 # FastAPI API
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── components/        # Composants React
-│   │   ├── utils/             # Traductions et helpers
-│   │   └── App.jsx            # Application principale
+│   │   ├── components/        # React components
+│   │   ├── utils/             # Translations and helpers
+│   │   └── App.jsx            # Main application
 │   ├── Dockerfile
 │   └── nginx.conf
-├── shared/                    # Code partagé (Python)
-│   ├── ai.py                  # Appels aux fournisseurs d'IA
-│   ├── jobs.py                # Scraping et APIs d'emploi
-│   ├── utils.py               # Utilitaires (PDF, géoloc, etc.)
-│   ├── translations.py        # Traductions source unique
-│   └── tests/                 # Tests unitaires
+├── shared/                    # Shared code (Python)
+│   ├── ai.py                  # AI provider calls
+│   ├── jobs.py                # Job scraping and APIs
+│   ├── utils.py               # Utilities (PDF, geoloc, etc.)
+│   ├── translations.py        # Single source of truth for translations
+│   └── tests/                 # Unit tests
 ├── docker-compose.yml
 ├── .env.example
 └── DEPLOYMENT.md
@@ -177,82 +156,82 @@ find-my-job-ai-react/
 ## 🧪 Tests
 
 ```bash
-# Tests unitaires
+# Unit tests
 python -m unittest shared/tests/test_utils.py -v
 ```
 
-**Résultat** : 12/12 tests passent ✅
+**Result**: 12/12 tests passing ✅
 
 ---
 
-## 🔑 Clés API Requises
+## 🔑 Required API Keys
 
-| Service | Clé | Gratuit | Inscription |
-|---------|-----|---------|-------------|
-| **Groq** | `GROQ_API_KEY` | ✅ Oui | [console.groq.com](https://console.groq.com) |
-| **Gemini** | `GEMINI_API_KEY` | ✅ Oui | [aistudio.google.com](https://aistudio.google.com) |
-| **France Travail** | `FRANCE_TRAVAIL_CLIENT_ID/SECRET` | ✅ Oui | [pole-emploi.fr](https://pole-emploi.fr) |
-| **Adzuna** | `ADZUNA_APP_ID/KEY` | ✅ Oui | [adzuna.com](https://adzuna.com) |
-| **SerpApi** | `SERPAPI_KEY` | 🆓 100 req/mois | [serpapi.com](https://serpapi.com) |
-| **Jooble** | `JOOBLE_API_KEY` | ✅ Oui | [jooble.org](https://jooble.org) |
-| **Apify** | `APIFY_API_KEY` | 🆓 100$ crédit | [apify.com](https://apify.com) |
-
----
-
-## 🎯 Fonctionnalités Clés pour les Utilisateurs
-
-1. **Upload de CV** → Analyse automatique par IA
-2. **Sélection du métier** → Recherche instantanée sur 10+ plateformes
-3. **Filtres avancés** → CDI, CDD, Stage, Alternance, Télétravail
-4. **Classement IA** → Les offres les plus pertinentes en premier
-5. **Lettre de motivation** → Générée en 1 clic, personnalisée et téléchargeable
-6. **Accès direct** → Liens optimisés vers les plateformes bloquant l'IA
+| Service | Key | Free | Registration |
+|---------|-----|------|-------------|
+| **Groq** | `GROQ_API_KEY` | ✅ Yes | [console.groq.com](https://console.groq.com) |
+| **Gemini** | `GEMINI_API_KEY` | ✅ Yes | [aistudio.google.com](https://aistudio.google.com) |
+| **France Travail** | `FRANCE_TRAVAIL_CLIENT_ID/SECRET` | ✅ Yes | [pole-emploi.fr](https://pole-emploi.fr) |
+| **Adzuna** | `ADZUNA_APP_ID/KEY` | ✅ Yes | [adzuna.com](https://adzuna.com) |
+| **SerpApi** | `SERPAPI_KEY` | 🆓 100 req/month | [serpapi.com](https://serpapi.com) |
+| **Jooble** | `JOOBLE_API_KEY` | ✅ Yes | [jooble.org](https://jooble.org) |
+| **Apify** | `APIFY_API_KEY` | 🆓 100$ credit | [apify.com](https://apify.com) |
 
 ---
 
-## 🛡️ Sécurité
+## 🎯 Key Features for Users
 
-- ✅ Authentification Google supprimée (pas de dépendance externe)
-- ✅ Variables d'environnement pour toutes les clés API
-- ✅ CORS configurable
-- ✅ `.gitignore` protège les fichiers sensibles
-- ✅ Pas de base de données utilisateur (pas de fuite de données personnelles)
+1. **CV Upload** → Automatic AI analysis
+2. **Job Selection** → Instant search on 10+ platforms
+3. **Advanced Filters** → Full-time, Part-time, Internship, Apprenticeship, Remote
+4. **AI Ranking** → Most relevant offers first
+5. **Cover Letter** → Generated in 1 click, personalized and downloadable
+6. **Direct Access** → Optimized links to platforms blocking AI
+
+---
+
+## 🛡️ Security
+
+- ✅ Google authentication removed (no external dependency)
+- ✅ Environment variables for all API keys
+- ✅ Configurable CORS
+- ✅ `.gitignore` protects sensitive files
+- ✅ No user database (no personal data leakage)
 
 ---
 
 ## 📈 Roadmap
 
-- [ ] Migration complète vers `shared/` (déduplication totale)
-- [ ] Ajout de tests d'intégration
-- [ ] Support de plus de formats de CV (DOCX, TXT)
-- [ ] Historique des recherches
-- [ ] Export des résultats en CSV/PDF
-- [ ] Mode sombre/clair
-- [ ] Application mobile (React Native)
+- [ ] Complete migration to `shared/` (full deduplication)
+- [ ] Integration tests
+- [ ] Support for more CV formats (DOCX, TXT)
+- [ ] Search history
+- [ ] Export results to CSV/PDF
+- [ ] Dark/light mode
+- [ ] Mobile app (React Native)
 
 ---
 
-## 🤝 Contribution
+## 🤝 Contributing
 
-Les contributions sont les bienvenues ! 
+Contributions are welcome!
 
-1. Fork le projet
-2. Créer une branche (`git checkout -b feature/AmazingFeature`)
+1. Fork the project
+2. Create a branch (`git checkout -b feature/AmazingFeature`)
 3. Commit (`git commit -m 'Add AmazingFeature'`)
 4. Push (`git push origin feature/AmazingFeature`)
-5. Ouvrir une Pull Request
+5. Open a Pull Request
 
 ---
 
 ## 📄 License
 
-Distribué sous la licence MIT. Voir `LICENSE` pour plus d'informations.
+Distributed under the MIT license. See `LICENSE` for more information.
 
 ---
 
-## 👨‍💻 Auteur
+## 👨‍💻 Author
 
-**Yanès Hadiouche** - *Développeur Full Stack*
+**Yanès Hadiouche** - *Full Stack Developer*
 
 ---
 
@@ -264,20 +243,20 @@ Distribué sous la licence MIT. Voir `LICENSE` pour plus d'informations.
 
 ---
 
-## 🙏 Remerciements
+## 🙏 Acknowledgments
 
-- [Groq](https://groq.com) pour l'inférence IA ultra-rapide
-- [Google Gemini](https://ai.google.dev) pour l'analyse de CV
-- [JobSpy](https://github.com/sirfuzz/jobspy) pour l'agrégation d'offres
-- [Streamlit](https://streamlit.io) pour le framework UI
-- [React](https://react.dev) et [Vite](https://vitejs.dev) pour le frontend
-
----
-
-## ⭐️ Supportez le projet
-
-Si ce projet vous aide dans votre recherche d'emploi, n'hésitez pas à lui donner une ⭐️ sur GitHub !
+- [Groq](https://groq.com) for ultra-fast AI inference
+- [Google Gemini](https://ai.google.dev) for CV analysis
+- [JobSpy](https://github.com/sirfuzz/jobspy) for job aggregation
+- [Streamlit](https://streamlit.io) for the UI framework
+- [React](https://react.dev) and [Vite](https://vitejs.dev) for the frontend
 
 ---
 
-**Fait avec ❤️ et beaucoup de ☕**
+## ⭐️ Support the project
+
+If this project helps you in your job search, feel free to give it a ⭐️ on GitHub!
+
+---
+
+**Made with ❤️ and lots of ☕**
