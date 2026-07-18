@@ -89,7 +89,7 @@ app.add_middleware(SlowAPIMiddleware)
 
 # CORS middleware to allow connection from React (usually on port 5173 or 3000)
 # In production, replace ["*"] with specific origins
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:8501,https://findmyjobai.netlify.app,https://*.netlify.app").split(",")
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:8501,https://find-my-job-ai.netlify.app,https://*.netlify.app").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,

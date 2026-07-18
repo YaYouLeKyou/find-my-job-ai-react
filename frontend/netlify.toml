@@ -13,6 +13,10 @@
   status = 200
   force = true
 
+# Custom domain / Netlify URL
+[build.production]
+  url = "https://find-my-job-ai.netlify.app"
+
 # SPA fallback pour React Router
 [[redirects]]
   from = "/*"
