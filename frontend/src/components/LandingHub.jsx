@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { LANGS } from '../utils/translations';
 
 const APPS = [
   {
@@ -38,6 +39,7 @@ const APPS = [
 export default function LandingHub({ onSelectApp }) {
   const [hovered, setHovered] = useState(null);
   const [visible, setVisible] = useState(false);
+  const [lang, setLang] = useState("Français");
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 80);
@@ -102,6 +104,32 @@ export default function LandingHub({ onSelectApp }) {
         >
           <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#7c4dff', display: 'inline-block', animation: 'pulse-dot 1.5s ease-in-out infinite' }} />
           Plateforme IA multi-agents
+        </div>
+
+        {/* Language Selector */}
+        <div style={{ marginBottom: '24px' }}>
+          <select
+            value={lang}
+            onChange={(e) => setLang(e.target.value)}
+            style={{
+              padding: '10px 16px',
+              borderRadius: '12px',
+              border: '1px solid var(--border-color)',
+              background: 'var(--surface-color)',
+              color: 'var(--text-primary)',
+              fontSize: '0.9rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              minWidth: '160px',
+            }}
+          >
+            {Object.keys(LANGS).map((key) => (
+              <option key={key} value={key}>
+                {key}
+              </option>
+            ))}
+          </select>
         </div>
 
         <p
