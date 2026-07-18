@@ -6,9 +6,11 @@ requests
 beautifulsoup4
 python-jobspy
 pandas
-google-generativeai
+google-genai>=0.3.0
 lxml
 fastapi
 uvicorn
 python-multipart
 aiofiles
+slowapi>=0.1.9
+redis>=4.5.0
