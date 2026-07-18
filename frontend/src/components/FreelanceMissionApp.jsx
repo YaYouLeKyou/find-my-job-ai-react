@@ -299,7 +299,7 @@ export default function FreelanceMissionApp({ onBackToHub }) {
             WebkitTextStroke: '0.5px rgba(0, 0, 0, 0.15)',
             textShadow: '0 0 1px rgba(0, 0, 0, 0.1)',
           }}>
-            🚀 FindMyFreelanceMissionAI
+            🚀 Find my freelance mission AI
           </h1>
           <p style={{
             color: 'var(--text-primary)',

@@ -122,7 +122,7 @@ export default function Sidebar({
         {!collapsed && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Settings size={24} className="text-primary" />
-            <span>FindMyJobAI</span>
+            <span>Find my job AI</span>
           </div>
         )}
         <button
@@ -491,7 +491,7 @@ export default function Sidebar({
 
           <div className="sidebar-section" style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>FindMyJobAI v2.0</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Find my work AI v2.0</span>
               {onToggleDarkMode && (
                 <button
                   onClick={onToggleDarkMode}

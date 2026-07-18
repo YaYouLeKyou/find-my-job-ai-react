@@ -119,7 +119,7 @@ export default function FreelanceSidebar({
                 fontSize: '1rem',
               }}
             >
-              FreelanceMissionAI
+              Find my freelance mission AI
             </span>
           </div>
         )}

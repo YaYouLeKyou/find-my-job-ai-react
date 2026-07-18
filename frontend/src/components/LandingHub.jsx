@@ -4,7 +4,7 @@ const APPS = [
   {
     id: 'job',
     emoji: '🔍',
-    title: 'FindMyJobAI',
+    title: 'Find my job AI',
     subtitle: 'Recherche d\'emploi CDI / CDD',
     description: 'Analysez votre CV, recevez des recommandations de carrière IA, et trouvez les meilleures offres sur 10+ plateformes en un clic.',
     features: ['Analyse CV intelligente', 'Lettre de motivation IA', 'Multi-sources simultanés', 'Score de compatibilité'],
@@ -20,7 +20,7 @@ const APPS = [
   {
     id: 'freelance',
     emoji: '🚀',
-    title: 'FindMyFreelanceMissionAI',
+    title: 'Find my freelance mission AI',
     subtitle: 'Recherche de missions freelance',
     description: 'Trouvez des missions freelance adaptées à vos compétences, calculez votre TJM optimal et générez des propositions commerciales percutantes.',
     features: ['Calcul TJM IA', 'Proposition commerciale', 'Gestion de portefeuille', 'Missions remote/hybride'],
@@ -190,6 +190,11 @@ export default function LandingHub({ onSelectApp }) {
                     lineHeight: '1.2',
                     wordWrap: 'break-word',
                     overflowWrap: 'break-word',
+                    minHeight: '3.1rem',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
                   }}
                 >
                   {app.title}
