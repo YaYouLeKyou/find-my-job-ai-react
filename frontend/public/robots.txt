@@ -1,12 +1,12 @@
 User-agent: *
 Allow: /
 
-# Sitemap
+# Disallow admin or private areas if any
+Disallow: /api/
+Disallow: /private/
+
+# Sitemap location
 Sitemap: https://findmyjobai.com/sitemap.xml
 
-# Crawl-delay
+# Crawl delay (optional)
 Crawl-delay: 1
-
-# Disallow admin or private areas
-Disallow: /admin/
-Disallow: /private/
