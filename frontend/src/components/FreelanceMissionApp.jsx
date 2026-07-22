@@ -5,6 +5,7 @@ import CvProfile from './CvProfile';
 import FreelanceMissionCard from './FreelanceMissionCard';
 import AdComponent from './AdComponent';
 import SEO from './SEO';
+import { LANGS, STRINGS } from '../utils/translations';
 import { Search, Loader2, RefreshCw, Key, ExternalLink, X, ArrowLeft, Briefcase } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -30,8 +31,8 @@ const generateFreelanceLinks = (query) => {
   };
 };
 
-export default function FreelanceMissionApp({ onBackToHub, initialLang }) {
-  const [lang, setLang] = useState(initialLang || "Français");
+export default function FreelanceMissionApp({ onBackToHub, lang, setLang }) {
+  // lang and setLang are now controlled by parent (App.jsx) for instant global updates
   const [analysisEngine, setAnalysisEngine] = useState("Groq / Llama 3.3");
   const [rankingEngine, setRankingEngine] = useState("Groq / Llama 3.3");
   const [customGeminiKey, setCustomGeminiKey] = useState("");
@@ -56,8 +57,7 @@ export default function FreelanceMissionApp({ onBackToHub, initialLang }) {
   const [loadingMissions, setLoadingMissions] = useState(false);
   const [errorMissions, setErrorMissions] = useState("");
   const [searchTime, setSearchTime] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [visibleCount, setVisibleCount] = useState(10);
   const [searchHistory, setSearchHistory] = useState([]);
   const [savedMissions, setSavedMissions] = useState([]);
   const [toast, setToast] = useState(null);
@@ -118,7 +118,7 @@ export default function FreelanceMissionApp({ onBackToHub, initialLang }) {
     setMissions([]);
     setSourceCounts({});
     setExcludedSources([]);
-    setCurrentPage(1);
+    setVisibleCount(10);
 
     // Build query with freelance context
     const freelanceQuery = `freelance mission ${activeQuery} ${missionType ? missionType : ''}`.trim();
@@ -148,8 +148,8 @@ export default function FreelanceMissionApp({ onBackToHub, initialLang }) {
           sort_option: "Pertinence (IA)",
           ranking_engine: rankingEngine,
           custom_gemini_key: customGeminiKey || null,
-          lang_code: "fr",
-          lang_label: "français",
+          lang_code: LANGS[lang].code,
+          lang_label: LANGS[lang].label,
           cv_data: cvData,
           is_freelance: true,
           tjm_min: tjmMin ? parseInt(tjmMin) : null,
@@ -238,10 +238,12 @@ export default function FreelanceMissionApp({ onBackToHub, initialLang }) {
   const directLinks = searchQuery ? generateFreelanceLinks(searchQuery) : {};
 
   const displayedMissions = missions.filter(m => !excludedSources.includes(m.source));
-  const indexOfLast = currentPage * itemsPerPage;
-  const indexOfFirst = indexOfLast - itemsPerPage;
-  const currentMissions = displayedMissions.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(displayedMissions.length / itemsPerPage);
+  const visibleMissions = displayedMissions.slice(0, visibleCount);
+  const hasMoreMissions = visibleCount < displayedMissions.length;
+
+  const handleLoadMore = () => {
+    setVisibleCount(prev => Math.min(prev + 10, displayedMissions.length));
+  };
 
   const chips = [];
   if (cvData) {
@@ -580,7 +582,7 @@ export default function FreelanceMissionApp({ onBackToHub, initialLang }) {
             </div>
 
             <div className="job-list">
-              {currentMissions.map(mission => (
+              {visibleMissions.map(mission => (
                 <FreelanceMissionCard
                   key={mission.id}
                   mission={mission}
@@ -593,16 +595,10 @@ export default function FreelanceMissionApp({ onBackToHub, initialLang }) {
               ))}
             </div>
 
-            {totalPages > 1 && (
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '24px', flexWrap: 'wrap' }}>
-                <button className="btn btn-secondary" onClick={() => { setCurrentPage(p => p - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} disabled={currentPage === 1} style={{ padding: '8px 16px' }}>
-                  ← Précédent
-                </button>
-                <span style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontWeight: '600' }}>
-                  Page {currentPage} / {totalPages}
-                </span>
-                <button className="btn btn-secondary" onClick={() => { setCurrentPage(p => p + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} disabled={currentPage === totalPages} style={{ padding: '8px 16px' }}>
-                  Suivant →
+            {hasMoreMissions && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px' }}>
+                <button className="btn btn-freelance" onClick={handleLoadMore} style={{ padding: '12px 32px', fontSize: '1rem' }}>
+                  Charger plus de missions ({displayedMissions.length - visibleCount} restantes)
                 </button>
               </div>
             )}

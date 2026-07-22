@@ -14,9 +14,9 @@ import { Search, Loader2, RefreshCw, Key, ExternalLink, X, ArrowLeft } from 'luc
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 // ─── FindMyJobAI Inner App ───────────────────────────────────────────────────
-function FindMyJobApp({ onBackToHub, initialLang }) {
+function FindMyJobApp({ onBackToHub, lang, setLang }) {
   // Global States
-  const [lang, setLang] = useState(initialLang || "Français");
+  // lang and setLang are now controlled by parent (App.jsx) for instant global updates
   const [analysisEngine, setAnalysisEngine] = useState("Groq / Llama 3.3");
   const [rankingEngine, setRankingEngine] = useState("Groq / Llama 3.3");
   const [customGeminiKey, setCustomGeminiKey] = useState("");
@@ -577,11 +577,11 @@ export default function App() {
   };
 
   if (currentApp === 'job') {
-    return <FindMyJobApp onBackToHub={handleBackToHub} initialLang={selectedLang} />;
+    return <FindMyJobApp onBackToHub={handleBackToHub} lang={selectedLang} setLang={setSelectedLang} />;
   }
 
   if (currentApp === 'freelance') {
-    return <FreelanceMissionApp onBackToHub={handleBackToHub} initialLang={selectedLang} />;
+    return <FreelanceMissionApp onBackToHub={handleBackToHub} lang={selectedLang} setLang={setSelectedLang} />;
   }
 
   return <LandingHub onSelectApp={handleSelectApp} lang={selectedLang} setLang={setSelectedLang} />;
