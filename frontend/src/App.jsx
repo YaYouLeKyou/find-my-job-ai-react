@@ -42,8 +42,7 @@ function FindMyJobApp({ onBackToHub, initialLang }) {
   const [errorJobs, setErrorJobs] = useState("");
   const [ollamaOnline, setOllamaOnline] = useState(false);
   const [searchTime, setSearchTime] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [visibleCount, setVisibleCount] = useState(10);
   const [searchHistory, setSearchHistory] = useState([]);
   const [savedJobs, setSavedJobs] = useState([]);
   const [toast, setToast] = useState(null);
@@ -98,7 +97,7 @@ function FindMyJobApp({ onBackToHub, initialLang }) {
     setJobs([]);
     setSourceCounts({});
     setExcludedSources([]);
-    setCurrentPage(1);
+    setVisibleCount(10);
 
     try {
       const response = await fetch(`${API_BASE}/api/search-jobs`, {
@@ -270,14 +269,11 @@ function FindMyJobApp({ onBackToHub, initialLang }) {
 
   const directLinks = searchQuery ? generateJobSearchLinks(searchQuery, currentLangCode) : {};
   const displayedJobs = jobs.filter(job => !excludedSources.includes(job.source));
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentJobs = displayedJobs.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(displayedJobs.length / itemsPerPage);
+  const visibleJobs = displayedJobs.slice(0, visibleCount);
+  const hasMoreJobs = visibleCount < displayedJobs.length;
 
-  const handlePageChange = (pageNumber) => {
-    setCurrentPage(pageNumber);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const handleLoadMore = () => {
+    setVisibleCount(prev => Math.min(prev + 10, displayedJobs.length));
   };
 
   const chips = [];
@@ -524,16 +520,16 @@ function FindMyJobApp({ onBackToHub, initialLang }) {
               </div>
             </div>
             <div className="job-list">
-              {currentJobs.map(job => (
+              {visibleJobs.map(job => (
                 <JobCard key={job.id} lang={lang} job={job} cvData={cvData} rankingEngine={rankingEngine}
                   customGeminiKey={customGeminiKey} onSaveJob={toggleSaveJob} isSaved={savedJobs.some(j => j.id === job.id)} />
               ))}
             </div>
-            {totalPages > 1 && (
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '24px', flexWrap: 'wrap' }}>
-                <button className="btn btn-secondary" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} style={{ padding: '8px 16px' }}>← Précédent</button>
-                <span style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontWeight: '600' }}>Page {currentPage} / {totalPages}</span>
-                <button className="btn btn-secondary" onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} style={{ padding: '8px 16px' }}>Suivant →</button>
+            {hasMoreJobs && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px' }}>
+                <button className="btn btn-primary" onClick={handleLoadMore} style={{ padding: '12px 32px', fontSize: '1rem' }}>
+                  Charger plus d'offres ({displayedJobs.length - visibleCount} restantes)
+                </button>
               </div>
             )}
           </div>
