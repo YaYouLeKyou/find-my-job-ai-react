@@ -123,8 +123,37 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
       if (!response.ok) throw new Error("Erreur de communication avec le serveur d'offres.");
 
       const data = await response.json();
-      setJobs(data.results || []);
-      setSourceCounts(data.source_counts || {});
+      const results = data.results || [];
+      const sourceCounts = data.source_counts || {};
+      
+      // Log detailed results to console for debugging
+      console.log('='.repeat(60));
+      console.log('🔍 RÉSULTATS DE RECHERCHE');
+      console.log('='.repeat(60));
+      console.log(`📊 Total résultats: ${results.length}`);
+      console.log(`📡 Sources:`, sourceCounts);
+      console.log('-' .repeat(40));
+      
+      // Log per-source breakdown
+      const bySource = {};
+      results.forEach(job => {
+        const src = job.source || 'Inconnue';
+        if (!bySource[src]) bySource[src] = [];
+        bySource[src].push(job);
+      });
+      
+      Object.entries(bySource).forEach(([source, jobs]) => {
+        console.log(`\n📌 ${source} (${jobs.length} résultats):`);
+        jobs.slice(0, 5).forEach((job, i) => {
+          console.log(`   ${i+1}. ${job.title || 'N/A'} @ ${job.company || 'N/A'} | ${job.location || 'N/A'}`);
+        });
+        if (jobs.length > 5) console.log(`   ... et ${jobs.length - 5} autres`);
+      });
+      
+      console.log('='.repeat(60));
+      
+      setJobs(results);
+      setSourceCounts(sourceCounts);
 
       const endTime = Date.now();
       const duration = ((endTime - startTime) / 1000).toFixed(2);
