@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { LANGS, STRINGS } from '../utils/translations';
 import { ExternalLink, FileText, ChevronDown, ChevronUp, Download, Loader2, Copy, Check } from 'lucide-react';
+import JobSchema from './JobSchema';
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -87,6 +88,9 @@ export default function JobCard({
 
   return (
     <div className="job-card">
+      {/* Schema.org JobPosting for Google for Jobs */}
+      <JobSchema job={job} />
+
       <div className="job-card-header">
         <div className="job-info">
           <h3>{job.title}</h3>
