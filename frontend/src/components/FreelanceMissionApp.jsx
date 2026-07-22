@@ -4,6 +4,7 @@ import CvUploader from './CvUploader';
 import CvProfile from './CvProfile';
 import FreelanceMissionCard from './FreelanceMissionCard';
 import AdComponent from './AdComponent';
+import SEO from './SEO';
 import { Search, Loader2, RefreshCw, Key, ExternalLink, X, ArrowLeft, Briefcase } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -250,6 +251,13 @@ export default function FreelanceMissionApp({ onBackToHub, initialLang }) {
 
   return (
     <div className="app-container freelance-app">
+      {/* SEO Meta Tags */}
+      <SEO 
+        title="Find My Freelance Mission AI - Discover Freelance Opportunities"
+        description="Find the best freelance missions with AI-powered matching. Connect with top clients and projects that match your skills and experience."
+        keywords="freelance, missions, freelance work, AI, job matching, independent work, FindMyJobAI, France"
+      />
+
       {/* Toast */}
       {toast && (
         <div className={`toast ${toast.type}`}>

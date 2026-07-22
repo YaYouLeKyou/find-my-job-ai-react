@@ -7,6 +7,7 @@ import JobCard from './components/JobCard';
 import LandingHub from './components/LandingHub';
 import FreelanceMissionApp from './components/FreelanceMissionApp';
 import AdComponent from './components/AdComponent';
+import SEO from './components/SEO';
 import { LANGS, STRINGS } from './utils/translations';
 import { Search, Loader2, RefreshCw, Key, ExternalLink, X, ArrowLeft } from 'lucide-react';
 
@@ -289,6 +290,13 @@ function FindMyJobApp({ onBackToHub, initialLang }) {
 
   return (
     <div className="app-container">
+      {/* SEO Meta Tags */}
+      <SEO 
+        title="Find My Job AI - Intelligent Job Search Assistant"
+        description="Find your dream job with AI-powered CV analysis, multi-source job search, and personalized job matching. Free career assistant tool."
+        keywords="job search, AI, CV analysis, career, employment, FindMyJobAI, job matching, France"
+      />
+
       {/* Toast Notification */}
       {toast && (
         <div className={`toast ${toast.type}`}>
