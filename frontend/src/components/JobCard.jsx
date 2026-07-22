@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { LANGS, STRINGS } from '../utils/translations';
 import { ExternalLink, FileText, ChevronDown, ChevronUp, Download, Loader2, Copy, Check } from 'lucide-react';
 import JobSchema from './JobSchema';
+import AdComponent from './AdComponent';
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -165,6 +166,7 @@ export default function JobCard({
                     S.generate_letter_btn
                   )}
                 </button>
+                {letterLoading && <AdComponent style={{ marginTop: '16px' }} />}
                 {letterContent && (
                   <>
                     <button 
