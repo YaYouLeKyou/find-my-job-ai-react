@@ -600,6 +600,11 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
         except Exception as e:
             logger.warning(f"Cache read error: {e}")
     
+    # Track source status (per source: success count or error)
+    source_status = {}
+    for s in req.selected_sources:
+        source_status[s] = {"status": "pending", "count": 0, "error": ""}
+
     # Log which sources are being queried
     logger.info(f"🔍 SEARCH START: query='{req.query}', location='{req.location}', num_ads={req.num_ads}")
     logger.info(f"📡 REQUESTED SOURCES: {req.selected_sources}")
@@ -613,30 +618,30 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
         selected_for_jobspy = [s for s in req.selected_sources if s in js_sites]
         if selected_for_jobspy:
             logger.info(f"📡 Launching JobSpy for: {selected_for_jobspy}")
+            for s in selected_for_jobspy:
+                source_status[s]["status"] = "scraping"
             futures['jobspy'] = executor.submit(chercher_offres_jobspy, req.query, req.location, req.num_ads, req.selected_sources)
         else:
             logger.info("⏭️ JobSpy skipped (no matching sources selected)")
         
         if "Adzuna" in req.selected_sources:
             logger.info("📡 Launching Adzuna scraper...")
+            source_status["Adzuna"]["status"] = "scraping"
             futures['adzuna'] = executor.submit(get_adzuna_jobs, req.query, req.location, req.num_ads)
-        else:
-            logger.info("⏭️ Adzuna skipped (not selected)")
             
         if "Google Jobs" in req.selected_sources:
             logger.info("📡 Launching SerpApi (Google Jobs)...")
+            source_status["Google Jobs"]["status"] = "scraping"
             futures['serpapi'] = executor.submit(get_serpapi_jobs, req.query, req.location, req.num_ads)
-        else:
-            logger.info("⏭️ SerpApi skipped (not selected)")
             
         if "Jooble" in req.selected_sources:
             logger.info("📡 Launching Jooble scraper...")
+            source_status["Jooble"]["status"] = "scraping"
             futures['jooble'] = executor.submit(get_jooble_jobs, req.query, req.location, req.num_ads)
-        else:
-            logger.info("⏭️ Jooble skipped (not selected)")
             
-        if "LinkedIn" in req.selected_sources and "LinkedIn" not in js_sites: # fallback if not using jobspy
+        if "LinkedIn" in req.selected_sources and "LinkedIn" not in js_sites:
             logger.info("📡 Launching Apify LinkedIn scraper...")
+            source_status["LinkedIn"]["status"] = "scraping"
             futures['apify'] = executor.submit(get_apify_jobs, req.query, req.location, req.num_ads)
 
         # Collect Jobspy results
@@ -644,14 +649,17 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
             try:
                 jobspy_res = futures['jobspy'].result()
                 logger.info(f"✅ JobSpy returned {len(jobspy_res)} results")
-                for i, row in enumerate(jobspy_res[:3]):  # Log first 3 for debugging
-                    logger.info(f"   JobSpy[{i}]: {row.get('title','')} @ {row.get('company','')} (site={row.get('site','')})")
                 
                 site_counts = {}
                 for row in jobspy_res:
                     site = str(row.get('site', 'Jobspy')).lower()
-                    source_label = "LinkedIn" if site == "linkedin" else ("Google Jobs" if site == "google" else site.capitalize())
-                    source_label = req.selected_sources[0] if source_label not in req.selected_sources else source_label
+                    if site == "linkedin": source_label = "LinkedIn"
+                    elif site == "glassdoor": source_label = "Glassdoor"
+                    elif site == "zip_recruiter": source_label = "ZipRecruiter"
+                    elif site == "careerbuilder": source_label = "Careerbuilder"
+                    elif site == "monster": source_label = "Monster"
+                    elif site == "simplyhired": source_label = "Simplyhired"
+                    else: source_label = site.capitalize()
                     site_counts[source_label] = site_counts.get(source_label, 0) + 1
                     all_results.append({
                         "title": row.get('title', 'N/A'),
@@ -661,20 +669,31 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
                         "date": str(row.get('date_posted', '')),
                         "location": row.get('location', ''),
                         "desc": row.get('description', ''),
-                        "id": f"js_{i}_{hash(row.get('job_url'))}"
+                        "id": f"js_{len(all_results)}_{hash(row.get('job_url'))}"
                     })
                 for src, cnt in site_counts.items():
                     logger.info(f"   JobSpy -> {src}: {cnt} results")
+                    if src in source_status:
+                        source_status[src] = {"status": "success", "count": cnt, "error": ""}
+                # Mark JobSpy sources that returned 0 as "no_results"
+                for s in selected_for_jobspy:
+                    if s in site_counts:
+                        source_status[s] = {"status": "success", "count": site_counts[s], "error": ""}
+                    elif source_status[s]["status"] != "success":
+                        source_status[s] = {"status": "no_results", "count": 0, "error": "Aucun résultat trouvé"}
             except Exception as e:
+                error_msg = str(e)
                 logger.error(f"❌ JobSpy Thread failed: {e}")
+                for s in selected_for_jobspy:
+                    source_status[s] = {"status": "error", "count": 0, "error": error_msg[:100]}
 
         # Collect Adzuna results
         if 'adzuna' in futures:
             try:
                 adzuna_res = futures['adzuna'].result()
-                logger.info(f"✅ Adzuna returned {len(adzuna_res)} results")
-                if adzuna_res:
-                    logger.info(f"   First: {adzuna_res[0].get('titre','')} @ {adzuna_res[0].get('entreprise','')}")
+                count = len(adzuna_res)
+                logger.info(f"✅ Adzuna returned {count} results")
+                source_status["Adzuna"] = {"status": "success" if count > 0 else "no_results", "count": count, "error": "" if count > 0 else "Aucun résultat"}
                 for i, ad in enumerate(adzuna_res):
                     all_results.append({
                         "title": ad.get('titre'),
@@ -684,18 +703,20 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
                         "date": ad.get('date', ''),
                         "location": ad.get('location', ''),
                         "desc": "",
-                        "id": f"api_adzuna_{i}_{hash(ad.get('lien'))}"
+                        "id": f"api_adzuna_{len(all_results)}_{hash(ad.get('lien'))}"
                     })
             except Exception as e:
+                error_msg = str(e)
                 logger.error(f"❌ Adzuna Thread failed: {e}")
+                source_status["Adzuna"] = {"status": "error", "count": 0, "error": error_msg[:100]}
 
         # Collect SerpApi results
         if 'serpapi' in futures:
             try:
                 serpapi_res = futures['serpapi'].result()
-                logger.info(f"✅ SerpApi (Google Jobs) returned {len(serpapi_res)} results")
-                if serpapi_res:
-                    logger.info(f"   First: {serpapi_res[0].get('titre','')} @ {serpapi_res[0].get('entreprise','')}")
+                count = len(serpapi_res)
+                logger.info(f"✅ SerpApi (Google Jobs) returned {count} results")
+                source_status["Google Jobs"] = {"status": "success" if count > 0 else "no_results", "count": count, "error": "" if count > 0 else "Aucun résultat"}
                 for i, ad in enumerate(serpapi_res):
                     all_results.append({
                         "title": ad.get('titre'),
@@ -705,18 +726,20 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
                         "date": ad.get('date', ''),
                         "location": ad.get('location', ''),
                         "desc": "",
-                        "id": f"api_googlejobs_{i}_{hash(ad.get('lien'))}"
+                        "id": f"api_googlejobs_{len(all_results)}_{hash(ad.get('lien'))}"
                     })
             except Exception as e:
+                error_msg = str(e)
                 logger.error(f"❌ SerpApi Thread failed: {e}")
+                source_status["Google Jobs"] = {"status": "error", "count": 0, "error": error_msg[:100]}
 
         # Collect Jooble results
         if 'jooble' in futures:
             try:
                 jooble_res = futures['jooble'].result()
-                logger.info(f"✅ Jooble returned {len(jooble_res)} results")
-                if jooble_res:
-                    logger.info(f"   First: {jooble_res[0].get('titre','')} @ {jooble_res[0].get('entreprise','')}")
+                count = len(jooble_res)
+                logger.info(f"✅ Jooble returned {count} results")
+                source_status["Jooble"] = {"status": "success" if count > 0 else "no_results", "count": count, "error": "" if count > 0 else "Aucun résultat"}
                 for i, ad in enumerate(jooble_res):
                     all_results.append({
                         "title": ad.get('titre'),
@@ -726,10 +749,12 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
                         "date": ad.get('date', ''),
                         "location": ad.get('location', ''),
                         "desc": "",
-                        "id": f"api_jooble_{i}_{hash(ad.get('lien'))}"
+                        "id": f"api_jooble_{len(all_results)}_{hash(ad.get('lien'))}"
                     })
             except Exception as e:
+                error_msg = str(e)
                 logger.error(f"❌ Jooble Thread failed: {e}")
+                source_status["Jooble"] = {"status": "error", "count": 0, "error": error_msg[:100]}
 
     # France Travail search
     if "France Travail" in req.selected_sources:

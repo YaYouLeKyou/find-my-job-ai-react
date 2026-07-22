@@ -126,31 +126,46 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
       const results = data.results || [];
       const sourceCounts = data.source_counts || {};
       
-      // Log detailed results to console for debugging
-      console.log('='.repeat(60));
-      console.log('🔍 RÉSULTATS DE RECHERCHE');
-      console.log('='.repeat(60));
-      console.log(`📊 Total résultats: ${results.length}`);
-      console.log(`📡 Sources:`, sourceCounts);
-      console.log('-' .repeat(40));
+      // Log detailed per-source results to the browser console
+      console.log('============================================================');
+      console.log('📊 RAPPORT DU SCAN PAR SOURCE');
+      console.log('============================================================');
+      console.log(`🔍 Requête: "${activeQuery}" | Total: ${results.length} offres`);
+      console.log('------------------------------------------------------------');
       
-      // Log per-source breakdown
+      // Build per-source breakdown with request status
       const bySource = {};
+      const requestedSources = selectedSources.length > 0 ? selectedSources : ["LinkedIn", "Indeed", "France Travail", "Google Jobs", "Adzuna", "Jooble", "Glassdoor", "ZipRecruiter", "Simplyhired", "Careerbuilder", "Monster"];
+      
+      // Initialize all requested sources
+      requestedSources.forEach(s => { bySource[s] = []; });
+      
       results.forEach(job => {
         const src = job.source || 'Inconnue';
         if (!bySource[src]) bySource[src] = [];
         bySource[src].push(job);
       });
       
-      Object.entries(bySource).forEach(([source, jobs]) => {
-        console.log(`\n📌 ${source} (${jobs.length} résultats):`);
-        jobs.slice(0, 5).forEach((job, i) => {
-          console.log(`   ${i+1}. ${job.title || 'N/A'} @ ${job.company || 'N/A'} | ${job.location || 'N/A'}`);
-        });
-        if (jobs.length > 5) console.log(`   ... et ${jobs.length - 5} autres`);
+      // Log source by source with clear success/error status
+      requestedSources.forEach(source => {
+        const jobs = bySource[source] || [];
+        if (jobs.length > 0) {
+          console.log(`✅ ${source}: ${jobs.length} résultats`);
+          jobs.slice(0, 3).forEach((job, i) => {
+            console.log(`   ${i+1}. ${job.title || 'N/A'} @ ${job.company || 'N/A'}`);
+          });
+          if (jobs.length > 3) console.log(`   ... et ${jobs.length - 3} autres`);
+        } else {
+          console.log(`❌ ${source}: 0 résultat (source indisponible ou bloquée)`);
+        }
+        console.log('');
       });
       
-      console.log('='.repeat(60));
+      console.log('============================================================');
+      console.log('💡 Légende: ✅ = résultats obtenus | ❌ = 0 résultat');
+      console.log('   Vérifiez vos clés API dans le backend (api.py)');
+      console.log('   Sources bloquées: Glassdoor, ZipRecruiter');
+      console.log('============================================================');
       
       setJobs(results);
       setSourceCounts(sourceCounts);
