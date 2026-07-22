@@ -143,7 +143,7 @@ export default function JobCard({
       </div>
 
       {expanded && (
-        <div className="letter-expander">
+        <div className="letter-expander" style={{ animation: 'fadeIn 0.3s ease-in' }}>
           {!cvData ? (
             <div className="alert alert-danger" style={{ fontSize: '0.85rem' }}>
               Veuillez d'abord uploader votre CV pour générer la lettre.
@@ -166,7 +166,6 @@ export default function JobCard({
                     S.generate_letter_btn
                   )}
                 </button>
-                {letterLoading && <AdComponent style={{ marginTop: '16px' }} />}
                 {letterContent && (
                   <>
                     <button 
@@ -184,6 +183,40 @@ export default function JobCard({
                       {S.download_letter}
                     </button>
                   </>
+                )}
+              </div>
+              
+              {/* Ad placeholder with fixed height to prevent layout shift */}
+              <div style={{ 
+                height: '100px', 
+                position: 'relative', 
+                background: '#f5f5f5', 
+                borderRadius: '4px',
+                overflow: 'hidden'
+              }}>
+                {letterLoading ? (
+                  <div style={{ 
+                    position: 'absolute', 
+                    top: 0, 
+                    left: 0, 
+                    right: 0, 
+                    bottom: 0,
+                    opacity: 1,
+                    transition: 'opacity 0.3s ease-in'
+                  }}>
+                    <AdComponent />
+                  </div>
+                ) : (
+                  <div style={{ 
+                    height: '100%', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    color: '#999',
+                    fontSize: '0.85rem'
+                  }}>
+                    Espace publicitaire
+                  </div>
                 )}
               </div>
 

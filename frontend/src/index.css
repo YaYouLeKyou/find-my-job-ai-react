@@ -681,6 +681,7 @@ label {
   gap: 16px;
   transition: var(--transition-normal);
   animation: slideUp 0.4s ease both;
+  min-height: 200px; /* Prevent layout shift while loading */
 }
 
 .job-card:nth-child(1) { animation-delay: 0.05s; }
