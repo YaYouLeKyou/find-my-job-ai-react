@@ -9,7 +9,8 @@ export default function FreelanceMissionCard({
   rankingEngine,
   customGeminiKey,
   onSaveMission,
-  isSaved
+  isSaved,
+  lang = "Français"
 }) {
   const [expanded, setExpanded] = useState(false);
   const [proposalLoading, setProposalLoading] = useState(false);
@@ -56,12 +57,12 @@ export default function FreelanceMissionCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cv_data: cvData,
-          job_title: mission.title,
-          company: mission.company || mission.client || "Client",
-          job_description: `[Mission Freelance]\n${mission.desc || ""}\nTJM: ${mission.tjm || "Non spécifié"}\nDurée: ${mission.duration || "Non spécifiée"}\nRemote: ${mission.remote ? "Oui" : "Non"}`,
+          job_title: mission?.title || "Mission",
+          company: mission?.company || mission?.client || "Client",
+          job_description: `[Mission Freelance]\n${mission?.desc || mission?.description || ""}\nTJM: ${mission?.tjm || "Non spécifié"}\nDurée: ${mission?.duration || "Non spécifiée"}\nRemote: ${mission?.remote ? "Oui" : "Non"}`,
           ranking_engine: rankingEngine,
           custom_gemini_key: customGeminiKey || null,
-          lang_label: "français",
+          lang_label: lang,
           is_freelance: true,
         })
       });
@@ -86,7 +87,7 @@ export default function FreelanceMissionCard({
     const element = document.createElement("a");
     const file = new Blob([proposalContent], { type: 'text/plain;charset=utf-8' });
     element.href = URL.createObjectURL(file);
-    element.download = `proposition_${(mission.company || mission.client || 'client').replace(/\s+/g, '_')}.txt`;
+    element.download = `proposition_${(mission?.company || mission?.client || 'client').replace(/\s+/g, '_')}.txt`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -101,12 +102,12 @@ export default function FreelanceMissionCard({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mission_title: mission.title,
-          mission_description: mission.desc || mission.description || "",
+          mission_title: mission?.title || "Mission",
+          mission_description: mission?.desc || mission?.description || "",
           cv_data: cvData,
           ranking_engine: rankingEngine,
           custom_gemini_key: customGeminiKey || null,
-          lang_label: "français"
+          lang_label: lang
         })
       });
 
@@ -149,9 +150,9 @@ export default function FreelanceMissionCard({
     <div className="job-card freelance-card">
       <div className="job-card-header">
         <div className="job-info">
-          <h3>{mission.title}</h3>
+          <h3>{mission?.title || "Mission sans titre"}</h3>
           <span className="job-company" style={{ color: 'var(--freelance-primary)' }}>
-            🏢 {mission.company || mission.client || "Client confidentiel"}
+            🏢 {mission?.company || mission?.client || "Client confidentiel"}
           </span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
@@ -160,7 +161,7 @@ export default function FreelanceMissionCard({
               Score: {mission.match_score}%
             </span>
           )}
-          {mission.tjm && (
+          {mission?.tjm && (
             <span
               style={{
                 background: 'rgba(0,188,212,0.1)',
@@ -183,24 +184,24 @@ export default function FreelanceMissionCard({
 
       {/* Mission Meta Info */}
       <div className="job-card-meta" style={{ flexWrap: 'wrap' }}>
-        {mission.source && (
+        {mission?.source && (
           <span className="meta-item">
             🏷️ <strong>{mission.source}</strong>
           </span>
         )}
-        {mission.location && (
+        {mission?.location && (
           <span className="meta-item">📍 {mission.location}</span>
         )}
-        {mission.duration && (
+        {mission?.duration && (
           <span className="meta-item">
             <Clock size={13} />
             {mission.duration}
           </span>
         )}
-        {mission.date && (
+        {mission?.date && (
           <span className="meta-item">📅 {mission.date}</span>
         )}
-        {mission.remote && (
+        {mission?.remote && (
           <span
             className="meta-item"
             style={{
@@ -218,7 +219,7 @@ export default function FreelanceMissionCard({
       </div>
 
       {/* Description snippet */}
-      {mission.desc && (
+      {(mission?.desc || mission?.description) && (
         <p
           style={{
             fontSize: '0.87rem',
@@ -230,14 +231,14 @@ export default function FreelanceMissionCard({
             overflow: 'hidden',
           }}
         >
-          {mission.desc}
+          {mission?.desc || mission?.description}
         </p>
       )}
 
       {/* Actions */}
       <div className="job-card-actions">
         <a
-          href={mission.link && mission.link !== '#' ? mission.link : undefined}
+          href={mission?.link && mission.link !== '#' ? mission.link : undefined}
           target="_blank"
           rel="noopener noreferrer"
           className="btn btn-secondary"

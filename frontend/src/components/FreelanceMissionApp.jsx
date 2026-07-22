@@ -591,6 +591,7 @@ export default function FreelanceMissionApp({ onBackToHub, lang, setLang }) {
                   customGeminiKey={customGeminiKey}
                   onSaveMission={toggleSaveMission}
                   isSaved={savedMissions.some(m => m.id === mission.id)}
+                  lang={lang}
                 />
               ))}
             </div>
