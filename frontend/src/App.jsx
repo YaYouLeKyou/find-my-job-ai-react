@@ -6,6 +6,7 @@ import JobFilters from './components/JobFilters';
 import JobCard from './components/JobCard';
 import LandingHub from './components/LandingHub';
 import FreelanceMissionApp from './components/FreelanceMissionApp';
+import AdComponent from './components/AdComponent';
 import { LANGS, STRINGS } from './utils/translations';
 import { Search, Loader2, RefreshCw, Key, ExternalLink, X, ArrowLeft } from 'lucide-react';
 
@@ -320,6 +321,43 @@ function FindMyJobApp({ onBackToHub, initialLang }) {
           Find my work AI
         </button>
 
+        {/* Feedback Button - Top Right */}
+        <a
+          href="mailto:findmyworkai@gmail.com"
+          className="feedback-button"
+          style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            zIndex: '1000',
+            background: 'var(--primary-gradient)',
+            color: 'white',
+            padding: '12px 20px',
+            borderRadius: 'var(--radius-full)',
+            textDecoration: 'none',
+            fontWeight: '700',
+            fontSize: '0.9rem',
+            boxShadow: 'var(--shadow-lg)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            transition: 'transform var(--transition-fast), box-shadow var(--transition-fast)',
+            border: 'none',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-sans)'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = 'var(--shadow-xl)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+          }}
+        >
+          💬 Feedback
+        </a>
+
         <header className="header">
           <h1 style={{
             color: 'var(--text-primary)',
@@ -460,6 +498,7 @@ function FindMyJobApp({ onBackToHub, initialLang }) {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', padding: '40px 0' }}>
             <Loader2 size={48} className="spin" style={{ animation: 'spin 1.5s linear infinite', color: 'var(--primary-color)' }} />
             <span>Scan global des plateformes en cours...</span>
+            <AdComponent style={{ marginTop: '24px' }} />
           </div>
         )}
 

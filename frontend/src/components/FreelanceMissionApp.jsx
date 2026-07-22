@@ -3,6 +3,7 @@ import FreelanceSidebar from './FreelanceSidebar';
 import CvUploader from './CvUploader';
 import CvProfile from './CvProfile';
 import FreelanceMissionCard from './FreelanceMissionCard';
+import AdComponent from './AdComponent';
 import { Search, Loader2, RefreshCw, Key, ExternalLink, X, ArrowLeft, Briefcase } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -290,6 +291,43 @@ export default function FreelanceMissionApp({ onBackToHub, initialLang }) {
           Find my work AI
         </button>
 
+        {/* Feedback Button - Top Right */}
+        <a
+          href="mailto:findmyworkai@gmail.com"
+          className="feedback-button"
+          style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            zIndex: '1000',
+            background: 'linear-gradient(135deg, #00bcd4 0%, #00897b 100%)',
+            color: 'white',
+            padding: '12px 20px',
+            borderRadius: 'var(--radius-full)',
+            textDecoration: 'none',
+            fontWeight: '700',
+            fontSize: '0.9rem',
+            boxShadow: 'var(--shadow-lg)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            transition: 'transform var(--transition-fast), box-shadow var(--transition-fast)',
+            border: 'none',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-sans)'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = 'var(--shadow-xl)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+          }}
+        >
+          💬 Feedback
+        </a>
+
         {/* Header */}
         <header className="header">
           <h1 style={{
@@ -514,6 +552,7 @@ export default function FreelanceMissionApp({ onBackToHub, initialLang }) {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '40px 0' }}>
             <Loader2 size={48} style={{ animation: 'spin 1.5s linear infinite', color: 'var(--freelance-primary)' }} />
             <span>Scan des plateformes freelance en cours...</span>
+            <AdComponent style={{ marginTop: '24px' }} />
           </div>
         )}
 

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, AlertCircle, FileText, CheckCircle2 } from 'lucide-react';
 import { LANGS, STRINGS } from '../utils/translations';
+import AdComponent from './AdComponent';
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -157,6 +158,25 @@ export default function CvUploader({
         <div className="alert alert-danger">
           <AlertCircle size={18} />
           <span>{error}</span>
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ marginTop: '16px' }}>
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(124,77,255,0.1), rgba(68,138,255,0.08))',
+            border: '1px solid rgba(124,77,255,0.3)',
+            padding: '16px',
+            borderRadius: 'var(--radius-md)',
+            marginBottom: '16px',
+            textAlign: 'center',
+            color: 'var(--text-primary)',
+            fontWeight: '600',
+            fontSize: '0.95rem'
+          }}>
+            ⏳ Analyse de votre CV en cours... (15-30 secondes)
+          </div>
+          <AdComponent />
         </div>
       )}
 
