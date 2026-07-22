@@ -34,6 +34,18 @@ from shared.ai import call_ai_provider, analyze_cv as shared_analyze_cv, rank_jo
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Import AI modules for enhanced scraping
+try:
+    from ai_modules.data_extraction import extract_job_data
+    from ai_modules.deduplication import deduplicate_jobs
+    from ai_modules.enrichment import enrich_job_data, enrich_jobs_batch
+    from ai_modules.ranking import rank_jobs_ml
+    AI_MODULES_AVAILABLE = True
+    logger.info("✅ AI modules loaded successfully")
+except ImportError as e:
+    AI_MODULES_AVAILABLE = False
+    logger.warning(f"⚠️ AI modules not available: {e}")
+
 # Redis cache setup
 try:
     import redis
