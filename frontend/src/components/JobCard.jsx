@@ -52,9 +52,9 @@ export default function JobCard({
         },
         body: JSON.stringify({
           cv_data: cvData,
-          job_title: job.title,
-          company: job.company,
-          job_description: job.desc || "",
+          job_title: job?.title || "Poste",
+          company: job?.company || "Entreprise",
+          job_description: job?.desc || "",
           ranking_engine: rankingEngine,
           custom_gemini_key: customGeminiKey || null,
           lang_label: LANGS[lang].label
@@ -81,7 +81,7 @@ export default function JobCard({
     const element = document.createElement("a");
     const file = new Blob([letterContent], { type: 'text/plain;charset=utf-8' });
     element.href = URL.createObjectURL(file);
-    element.download = `lettre_${job.company.replace(/\s+/g, '_')}.txt`;
+    element.download = `lettre_${(job?.company || 'entreprise').replace(/\s+/g, '_')}.txt`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -94,8 +94,8 @@ export default function JobCard({
 
       <div className="job-card-header">
         <div className="job-info">
-          <h3>{job.title}</h3>
-          <span className="job-company">🏢 {job.company}</span>
+          <h3>{job?.title || "Poste sans titre"}</h3>
+          <span className="job-company">🏢 {job?.company || "Entreprise confidentielle"}</span>
         </div>
         {job.match_score !== undefined && job.match_score !== null && (
           <span className={`score-badge ${getScoreColorClass(job.match_score)}`}>
@@ -105,14 +105,14 @@ export default function JobCard({
       </div>
 
       <div className="job-card-meta">
-        {job.source && <span className="meta-item">🏷️ Source : <strong>{job.source}</strong></span>}
-        {job.location && <span className="meta-item">📍 {job.location}</span>}
-        {job.date && <span className="meta-item">📅 {job.date}</span>}
+        {job?.source && <span className="meta-item">🏷️ Source : <strong>{job.source}</strong></span>}
+        {job?.location && <span className="meta-item">📍 {job.location}</span>}
+        {job?.date && <span className="meta-item">📅 {job.date}</span>}
       </div>
 
       <div className="job-card-actions">
         <a 
-          href={job.link && job.link !== '#' ? job.link : undefined} 
+          href={job?.link && job.link !== '#' ? job.link : undefined} 
           target="_blank" 
           rel="noopener noreferrer" 
           className="btn btn-secondary"
