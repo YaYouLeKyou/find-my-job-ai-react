@@ -204,6 +204,7 @@ export default function LandingHub({ onSelectApp, lang, setLang, onToggleDarkMod
                 : '0 4px 20px rgba(0,0,0,0.08)',
               animationDelay: `${idx * 0.12}s`,
               animation: 'slideUp 0.5s ease both',
+              minHeight: '520px',
             }}
           >
             {/* Card Header */}
@@ -347,7 +348,7 @@ export default function LandingHub({ onSelectApp, lang, setLang, onToggleDarkMod
             {/* CTA */}
             <div
               style={{
-                marginTop: '4px',
+                marginTop: 'auto',
                 padding: '14px 20px',
                 borderRadius: '12px',
                 background: hovered === app.id ? app.gradient : 'rgba(0,0,0,0.04)',
