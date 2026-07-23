@@ -503,6 +503,9 @@ export default function FreelanceMissionApp({ onBackToHub, lang, setLang }) {
           </div>
         </div>
 
+        {/* Ad - Search Section */}
+        <AdComponent />
+
         {/* Search box */}
         <div className="card">
           <div className="card-title">
@@ -593,9 +596,11 @@ export default function FreelanceMissionApp({ onBackToHub, lang, setLang }) {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '40px 0' }}>
             <Loader2 size={48} style={{ animation: 'spin 1.5s linear infinite', color: 'var(--freelance-primary)' }} />
             <span>Scan des plateformes freelance en cours...</span>
-            <AdComponent style={{ marginTop: '24px' }} />
           </div>
         )}
+
+        {/* Ad - Results Section */}
+        {displayedMissions.length > 0 && <AdComponent style={{ marginTop: '24px' }} />}
 
         {errorMissions && <div className="alert alert-danger"><span>{errorMissions}</span></div>}
 
