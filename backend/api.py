@@ -595,18 +595,23 @@ def get_serpapi_jobs(job_title: str, location: str = "France", limit: int = 10) 
     if not serpapi_key:
         return []
     url = "https://serpapi.com/search"
+    # Clean location to avoid SerpApi 400 errors
+    clean_location = location.split(',')[0].strip() if location else "France"
     params = {
         "engine": "google_jobs",
-        "q": job_title,
-        "location": location,
+        "q": f"{job_title} {clean_location}",
+        "location": clean_location,
         "hl": "fr",
-        "api_key": serpapi_key
+        "api_key": serpapi_key,
+        "num": limit
     }
     try:
-        response = requests.get(url, params=params, timeout=10)
+        response = requests.get(url, params=params, timeout=15)
         response.raise_for_status()
         data = response.json()
         results = data.get("jobs_results", [])
+        if not results:
+            logger.warning(f"SerpApi returned 0 results for: {job_title}")
         return [{
             "titre": res.get("title"),
             "entreprise": res.get("company_name", "N/C"),
@@ -810,25 +815,32 @@ def scrape_cremedelacreme(job_title: str, limit: int = 10) -> List[dict]:
     return jobs[:limit]
 
 def get_apify_jobs(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
-    if not apify_api_key:
+    if not apify_api_key or apify_api_key == "votre_cle_apify_ici":
         return []
-    url = "https://api.apify.com/v2/acts/apify~linkedin-jobs-scraper/run-sync-get-dataset-items"
+    # Use Apify LinkedIn Jobs Scraper actor
+    url = f"https://api.apify.com/v2/acts/apify~linkedin-jobs-scraper/run-sync-get-dataset-items"
     params = {"token": apify_api_key}
     payload = {
         "searchKeywords": job_title,
         "location": location,
         "maxItems": limit,
+        "sort": "recent"
     }
     try:
-        response = requests.post(url, params=params, json=payload, timeout=30)
+        response = requests.post(url, params=params, json=payload, timeout=60)
+        if response.status_code != 200:
+            logger.error(f"Apify returned status {response.status_code}: {response.text[:200]}")
+            return []
         results = response.json()
+        if not isinstance(results, list):
+            results = results.get("data", {}).get("items", [])
         return [{
-            "titre": res.get("title"),
-            "entreprise": res.get("companyName", "N/C"),
-            "lien": res.get("url"),
-            "location": res.get("location", ""),
+            "titre": res.get("title") or res.get("jobTitle", "N/A"),
+            "entreprise": res.get("companyName") or res.get("company", "N/C"),
+            "lien": res.get("url") or res.get("jobUrl", "#"),
+            "location": res.get("location") or res.get("jobLocation", ""),
             "source": "LinkedIn"
-        } for res in results]
+        } for res in results[:limit]]
     except Exception as e:
         logger.error(f"Apify API error: {e}")
         return []
