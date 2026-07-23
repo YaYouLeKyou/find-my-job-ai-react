@@ -90,7 +90,7 @@ export const STRINGS = {
     hub_card_freelance_sources: ["Malt", "Upwork", "Freelancer", "Toptal", "Codeur.com"],
     hub_card_worker_title: "Find my worker AI",
     hub_card_worker_subtitle: "Recrutement employé",
-    hub_card_worker_description: "Publiez facilement vos offres d'emploi et trouvez le candidat idéal parmi des profils qualifiés. Gérez les candidatures avec l'IA.",
+    hub_card_worker_description: "Publiez vos offres et trouvez le candidat idéal grâce au matching IA. Gérez les candidatures en un clic.",
     hub_card_worker_features: ["Publication d'offre simplifiée", "Matching IA candidat-poste", "Gestion des candidatures", "CVthèque intelligente"],
     hub_card_worker_sources: ["LinkedIn", "Indeed", "France Travail", "Pôle Emploi", "Apec"]
   },
