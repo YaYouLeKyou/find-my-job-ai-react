@@ -363,7 +363,7 @@ export default function FreelanceMissionApp({ onBackToHub, lang, setLang }) {
           }}
         >
           <ArrowLeft size={16} />
-          Find my work AI
+          Job Bridge
         </button>
 
         {/* Header Buttons - Top Right (Feedback + Dark Mode) */}

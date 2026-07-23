@@ -109,16 +109,43 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Shared headers for web scraping
+# Shared headers for web scraping - expanded rotation
 SCRAPE_HEADERS = [
     {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Cache-Control": "max-age=0",
     },
     {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
     },
     {
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "fr-FR,fr;q=0.9",
+    },
+    {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Mobile/15E148 Safari/604.1",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "fr-FR,fr;q=0.9",
+    },
+    {
+        "User-Agent": "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "fr-FR,fr;q=0.9",
     }
 ]
 
@@ -387,14 +414,45 @@ def scrape_france_travail_jobs(job_title: str, limit: int = 10) -> List[dict]:
     try:
         session = requests.Session()
         while len(jobs) < limit and page <= 5:
-            url = f"https://candidat.pole-emploi.fr/offres/recherche?motsCles={query}&offresPartenaires=true&page={page}&sort=1"
-            response = requests.get(url, headers=headers, timeout=10)
-            if response.status_code != 200: break
+            # Try new France Travail URL (pole-emploi became France Travail in 2025)
+            urls = [
+                f"https://www.francetravail.fr/offres/recherche?motsCles={query}&page={page}",
+                f"https://candidat.francetravail.fr/offres/recherche?motsCles={query}&page={page}",
+                f"https://candidat.pole-emploi.fr/offres/recherche?motsCles={query}&page={page}"
+            ]
+            response = None
+            for url in urls:
+                try:
+                    response = requests.get(url, headers=headers, timeout=10)
+                    if response.status_code == 200:
+                        break
+                except:
+                    continue
+            if not response or response.status_code != 200: break
             
             soup = BeautifulSoup(response.text, 'html.parser')
-            items = soup.select('li.result-resumes-item, article.offre, li[data-id-offre]')
+            items = soup.select('li[class*="offer"], article[class*="offer"], div[class*="result"], li[data-id-offre], .result-item, .offer-card')
             if not items:
-                items = soup.select('div[class*="offre"], article.result, .media-body')
+                items = soup.select('div[class*="offre"], article.result, .media-body, a[class*="offer"]')
+            if not items:
+                # Fallback: try extracting from script JSON-LD
+                scripts = soup.find_all('script', type='application/ld+json')
+                for script in scripts:
+                    try:
+                        data = json.loads(script.string)
+                        items_list = data if isinstance(data, list) else [data]
+                        for item in items_list:
+                            if isinstance(item, dict) and item.get('@type') == 'JobPosting':
+                                jobs.append({
+                                    "title": item.get('title', ''),
+                                    "company": item.get('hiringOrganization', {}).get('name', 'Non précisé'),
+                                    "link": item.get('url', '#'),
+                                    "source": "France Travail"
+                                })
+                    except:
+                        pass
+                if jobs:
+                    break
             if not items: break
 
             for item in items:

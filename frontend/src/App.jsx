@@ -128,18 +128,18 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
       const results = data.results || [];
       const sourceCounts = data.source_counts || {};
       
-      // Log detailed per-source results to the browser console
-      console.log('============================================================');
-      console.log('📊 RAPPORT DU SCAN PAR SOURCE');
-      console.log('============================================================');
-      console.log(`🔍 Requête: "${activeQuery}" | Total: ${results.length} offres`);
-      console.log('------------------------------------------------------------');
+      // ─── RAPPORT DÉTAILLÉ PAR SOURCE ─────────────────────────────────
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
       
-      // Build per-source breakdown with request status
+      console.log('%c═══════════════════════════════════════════════════════', 'font-weight:bold;color:#7c4dff');
+      console.log('%c  📊 RAPPORT DE SCAN MULTI-SOURCES', 'font-weight:bold;font-size:14px;color:#7c4dff');
+      console.log('%c═══════════════════════════════════════════════════════', 'font-weight:bold;color:#7c4dff');
+      console.log(`%c🔍 Requête: "${activeQuery}"`, 'color:#333;font-weight:bold');
+      console.log(`%c⏱️  Temps total: ${duration}s | 📦 Total: ${results.length} offres`, 'color:#555');
+      console.log('%c───────────────────────────────────────────────────────', 'color:#999');
+      
       const bySource = {};
       const requestedSources = selectedSources.length > 0 ? selectedSources : ["LinkedIn", "Indeed", "France Travail", "Google Jobs", "Adzuna", "Jooble", "Glassdoor", "ZipRecruiter", "Simplyhired", "Careerbuilder", "Monster"];
-      
-      // Initialize all requested sources
       requestedSources.forEach(s => { bySource[s] = []; });
       
       results.forEach(job => {
@@ -148,39 +148,57 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
         bySource[src].push(job);
       });
       
-      // Log source by source with clear success/error status
+      const blockerIcons = { 'Glassdoor': '🛡️', 'ZipRecruiter': '🛡️', 'Monster': '⚠️', 'Careerbuilder': '⚠️' };
+      const workingIcons = { 'LinkedIn': '💼', 'Indeed': '📋', 'France Travail': '🇫🇷', 'Google Jobs': '🔎', 'Adzuna': '💰', 'Jooble': '🌐' };
+      
+      const failedSources = [];
+      const successSources = [];
+      
       requestedSources.forEach(source => {
         const jobs = bySource[source] || [];
         if (jobs.length > 0) {
-          console.log(`✅ ${source}: ${jobs.length} résultats`);
-          jobs.slice(0, 3).forEach((job, i) => {
-            console.log(`   ${i+1}. ${job.title || 'N/A'} @ ${job.company || 'N/A'}`);
-          });
-          if (jobs.length > 3) console.log(`   ... et ${jobs.length - 3} autres`);
+          successSources.push(source);
+          const icon = workingIcons[source] || '✅';
+          console.log(`%c${icon} %c${source}: %c${jobs.length} résultat${jobs.length > 1 ? 's' : ''}`, 'font-weight:bold', 'color:#2e7d32;font-weight:bold', 'color:#1b5e20;font-weight:bold');
+          console.log(`%c   ┌─ ${jobs.slice(0,3).map((j,i) => `${i+1}. ${j.title || 'N/A'} @ ${j.company || 'N/A'}`).join('\n   │  ')}`, 'color:#2e7d32');
+          if (jobs.length > 3) console.log(`%c   └─ ... et ${jobs.length - 3} autre${jobs.length - 3 > 1 ? 's' : ''}`, 'color:#2e7d32;font-style:italic');
+          else console.log(`%c   └─ ✓`, 'color:#2e7d32');
         } else {
-          console.log(`❌ ${source}: 0 résultat (source indisponible ou bloquée)`);
+          failedSources.push(source);
+          const icon = blockerIcons[source] || '❌';
+          let reason = 'source indisponible ou bloquée';
+          if (source === 'Glassdoor' || source === 'ZipRecruiter') reason = 'bloqué par Cloudflare/WAF 🛡️';
+          else if (source === 'Adzuna') reason = 'API key ou quota insuffisant';
+          else if (source === 'Google Jobs') reason = 'SerpApi nécessite une clé valide';
+          else if (source === 'Simplyhired') reason = 'scraper web bloqué';
+          console.log(`%c${icon} %c${source}: %c0 résultat (${reason})`, '', 'color:#c62828;font-weight:bold', 'color:#b71c1c;font-style:italic');
         }
         console.log('');
       });
       
-      console.log('============================================================');
-      console.log('💡 Légende: ✅ = résultats obtenus | ❌ = 0 résultat');
-      console.log('   Vérifiez vos clés API dans le backend (api.py)');
-      console.log('   Sources bloquées: Glassdoor, ZipRecruiter');
-      console.log('============================================================');
+      console.log('%c═══════════════════════════════════════════════════════', 'font-weight:bold;color:#7c4dff');
+      if (successSources.length > 0) {
+        console.log(`%c✅ SOURCES ACTIVES (${successSources.length}): ${successSources.join(', ')}`, 'color:#2e7d32;font-weight:bold');
+      }
+      if (failedSources.length > 0) {
+        console.log(`%c❌ SOURCES INACCESSIBLES (${failedSources.length}): ${failedSources.join(', ')}`, 'color:#c62828');
+        console.log('%c💡 Conseil: Vérifiez vos clés API dans le backend (.env)', 'color:#ff6f00;font-style:italic');
+        console.log('%c💡 Conseil: Activez SerpApi (google_jobs), Adzuna, Jooble dans votre .env', 'color:#ff6f00;font-style:italic');
+      }
+      console.log('%c═══════════════════════════════════════════════════════', 'font-weight:bold;color:#7c4dff');
       
       setJobs(results);
       setSourceCounts(sourceCounts);
 
       const endTime = Date.now();
-      const duration = ((endTime - startTime) / 1000).toFixed(2);
-      setSearchTime(duration);
+      const searchDuration = ((endTime - startTime) / 1000).toFixed(2);
+      setSearchTime(searchDuration);
 
       const newHistory = [{ query: activeQuery, time: new Date().toISOString(), count: data.results?.length || 0 }, ...searchHistory.filter(h => h.query !== activeQuery)].slice(0, 10);
       setSearchHistory(newHistory);
       localStorage.setItem('searchHistory', JSON.stringify(newHistory));
 
-      showToast(`✅ ${data.results?.length || 0} offres trouvées en ${duration}s`, 'success');
+      showToast(`✅ ${data.results?.length || 0} offres trouvées en ${searchDuration}s`, 'success');
     } catch (err) {
       console.error(err);
       setErrorJobs(err.message);
@@ -382,7 +400,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
           style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', padding: '8px 16px' }}
         >
           <ArrowLeft size={16} />
-          Find my work AI
+          Job Bridge
         </button>
 
         {/* Header Buttons - Top Right (Feedback + Dark Mode) */}

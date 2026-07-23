@@ -55,14 +55,18 @@ export default function Sidebar({
     const fetchStatus = async () => {
       try {
         const response = await fetch(`${API_BASE}/api/diagnostic`);
-        if (response.ok) {
-          const data = await response.json();
+        const text = await response.text();
+        console.log('[DEBUG] Diagnostic response:', response.status, text.substring(0, 200));
+        if (response.ok && text.trim().startsWith('{')) {
+          const data = JSON.parse(text);
           setModelStatus({
             groq: data.groq_key_configured || false,
             gemini: data.gemini_key_configured || false,
             xai: data.xai_key_configured || false,
             ollama: data.ollama_configured || false
           });
+        } else {
+          console.error('[DEBUG] Diagnostic returned non-JSON:', text);
         }
       } catch (error) {
         console.error("Failed to fetch diagnostic:", error);
