@@ -372,11 +372,11 @@ export default function WorkerApp({ onBackToHub, lang }) {
             </h2>
             <div className="job-list">
               {candidates.slice(0, currentPage * itemsPerPage).map((candidate, idx) => (
-                <div key={candidate.id || idx} className="card" style={{ borderColor: 'rgba(255,111,0,0.15)', cursor: 'pointer' }} onClick={() => openCandidateDetail(candidate)}>
+                <div key={candidate.id || idx} className="card" style={{ borderColor: 'rgba(255,111,0,0.15)', cursor: 'pointer', minHeight: '160px' }} onClick={() => openCandidateDetail(candidate)}>
                   <div className="card-content">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
                       <div style={{ flex: '1 1 auto' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', minHeight: '28px' }}>
                           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-primary)' }}>
                             {candidate.title || 'Profil'}
                           </h3>
@@ -384,7 +384,7 @@ export default function WorkerApp({ onBackToHub, lang }) {
                             <Heart size={16} style={{ color: '#ff6f00', fill: '#ff6f00' }} />
                           )}
                         </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)', minHeight: '20px' }}>
                           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <Briefcase size={14} /> {candidate.company || 'Non spécifié'}
                           </span>
@@ -420,11 +420,11 @@ export default function WorkerApp({ onBackToHub, lang }) {
                       </div>
                     </div>
                     {candidate.desc && (
-                      <p style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                      <p style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.5', minHeight: '60px' }}>
                         {candidate.desc.substring(0, 300)}{candidate.desc.length > 300 ? '...' : ''}
                       </p>
                     )}
-                    <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '20px' }}>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <Eye size={12} /> Cliquez pour voir les détails
                       </span>

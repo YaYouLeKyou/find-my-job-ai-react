@@ -88,14 +88,14 @@ export default function JobCard({
   };
 
   return (
-    <div className="job-card">
+    <div className="job-card" style={{ minHeight: '180px' }}>
       {/* Schema.org JobPosting for Google for Jobs */}
       <JobSchema job={job} />
 
       <div className="job-card-header">
         <div className="job-info">
-          <h3>{job?.title || "Poste sans titre"}</h3>
-          <span className="job-company">🏢 {job?.company || "Entreprise confidentielle"}</span>
+          <h3 style={{ minHeight: '28px' }}>{job?.title || "Poste sans titre"}</h3>
+          <span className="job-company" style={{ minHeight: '20px', display: 'inline-block' }}>🏢 {job?.company || "Entreprise confidentielle"}</span>
         </div>
         {job.match_score !== undefined && job.match_score !== null && (
           <span className={`score-badge ${getScoreColorClass(job.match_score)}`}>
@@ -104,13 +104,13 @@ export default function JobCard({
         )}
       </div>
 
-      <div className="job-card-meta">
+      <div className="job-card-meta" style={{ minHeight: '24px' }}>
         {job?.source && <span className="meta-item">🏷️ Source : <strong>{job.source}</strong></span>}
         {job?.location && <span className="meta-item">📍 {job.location}</span>}
         {job?.date && <span className="meta-item">📅 {job.date}</span>}
       </div>
 
-      <div className="job-card-actions">
+      <div className="job-card-actions" style={{ minHeight: '44px' }}>
         <a 
           href={job?.link && job.link !== '#' ? job.link : undefined} 
           target="_blank" 
@@ -186,38 +186,16 @@ export default function JobCard({
                 )}
               </div>
               
-              {/* Ad placeholder with fixed height to prevent layout shift */}
+              {/* Ad with fixed container to prevent layout shift */}
               <div style={{ 
-                height: '100px', 
-                position: 'relative', 
-                background: '#f5f5f5', 
-                borderRadius: '4px',
+                minHeight: '100px',
+                position: 'relative',
+                background: 'linear-gradient(135deg, rgba(124,77,255,0.08), rgba(68,138,255,0.05))',
+                border: '2px solid var(--primary-color)',
+                borderRadius: 'var(--radius-md)',
                 overflow: 'hidden'
               }}>
-                {letterLoading ? (
-                  <div style={{ 
-                    position: 'absolute', 
-                    top: 0, 
-                    left: 0, 
-                    right: 0, 
-                    bottom: 0,
-                    opacity: 1,
-                    transition: 'opacity 0.3s ease-in'
-                  }}>
-                    <AdComponent />
-                  </div>
-                ) : (
-                  <div style={{ 
-                    height: '100%', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    color: '#999',
-                    fontSize: '0.85rem'
-                  }}>
-                    Espace publicitaire
-                  </div>
-                )}
+                <AdComponent />
               </div>
 
               {letterError && (
