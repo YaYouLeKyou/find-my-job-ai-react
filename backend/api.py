@@ -1487,7 +1487,6 @@ Format de réponse : juste la question, sans introduction ni explication."""
 
         response = call_ai_provider(
             prompt=prompt,
-            target_lang=req.lang_label,
             selected_model=req.ranking_engine,
             gemini_api_key=gemini_api_key,
             xai_api_key=xai_api_key,
@@ -1495,6 +1494,9 @@ Format de réponse : juste la question, sans introduction ni explication."""
             ollama_url=ollama_url,
             custom_gemini_key=req.custom_gemini_key
         )
+        
+        if not response:
+            raise HTTPException(status_code=500, detail="AI provider returned empty response")
         
         return {"question": response.strip()}
     except Exception as e:
@@ -1527,7 +1529,6 @@ Sois bienveillant mais professionnel."""
 
         response = call_ai_provider(
             prompt=prompt,
-            target_lang=req.lang_label,
             selected_model=req.ranking_engine,
             gemini_api_key=gemini_api_key,
             xai_api_key=xai_api_key,
@@ -1535,6 +1536,9 @@ Sois bienveillant mais professionnel."""
             ollama_url=ollama_url,
             custom_gemini_key=req.custom_gemini_key
         )
+        
+        if not response:
+            raise HTTPException(status_code=500, detail="AI provider returned empty response")
         
         return {"evaluation": response.strip()}
     except Exception as e:

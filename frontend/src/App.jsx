@@ -49,7 +49,6 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   const [searchHistory, setSearchHistory] = useState([]);
   const [savedJobs, setSavedJobs] = useState([]);
   const [toast, setToast] = useState(null);
-  const [selectedJobForInterview, setSelectedJobForInterview] = useState(null);
 
   const currentLangCode = LANGS[lang].code;
   const S = STRINGS[currentLangCode];
@@ -275,11 +274,11 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   };
 
   const handleStartInterview = (job) => {
-    setSelectedJobForInterview(job);
-  };
-
-  const handleBackFromInterview = () => {
-    setSelectedJobForInterview(null);
+    // Store job data in sessionStorage for the new window
+    sessionStorage.setItem('mockInterviewJob', JSON.stringify(job));
+    sessionStorage.setItem('mockInterviewCvData', JSON.stringify(cvData));
+    // Open in new window
+    window.open('/mock-interview', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
   };
 
   // Direct access link utility
@@ -611,16 +610,6 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
         </div>
       </main>
 
-      {/* Mock Interview Modal */}
-      {selectedJobForInterview && (
-        <MockInterview
-          onBack={handleBackFromInterview}
-          job={selectedJobForInterview}
-          cvData={cvData}
-          rankingEngine={rankingEngine}
-          customGeminiKey={customGeminiKey}
-        />
-      )}
     </div>
   );
 }
@@ -662,6 +651,21 @@ export default function App() {
 
   if (currentApp === 'worker') {
     return <WorkerApp onBackToHub={handleBackToHub} lang={selectedLang} setLang={setSelectedLang} />;
+  }
+
+  // Mock Interview standalone page
+  if (currentApp === 'mock-interview') {
+    const jobData = sessionStorage.getItem('mockInterviewJob');
+    const cvData = sessionStorage.getItem('mockInterviewCvData');
+    return (
+      <MockInterview
+        onBack={() => { setCurrentApp(null); }}
+        job={jobData ? JSON.parse(jobData) : null}
+        cvData={cvData ? JSON.parse(cvData) : null}
+        rankingEngine="Groq / Llama 3.3"
+        customGeminiKey={null}
+      />
+    );
   }
 
   return <LandingHub onSelectApp={handleSelectApp} lang={selectedLang} setLang={setSelectedLang} onToggleDarkMode={toggleDarkMode} />;

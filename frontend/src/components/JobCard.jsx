@@ -144,11 +144,17 @@ export default function JobCard({
         {onStartInterview && (
           <button 
             className="btn btn-secondary"
-            onClick={() => onStartInterview(job)}
-            style={{ flexGrow: 0, padding: '8px 12px' }}
-            title="Simuler un entretien"
+            onClick={() => {
+              // Store job data in sessionStorage for the new window
+              sessionStorage.setItem('mockInterviewJob', JSON.stringify(job));
+              sessionStorage.setItem('mockInterviewCvData', JSON.stringify(window.__CV_DATA__ || null));
+              // Open in new window
+              window.open('/mock-interview', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+            }}
+            style={{ flexGrow: 1, padding: '8px 16px', fontSize: '0.85rem' }}
+            title="Simuler un entretien d'embauche (nouvelle fenêtre)"
           >
-            <MessageSquare size={16} />
+            <MessageSquare size={16} /> Simuler un entretien
           </button>
         )}
       </div>
