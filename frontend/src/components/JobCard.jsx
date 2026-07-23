@@ -147,7 +147,7 @@ export default function JobCard({
             onClick={() => {
               // Store job data in sessionStorage for the new window
               sessionStorage.setItem('mockInterviewJob', JSON.stringify(job));
-              sessionStorage.setItem('mockInterviewCvData', JSON.stringify(window.__CV_DATA__ || null));
+              sessionStorage.setItem('mockInterviewCvData', JSON.stringify(cvData || null));
               // Open standalone mock interview page in new window
               window.open('/mock-interview.html', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
             }}

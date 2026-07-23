@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simulation d'Entretien - Job Bridge</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+          'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background: linear-gradient(135deg, rgba(124,77,255,0.05), rgba(68,138,255,0.05));
+        min-height: 100vh;
+      }
+      #root {
+        min-height: 100vh;
+      }
+
+      /* ─── Standalone Window Overrides ─────────────────────────── */
+      /* Remove sidebar padding since there's no sidebar in standalone */
+      .main-content {
+        padding: 40px !important;
+        padding-left: 40px !important;
+        max-width: 100% !important;
+        width: 100% !important;
+      }
+
+      /* Toast positioning for standalone */
+      .toast {
+        position: fixed !important;
+        top: 20px !important;
+        right: 20px !important;
+        z-index: 9999 !important;
+        max-width: calc(100vw - 40px) !important;
+      }
+
+      /* Conversation scroll container */
+      .interview-conversation-container {
+        max-height: 400px;
+        overflow-y: auto;
+        padding: 16px;
+        border-radius: var(--radius-md, 14px);
+        background: var(--surface-color, #ffffff);
+        border: 1px solid var(--border-color, #d0d0d8);
+        box-shadow: var(--shadow-md, 0 4px 20px rgba(0,0,0,0.1));
+        margin-bottom: 20px;
+      }
+
+      .interview-conversation-container::-webkit-scrollbar {
+        width: 8px;
+      }
+      .interview-conversation-container::-webkit-scrollbar-track {
+        background: var(--bg-color, #f0f2f5);
+      }
+      .interview-conversation-container::-webkit-scrollbar-thumb {
+        background: var(--border-color, #d0d0d8);
+        border-radius: var(--radius-full, 9999px);
+      }
+      .interview-conversation-container::-webkit-scrollbar-thumb:hover {
+        background: var(--text-muted, #7a7a8a);
+      }
+
+      /* Standalone title bar */
+      .standalone-title-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 24px;
+        background: var(--surface-color, #ffffff);
+        border-bottom: 1px solid var(--border-color, #d0d0d8);
+        box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.08));
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+      .standalone-title-bar .title-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .standalone-title-bar .title-left h2 {
+        font-size: 1.3rem;
+        font-weight: 800;
+        color: var(--text-primary, #1a1a2e);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .standalone-title-bar .title-left .job-info {
+        font-size: 0.85rem;
+        color: var(--text-secondary, #4a4a5a);
+      }
+      .standalone-title-bar .title-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .standalone-title-bar .btn-close {
+        background: var(--error-bg, rgba(244,67,54,0.1));
+        color: var(--error-color, #f44336);
+        border: 1px solid var(--error-color, #f44336);
+        border-radius: var(--radius-sm, 8px);
+        padding: 8px 16px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: var(--transition-fast, 0.15s ease);
+      }
+      .standalone-title-bar .btn-close:hover {
+        background: var(--error-color, #f44336);
+        color: white;
+      }
+
+      /* Interview stats bar */
+      .interview-stats-bar {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 12px 20px;
+        background: var(--surface-secondary, #f8f9fc);
+        border-radius: var(--radius-md, 14px);
+        border: 1px solid var(--border-color, #d0d0d8);
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+      }
+      .interview-stats-bar .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.85rem;
+        color: var(--text-secondary, #4a4a5a);
+        font-weight: 600;
+      }
+      .interview-stats-bar .stat-item .stat-value {
+        color: var(--primary-color, #7c4dff);
+        font-weight: 800;
+      }
+
+      /* Connection status */
+      .connection-status {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: var(--radius-full, 9999px);
+        background: var(--info-bg, rgba(68,138,255,0.1));
+        color: var(--info-color, #448aff);
+        border: 1px solid rgba(68,138,255,0.3);
+      }
+      .connection-status.offline {
+        background: var(--error-bg, rgba(244,67,54,0.1));
+        color: var(--error-color, #f44336);
+        border-color: rgba(244,67,54,0.3);
+      }
+
+      /* Score badge in evaluations */
+      .score-badge-inline {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: var(--radius-full, 9999px);
+        font-size: 0.8rem;
+        font-weight: 700;
+        margin-left: 8px;
+      }
+      .score-badge-inline.high {
+        background: var(--success-bg, rgba(76,175,80,0.1));
+        color: var(--success-color, #4caf50);
+        border: 1px solid rgba(76,175,80,0.3);
+      }
+      .score-badge-inline.medium {
+        background: var(--warning-bg, rgba(255,152,0,0.1));
+        color: var(--warning-color, #ff9800);
+        border: 1px solid rgba(255,152,0,0.3);
+      }
+      .score-badge-inline.low {
+        background: var(--error-bg, rgba(244,67,54,0.1));
+        color: var(--error-color, #f44336);
+        border: 1px solid rgba(244,67,54,0.3);
+      }
+
+      /* Copy button on messages */
+      .msg-copy-btn {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: rgba(0,0,0,0.05);
+        border: 1px solid var(--border-color, #d0d0d8);
+        border-radius: var(--radius-sm, 8px);
+        padding: 4px 8px;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        color: var(--text-secondary, #4a4a5a);
+      }
+      .msg-wrapper:hover .msg-copy-btn {
+        opacity: 1;
+      }
+
+      /* Loading skeleton */
+      .skeleton {
+        background: linear-gradient(90deg, rgba(0,0,0,0.05) 25%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.05) 75%);
+        background-size: 200% 100%;
+        animation: skeleton-loading 1.5s ease-in-out infinite;
+        border-radius: var(--radius-sm, 8px);
+      }
+      @keyframes skeleton-loading {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+
+      /* Responsive */
+      @media (max-width: 767px) {
+        .main-content {
+          padding: 20px !important;
+          padding-left: 20px !important;
+        }
+        .interview-stats-bar {
+          gap: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/mock-interview-entry.jsx"></script>
+  </body>
+</html>

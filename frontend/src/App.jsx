@@ -278,7 +278,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
     sessionStorage.setItem('mockInterviewJob', JSON.stringify(job));
     sessionStorage.setItem('mockInterviewCvData', JSON.stringify(cvData));
     // Open in new window
-    window.open('/mock-interview', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+    window.open('/mock-interview.html', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
   };
 
   // Direct access link utility
