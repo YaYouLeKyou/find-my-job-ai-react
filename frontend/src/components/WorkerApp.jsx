@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import SEO from './SEO';
 import HeaderButtons from './HeaderButtons';
+import AdComponent from './AdComponent';
 import { LANGS, STRINGS } from '../utils/translations';
 import { ArrowLeft, Search, Loader2, Briefcase, User, FileText, Star, Mail, Phone, MapPin } from 'lucide-react';
 
@@ -10,7 +11,7 @@ const WORKER_SOURCES = ['LinkedIn', 'Indeed', 'France Travail', 'Apec', 'Monster
 const CONTRACT_TYPES = ['CDI', 'CDD', 'Stage', 'Alternance', 'Intérim', 'Temps partiel'];
 const EXPERIENCE_LEVELS = ['Débutant', 'Junior (1-3 ans)', 'Confirmé (3-5 ans)', 'Senior (5-10 ans)', 'Expert (10+ ans)'];
 
-export default function WorkerApp({ onBackToHub, lang, setLang }) {
+export default function WorkerApp({ onBackToHub, lang }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState("France");
   const [contract, setContract] = useState("CDI");
@@ -178,15 +179,19 @@ export default function WorkerApp({ onBackToHub, lang, setLang }) {
           </div>
         </div>
 
-        {/* Loading */}
+        {/* Ad - During Search */}
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '40px 0' }}>
             <Loader2 size={48} style={{ animation: 'spin 1.5s linear infinite', color: '#ff6f00' }} />
             <span>Recherche de profils en cours...</span>
+            <AdComponent style={{ marginTop: '24px' }} />
           </div>
         )}
 
         {error && <div className="alert alert-danger"><span>{error}</span></div>}
+
+        {/* Ad - Results Section */}
+        {candidates.length > 0 && <AdComponent style={{ marginTop: '24px' }} />}
 
         {/* Results */}
         {candidates.length > 0 && (
