@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { LANGS, STRINGS } from '../utils/translations';
-import { ExternalLink, FileText, ChevronDown, ChevronUp, Download, Loader2, Copy, Check } from 'lucide-react';
+import { ExternalLink, FileText, ChevronDown, ChevronUp, Download, Loader2, Copy, Check, MessageSquare } from 'lucide-react';
 import JobSchema from './JobSchema';
 import AdComponent from './AdComponent';
 
@@ -13,7 +13,8 @@ export default function JobCard({
   rankingEngine,
   customGeminiKey,
   onSaveJob,
-  isSaved
+  isSaved,
+  onStartInterview
 }) {
   const S = STRINGS[LANGS[lang].code];
   const [expanded, setExpanded] = useState(false);
@@ -140,6 +141,16 @@ export default function JobCard({
           Lettre de Motivation
           {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </button>
+        {onStartInterview && (
+          <button 
+            className="btn btn-secondary"
+            onClick={() => onStartInterview(job)}
+            style={{ flexGrow: 0, padding: '8px 12px' }}
+            title="Simuler un entretien"
+          >
+            <MessageSquare size={16} />
+          </button>
+        )}
       </div>
 
       {expanded && (

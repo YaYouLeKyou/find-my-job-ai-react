@@ -1438,6 +1438,109 @@ def api_estimate_workload(request: Request, req: WorkloadEstimationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class MockInterviewRequest(BaseModel):
+    job_title: str
+    job_description: str
+    company: str
+    cv_data: Optional[dict] = None
+    interview_stage: str = "débutant"  # débutant, intermédiaire, avancé
+    question_type: str = "technique"  # technique, comportemental, situationnel
+    ranking_engine: str = "Groq / Llama 3.3"
+    custom_gemini_key: Optional[str] = None
+    lang_label: str = "français"
+
+class MockInterviewAnswer(BaseModel):
+    question: str
+    answer: str
+    job_title: str
+    job_description: str
+    cv_data: Optional[dict] = None
+    ranking_engine: str = "Groq / Llama 3.3"
+    custom_gemini_key: Optional[str] = None
+    lang_label: str = "français"
+
+@app.post("/api/mock-interview/question")
+@limiter.limit("30/minute")
+def api_mock_interview_question(request: Request, req: MockInterviewRequest):
+    """Generate a personalized interview question based on job and CV."""
+    try:
+        prompt = f"""Tu es un recruteur expérimenté qui prépare un entretien d'embauche.
+        
+Poste : {req.job_title}
+Entreprise : {req.company}
+Description du poste : {req.job_description}
+
+Niveau de l'entretien : {req.interview_stage}
+Type de question : {req.question_type}
+
+{f"Profil du candidat : {req.cv_data.get('metier', '')}" if req.cv_data else ""}
+{f"Expérience : {req.cv_data.get('experience', '')}" if req.cv_data else ""}
+{f"Compétences : {', '.join(req.cv_data.get('mots_cles', []))}" if req.cv_data else ""}
+
+Génère UNE SEULE question d'entretien pertinente et personnalisée.
+- Sois précis et contextuel
+- Évite les questions génériques
+- Adapte le niveau de difficulté ({req.interview_stage})
+- Type : {req.question_type}
+
+Format de réponse : juste la question, sans introduction ni explication."""
+
+        response = call_ai_provider(
+            prompt=prompt,
+            target_lang=req.lang_label,
+            selected_model=req.ranking_engine,
+            gemini_api_key=gemini_api_key,
+            xai_api_key=xai_api_key,
+            groq_api_key=api_key,
+            ollama_url=ollama_url,
+            custom_gemini_key=req.custom_gemini_key
+        )
+        
+        return {"question": response.strip()}
+    except Exception as e:
+        logger.error(f"Mock interview question error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/mock-interview/evaluate")
+@limiter.limit("30/minute")
+def api_mock_interview_evaluate(request: Request, req: MockInterviewAnswer):
+    """Evaluate the candidate's answer and provide feedback."""
+    try:
+        prompt = f"""Tu es un recruteur expérimenté qui évalue une réponse à une question d'entretien.
+
+Poste : {req.job_title}
+Description : {req.job_description}
+
+Question : {req.question}
+Réponse du candidat : {req.answer}
+
+{f"Profil du candidat : {req.cv_data.get('metier', '')}" if req.cv_data else ""}
+
+Évalue cette réponse de manière constructive et détaillée :
+1. Score global sur 10
+2. Points forts (2-3 points)
+3. Points à améliorer (2-3 points)
+4. Conseil spécifique pour mieux répondre
+5. Exemple de meilleure réponse (si pertinent)
+
+Sois bienveillant mais professionnel."""
+
+        response = call_ai_provider(
+            prompt=prompt,
+            target_lang=req.lang_label,
+            selected_model=req.ranking_engine,
+            gemini_api_key=gemini_api_key,
+            xai_api_key=xai_api_key,
+            groq_api_key=api_key,
+            ollama_url=ollama_url,
+            custom_gemini_key=req.custom_gemini_key
+        )
+        
+        return {"evaluation": response.strip()}
+    except Exception as e:
+        logger.error(f"Mock interview evaluation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/analyze-cv-shared")
 @limiter.limit("30/minute")
 def api_analyze_cv_shared(request: Request, req: CvAnalysisRequest):

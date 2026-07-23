@@ -7,6 +7,7 @@ import JobCard from './components/JobCard';
 import LandingHub from './components/LandingHub';
 import FreelanceMissionApp from './components/FreelanceMissionApp';
 import WorkerApp from './components/WorkerApp';
+import MockInterview from './components/MockInterview';
 import AdComponent from './components/AdComponent';
 import SEO from './components/SEO';
 import HeaderButtons from './components/HeaderButtons';
@@ -48,6 +49,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   const [searchHistory, setSearchHistory] = useState([]);
   const [savedJobs, setSavedJobs] = useState([]);
   const [toast, setToast] = useState(null);
+  const [selectedJobForInterview, setSelectedJobForInterview] = useState(null);
 
   const currentLangCode = LANGS[lang].code;
   const S = STRINGS[currentLangCode];
@@ -270,6 +272,14 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
     setSavedJobs([]);
     localStorage.removeItem('savedJobs');
     showToast('⭐ Annonces sauvegardées vidées', 'success');
+  };
+
+  const handleStartInterview = (job) => {
+    setSelectedJobForInterview(job);
+  };
+
+  const handleBackFromInterview = () => {
+    setSelectedJobForInterview(null);
   };
 
   // Direct access link utility
@@ -565,7 +575,8 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
             <div className="job-list">
               {visibleJobs.map(job => (
                 <JobCard key={job.id} lang={lang} job={job} cvData={cvData} rankingEngine={rankingEngine}
-                  customGeminiKey={customGeminiKey} onSaveJob={toggleSaveJob} isSaved={savedJobs.some(j => j.id === job.id)} />
+                  customGeminiKey={customGeminiKey} onSaveJob={toggleSaveJob} isSaved={savedJobs.some(j => j.id === job.id)}
+                  onStartInterview={handleStartInterview} />
               ))}
             </div>
             {hasMoreJobs && (
@@ -599,6 +610,17 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
           </div>
         </div>
       </main>
+
+      {/* Mock Interview Modal */}
+      {selectedJobForInterview && (
+        <MockInterview
+          onBack={handleBackFromInterview}
+          job={selectedJobForInterview}
+          cvData={cvData}
+          rankingEngine={rankingEngine}
+          customGeminiKey={customGeminiKey}
+        />
+      )}
     </div>
   );
 }
