@@ -205,6 +205,7 @@ export default function LandingHub({ onSelectApp, lang, setLang, onToggleDarkMod
               animationDelay: `${idx * 0.12}s`,
               animation: 'slideUp 0.5s ease both',
               minHeight: '520px',
+              justifyContent: 'space-between',
             }}
           >
             {/* Card Header */}
@@ -344,6 +345,9 @@ export default function LandingHub({ onSelectApp, lang, setLang, onToggleDarkMod
                 +5 autres
               </span>
             </div>
+
+            {/* Spacer to push CTA to bottom */}
+            <div style={{ flex: 1 }} />
 
             {/* CTA */}
             <div
