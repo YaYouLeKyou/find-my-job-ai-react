@@ -653,20 +653,5 @@ export default function App() {
     return <WorkerApp onBackToHub={handleBackToHub} lang={selectedLang} setLang={setSelectedLang} />;
   }
 
-  // Mock Interview standalone page
-  if (currentApp === 'mock-interview') {
-    const jobData = sessionStorage.getItem('mockInterviewJob');
-    const cvData = sessionStorage.getItem('mockInterviewCvData');
-    return (
-      <MockInterview
-        onBack={() => { setCurrentApp(null); }}
-        job={jobData ? JSON.parse(jobData) : null}
-        cvData={cvData ? JSON.parse(cvData) : null}
-        rankingEngine="Groq / Llama 3.3"
-        customGeminiKey={null}
-      />
-    );
-  }
-
   return <LandingHub onSelectApp={handleSelectApp} lang={selectedLang} setLang={setSelectedLang} onToggleDarkMode={toggleDarkMode} />;
 }

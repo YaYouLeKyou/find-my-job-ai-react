@@ -148,8 +148,8 @@ export default function JobCard({
               // Store job data in sessionStorage for the new window
               sessionStorage.setItem('mockInterviewJob', JSON.stringify(job));
               sessionStorage.setItem('mockInterviewCvData', JSON.stringify(window.__CV_DATA__ || null));
-              // Open in new window
-              window.open('/mock-interview', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+              // Open standalone mock interview page in new window
+              window.open('/mock-interview.html', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
             }}
             style={{ flexGrow: 1, padding: '8px 16px', fontSize: '0.85rem' }}
             title="Simuler un entretien d'embauche (nouvelle fenêtre)"
