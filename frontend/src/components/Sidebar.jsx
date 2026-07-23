@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LANGS, STRINGS } from '../utils/translations';
-import { Settings, Cpu, Key, Globe, Save, ExternalLink, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Wifi, WifiOff, Menu, X } from 'lucide-react';
+import { Settings, Cpu, Key, Globe, Save, ExternalLink, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Wifi, WifiOff, Menu, X, Trash2 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -17,7 +17,9 @@ export default function Sidebar({
   searchHistory,
   savedJobs,
   onSelectHistory,
-  onToggleDarkMode
+  onToggleDarkMode,
+  onClearHistory,
+  onClearSavedJobs
 }) {
   const S = STRINGS[LANGS[lang].code];
   const [saved, setSaved] = useState(!!customGeminiKey);
@@ -396,9 +398,21 @@ export default function Sidebar({
           {/* History Tab */}
           {activeTab === 'history' && (
             <div className="sidebar-section">
-              <h3 className="sidebar-section-title">
-                📋 Historique des recherches
-              </h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 className="sidebar-section-title" style={{ margin: 0 }}>
+                  📋 Historique des recherches
+                </h3>
+                {searchHistory.length > 0 && onClearHistory && (
+                  <button
+                    onClick={onClearHistory}
+                    className="btn btn-secondary"
+                    style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                    title="Vider l'historique"
+                  >
+                    <Trash2 size={12} /> Vider
+                  </button>
+                )}
+              </div>
               {searchHistory.length === 0 ? (
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
                   Aucune recherche récente
@@ -443,9 +457,21 @@ export default function Sidebar({
           {/* Saved Jobs Tab */}
           {activeTab === 'saved' && (
             <div className="sidebar-section">
-              <h3 className="sidebar-section-title">
-                ⭐ Offres sauvegardées
-              </h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 className="sidebar-section-title" style={{ margin: 0 }}>
+                  ⭐ Offres sauvegardées
+                </h3>
+                {savedJobs.length > 0 && onClearSavedJobs && (
+                  <button
+                    onClick={onClearSavedJobs}
+                    className="btn btn-secondary"
+                    style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                    title="Vider les annonces sauvegardées"
+                  >
+                    <Trash2 size={12} /> Vider
+                  </button>
+                )}
+              </div>
               {savedJobs.length === 0 ? (
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
                   Aucune offre sauvegardée

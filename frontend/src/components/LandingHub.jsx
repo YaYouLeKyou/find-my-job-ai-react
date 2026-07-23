@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import HeaderButtons from './HeaderButtons';
 import { LANGS, STRINGS } from '../utils/translations';
 
 const APPS = [
@@ -34,9 +35,25 @@ const APPS = [
     badgeBg: 'rgba(0, 188, 212, 0.08)',
     badgeBorder: 'rgba(0, 188, 212, 0.2)',
   },
+  {
+    id: 'worker',
+    emoji: '👷',
+    titleKey: 'hub_card_worker_title',
+    subtitleKey: 'hub_card_worker_subtitle',
+    descriptionKey: 'hub_card_worker_description',
+    featuresKey: 'hub_card_worker_features',
+    sourcesKey: 'hub_card_worker_sources',
+    gradient: 'linear-gradient(135deg, #ff6f00 0%, #ff8f00 100%)',
+    glowColor: 'rgba(255, 111, 0, 0.25)',
+    accentColor: '#ff6f00',
+    tagBg: 'rgba(255, 111, 0, 0.12)',
+    tagColor: '#e65100',
+    badgeBg: 'rgba(255, 111, 0, 0.08)',
+    badgeBorder: 'rgba(255, 111, 0, 0.2)',
+  },
 ];
 
-export default function LandingHub({ onSelectApp, lang, setLang }) {
+export default function LandingHub({ onSelectApp, lang, setLang, onToggleDarkMode }) {
   const [hovered, setHovered] = useState(null);
   const [visible, setVisible] = useState(false);
   const S = STRINGS[LANGS[lang].code];
@@ -60,6 +77,9 @@ export default function LandingHub({ onSelectApp, lang, setLang }) {
         transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >
+      {/* Header Buttons - Top Right (Feedback + Dark Mode) */}
+      <HeaderButtons onToggleDarkMode={onToggleDarkMode} />
+
       {/* Hero Header */}
       <div style={{ textAlign: 'center', marginBottom: '64px', maxWidth: '680px', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
         <div className="hero-title-container">
@@ -342,7 +362,7 @@ export default function LandingHub({ onSelectApp, lang, setLang }) {
                 boxShadow: hovered === app.id ? `0 6px 20px ${app.glowColor}` : 'none',
               }}
             >
-              <span>{S.hub_cta_job}</span>
+              <span>{S[app.id === 'job' ? 'hub_cta_job' : app.id === 'freelance' ? 'hub_cta_freelance' : 'hub_cta_worker']}</span>
               <span style={{ fontSize: '1.1rem', transition: 'transform 0.3s ease', transform: hovered === app.id ? 'translateX(4px)' : 'translateX(0)' }}>→</span>
             </div>
           </button>

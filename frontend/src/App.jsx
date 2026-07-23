@@ -6,8 +6,10 @@ import JobFilters from './components/JobFilters';
 import JobCard from './components/JobCard';
 import LandingHub from './components/LandingHub';
 import FreelanceMissionApp from './components/FreelanceMissionApp';
+import WorkerApp from './components/WorkerApp';
 import AdComponent from './components/AdComponent';
 import SEO from './components/SEO';
+import HeaderButtons from './components/HeaderButtons';
 import { LANGS, STRINGS } from './utils/translations';
 import { Search, Loader2, RefreshCw, Key, ExternalLink, X, ArrowLeft } from 'lucide-react';
 
@@ -240,6 +242,18 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
     }
   };
 
+  const handleClearHistory = () => {
+    setSearchHistory([]);
+    localStorage.removeItem('searchHistory');
+    showToast('📋 Historique vidé', 'success');
+  };
+
+  const handleClearSavedJobs = () => {
+    setSavedJobs([]);
+    localStorage.removeItem('savedJobs');
+    showToast('⭐ Annonces sauvegardées vidées', 'success');
+  };
+
   // Direct access link utility
   const generateJobSearchLinks = (jobTitle, langCode) => {
     const q = encodeURIComponent(jobTitle);
@@ -355,6 +369,8 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
         savedJobs={savedJobs}
         onSelectHistory={handleSelectJobQuery}
         onToggleDarkMode={toggleDarkMode}
+        onClearHistory={handleClearHistory}
+        onClearSavedJobs={handleClearSavedJobs}
       />
 
       {/* Main Container */}
@@ -369,42 +385,8 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
           Find my work AI
         </button>
 
-        {/* Feedback Button - Top Right */}
-        <a
-          href="mailto:findmyworkai@gmail.com"
-          className="feedback-button"
-          style={{
-            position: 'fixed',
-            top: '20px',
-            right: '20px',
-            zIndex: '1000',
-            background: 'var(--primary-gradient)',
-            color: 'white',
-            padding: '12px 20px',
-            borderRadius: 'var(--radius-full)',
-            textDecoration: 'none',
-            fontWeight: '700',
-            fontSize: '0.9rem',
-            boxShadow: 'var(--shadow-lg)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            transition: 'transform var(--transition-fast), box-shadow var(--transition-fast)',
-            border: 'none',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-sans)'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-xl)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-          }}
-        >
-          💬 Feedback
-        </a>
+        {/* Header Buttons - Top Right (Feedback + Dark Mode) */}
+        <HeaderButtons onToggleDarkMode={toggleDarkMode} />
 
         <header className="header">
           <h1 style={{
@@ -560,7 +542,6 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
               </h2>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button onClick={exportToCSV} className="btn btn-secondary" style={{ fontSize: '0.85rem' }}>📊 Exporter CSV</button>
-                <button onClick={toggleDarkMode} className="btn btn-secondary" style={{ fontSize: '0.85rem' }}>🌓 Mode</button>
               </div>
             </div>
             <div className="job-list">
@@ -609,6 +590,17 @@ export default function App() {
   const [currentApp, setCurrentApp] = useState(null); // null = hub, 'job', 'freelance'
   const [selectedLang, setSelectedLang] = useState("Français");
 
+  const toggleDarkMode = () => {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    if (isDark) {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('darkMode', 'false');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('darkMode', 'true');
+    }
+  };
+
   const handleSelectApp = (appId, lang) => {
     setSelectedLang(lang || selectedLang);
     setCurrentApp(appId);
@@ -628,5 +620,9 @@ export default function App() {
     return <FreelanceMissionApp onBackToHub={handleBackToHub} lang={selectedLang} setLang={setSelectedLang} />;
   }
 
-  return <LandingHub onSelectApp={handleSelectApp} lang={selectedLang} setLang={setSelectedLang} />;
+  if (currentApp === 'worker') {
+    return <WorkerApp onBackToHub={handleBackToHub} lang={selectedLang} setLang={setSelectedLang} />;
+  }
+
+  return <LandingHub onSelectApp={handleSelectApp} lang={selectedLang} setLang={setSelectedLang} onToggleDarkMode={toggleDarkMode} />;
 }

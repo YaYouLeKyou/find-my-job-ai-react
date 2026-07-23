@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Cpu, Key, Save, ExternalLink, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Wifi, WifiOff, Globe, DollarSign, Briefcase } from 'lucide-react';
+import { Settings, Cpu, Key, Save, ExternalLink, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Wifi, WifiOff, Globe, DollarSign, Briefcase, Trash2 } from 'lucide-react';
 import { LANGS } from '../utils/translations';
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -18,6 +18,8 @@ export default function FreelanceSidebar({
   savedMissions,
   onSelectHistory,
   onToggleDarkMode,
+  onClearHistory,
+  onClearSavedMissions,
   tjmMin,
   setTjmMin,
   tjmMax,
@@ -280,7 +282,19 @@ export default function FreelanceSidebar({
           {/* History Tab */}
           {activeTab === 'history' && (
             <div className="sidebar-section">
-              <h3 className="sidebar-section-title">📋 Historique des recherches</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 className="sidebar-section-title" style={{ margin: 0 }}>📋 Historique des recherches</h3>
+                {searchHistory?.length > 0 && onClearHistory && (
+                  <button
+                    onClick={onClearHistory}
+                    className="btn btn-secondary"
+                    style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                    title="Vider l'historique"
+                  >
+                    <Trash2 size={12} /> Vider
+                  </button>
+                )}
+              </div>
               {!searchHistory?.length ? (
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
                   Aucune recherche récente
@@ -313,7 +327,19 @@ export default function FreelanceSidebar({
           {/* Saved Missions Tab */}
           {activeTab === 'saved' && (
             <div className="sidebar-section">
-              <h3 className="sidebar-section-title">⭐ Missions sauvegardées</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 className="sidebar-section-title" style={{ margin: 0 }}>⭐ Missions sauvegardées</h3>
+                {savedMissions?.length > 0 && onClearSavedMissions && (
+                  <button
+                    onClick={onClearSavedMissions}
+                    className="btn btn-secondary"
+                    style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                    title="Vider les missions sauvegardées"
+                  >
+                    <Trash2 size={12} /> Vider
+                  </button>
+                )}
+              </div>
               {!savedMissions?.length ? (
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
                   Aucune mission sauvegardée

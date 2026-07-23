@@ -11,11 +11,12 @@ export const LANGS = {
 export const STRINGS = {
   fr: {
     title: "🚀 Find me a job AI", subtitle: "Trouvez votre prochain emploi avec l'aide de l'IA", analyze: "Analyse du document...", search: "Rechercher", profile: "📋 Mon Profil",
-    hub_title: "Find my work AI",
-    hub_subtitle: "Votre plateforme d'agents IA spécialisés pour booster votre carrière. Choisissez votre agent et laissez l'IA travailler pour vous.",
+    hub_title: "Job Bridge",
+    hub_subtitle: "Le pont entre les talents et les opportunités. Agents IA spécialisés pour candidats, freelances et recruteurs.",
     hub_badge: "Plateforme IA multi-agents",
     hub_cta_job: "Find my job AI",
     hub_cta_freelance: "Find my freelance mission AI",
+    hub_cta_worker: "Find my worker AI",
     settings: "⚙️ Paramètres", num_ads: "Nombre d'annonces", contract: "Type de contrat", location: "📍 Ville / Pays", remote: "Télétravail uniquement", upload: "📂 Glissez-déposez votre CV ici (PDF)",
     analyze_success: "Analyse réussie !", analyze_fail: "Impossible d'extraire du texte de ce PDF.", metier: "Métier", exp: "Expérience", advice: "✨ Conseils d'amélioration",
     pistes: "💡 Pistes d'évolution", alt: "🔀 Métiers Alternatifs", search_section: "🔍 Recherche d'opportunités", search_info: "Modifiez l'intitulé ci-dessous pour lancer une recherche personnalisée.",
@@ -86,7 +87,12 @@ export const STRINGS = {
     hub_card_freelance_subtitle: "Recherche de missions freelance",
     hub_card_freelance_description: "Trouvez des missions freelance adaptées à vos compétences, calculez votre TJM optimal et générez des propositions commerciales percutantes.",
     hub_card_freelance_features: ["Calcul TJM IA", "Proposition commerciale", "Gestion de portefeuille", "Missions remote/hybride"],
-    hub_card_freelance_sources: ["Malt", "Upwork", "Freelancer", "Toptal", "Codeur.com"]
+    hub_card_freelance_sources: ["Malt", "Upwork", "Freelancer", "Toptal", "Codeur.com"],
+    hub_card_worker_title: "Find my worker AI",
+    hub_card_worker_subtitle: "Recrutement employé",
+    hub_card_worker_description: "Publiez facilement vos offres d'emploi et trouvez le candidat idéal parmi des profils qualifiés. Gérez les candidatures avec l'IA.",
+    hub_card_worker_features: ["Publication d'offre simplifiée", "Matching IA candidat-poste", "Gestion des candidatures", "CVthèque intelligente"],
+    hub_card_worker_sources: ["LinkedIn", "Indeed", "France Travail", "Pôle Emploi", "Apec"]
   },
   en: {
     title: "🚀 Find me a job AI", subtitle: "Find your next job with AI assistance", analyze: "Analyzing document...", search: "Search", profile: "📋 My Profile",

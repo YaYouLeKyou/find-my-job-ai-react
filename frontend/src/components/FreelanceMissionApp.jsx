@@ -5,6 +5,7 @@ import CvProfile from './CvProfile';
 import FreelanceMissionCard from './FreelanceMissionCard';
 import AdComponent from './AdComponent';
 import SEO from './SEO';
+import HeaderButtons from './HeaderButtons';
 import { LANGS, STRINGS } from '../utils/translations';
 import { Search, Loader2, RefreshCw, Key, ExternalLink, X, ArrowLeft, Briefcase } from 'lucide-react';
 
@@ -124,14 +125,23 @@ export default function FreelanceMissionApp({ onBackToHub, lang, setLang }) {
     const freelanceQuery = `freelance mission ${activeQuery} ${missionType ? missionType : ''}`.trim();
 
     // Map freelance source names to real backend-supported sources
+    // These sources use web scrapers that work reliably
     const sourceMap = {
       'Malt': 'Indeed',
       'Upwork': 'LinkedIn',
-      'Freelancer': 'Glassdoor',
+      'Freelancer': 'Monster',
       'Toptal': 'Google Jobs',
-      'Codeur.com': 'Monster',
+      'Codeur.com': 'Jooble',
     };
+    // Keep original freelance names so backend's is_freelance scrapers can match them
+    // AND also include mapped job sources for broader coverage
     const mappedSources = selectedSources.map(s => sourceMap[s] || s);
+    // Add original freelance source names for backend freelance scraper matching
+    selectedSources.forEach(s => {
+      if (sourceMap[s] && !mappedSources.includes(s)) {
+        mappedSources.push(s);
+      }
+    });
 
     try {
       const response = await fetch(`${API_BASE}/api/search-jobs`, {
@@ -160,8 +170,49 @@ export default function FreelanceMissionApp({ onBackToHub, lang, setLang }) {
       if (!response.ok) throw new Error("Erreur de communication avec le serveur.");
 
       const data = await response.json();
-      setMissions(data.results || []);
-      setSourceCounts(data.source_counts || {});
+      const results = data.results || [];
+      const sourceCounts = data.source_counts || {};
+      
+      // Log detailed per-source results to the browser console
+      console.log('============================================================');
+      console.log('📊 FREELANCE RAPPORT DU SCAN PAR SOURCE');
+      console.log('============================================================');
+      console.log(`🔍 Requête: "${activeQuery}" | Total: ${results.length} missions`);
+      console.log('------------------------------------------------------------');
+      
+      // Build per-source breakdown
+      const bySource = {};
+      const requestedSources = selectedSources.length > 0 ? selectedSources : [...FREELANCE_SOURCES];
+      requestedSources.forEach(s => { bySource[s] = []; });
+      
+      results.forEach(mission => {
+        const src = mission.source || 'Inconnue';
+        if (!bySource[src]) bySource[src] = [];
+        bySource[src].push(mission);
+      });
+      
+      // Log source by source with clear success/error status
+      requestedSources.forEach(source => {
+        const missions = bySource[source] || [];
+        if (missions.length > 0) {
+          console.log(`✅ ${source}: ${missions.length} missions`);
+          missions.slice(0, 3).forEach((m, i) => {
+            console.log(`   ${i+1}. ${m.title || 'N/A'} @ ${m.company || 'N/A'} (💰 ${m.tjm || 'Non spécifié'})`);
+          });
+          if (missions.length > 3) console.log(`   ... et ${missions.length - 3} autres`);
+        } else {
+          console.log(`❌ ${source}: 0 résultat (source indisponible ou bloquée)`);
+        }
+        console.log('');
+      });
+      
+      console.log('============================================================');
+      console.log('💡 Légende: ✅ = résultats obtenus | ❌ = 0 résultat');
+      console.log('   Vérifiez vos clés API dans le backend (api.py)');
+      console.log('============================================================');
+      
+      setMissions(results);
+      setSourceCounts(sourceCounts);
 
       const endTime = Date.now();
       const dur = ((endTime - startTime) / 1000).toFixed(2);
@@ -202,6 +253,18 @@ export default function FreelanceMissionApp({ onBackToHub, lang, setLang }) {
     setExcludedSources(prev =>
       prev.includes(src) ? prev.filter(s => s !== src) : [...prev, src]
     );
+  };
+
+  const handleClearFreelanceHistory = () => {
+    setSearchHistory([]);
+    localStorage.removeItem('freelanceSearchHistory');
+    showToast('📋 Historique vidé', 'success');
+  };
+
+  const handleClearFreelanceMissions = () => {
+    setSavedMissions([]);
+    localStorage.removeItem('savedFreelanceMissions');
+    showToast('⭐ Missions sauvegardées vidées', 'success');
   };
 
   const toggleDarkMode = () => {
@@ -277,6 +340,8 @@ export default function FreelanceMissionApp({ onBackToHub, lang, setLang }) {
         savedMissions={savedMissions}
         onSelectHistory={handleSelectMissionQuery}
         onToggleDarkMode={toggleDarkMode}
+        onClearHistory={handleClearFreelanceHistory}
+        onClearSavedMissions={handleClearFreelanceMissions}
         tjmMin={tjmMin} setTjmMin={setTjmMin}
         tjmMax={tjmMax} setTjmMax={setTjmMax}
         recommendedTjm={recommendedTjm}
@@ -301,42 +366,8 @@ export default function FreelanceMissionApp({ onBackToHub, lang, setLang }) {
           Find my work AI
         </button>
 
-        {/* Feedback Button - Top Right */}
-        <a
-          href="mailto:findmyworkai@gmail.com"
-          className="feedback-button"
-          style={{
-            position: 'fixed',
-            top: '20px',
-            right: '20px',
-            zIndex: '1000',
-            background: 'linear-gradient(135deg, #00bcd4 0%, #00897b 100%)',
-            color: 'white',
-            padding: '12px 20px',
-            borderRadius: 'var(--radius-full)',
-            textDecoration: 'none',
-            fontWeight: '700',
-            fontSize: '0.9rem',
-            boxShadow: 'var(--shadow-lg)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            transition: 'transform var(--transition-fast), box-shadow var(--transition-fast)',
-            border: 'none',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-sans)'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-xl)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-          }}
-        >
-          💬 Feedback
-        </a>
+        {/* Header Buttons - Top Right (Feedback + Dark Mode) */}
+        <HeaderButtons onToggleDarkMode={toggleDarkMode} />
 
         {/* Header */}
         <header className="header">
@@ -577,7 +608,6 @@ export default function FreelanceMissionApp({ onBackToHub, lang, setLang }) {
               </h2>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={exportToCSV} className="btn btn-secondary" style={{ fontSize: '0.85rem' }}>📊 Exporter CSV</button>
-                <button onClick={toggleDarkMode} className="btn btn-secondary" style={{ fontSize: '0.85rem' }}>🌓 Mode</button>
               </div>
             </div>
 

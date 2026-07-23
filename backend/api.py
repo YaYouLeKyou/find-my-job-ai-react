@@ -57,7 +57,6 @@ except Exception as e:
     REDIS_AVAILABLE = False
     logger.warning(f"⚠️ Redis not available: {e}. Caching disabled.")
 
-# Rate limiting setup
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -110,6 +109,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Shared headers for web scraping
+SCRAPE_HEADERS = [
+    {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    },
+    {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    },
+    {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+    }
+]
+
 # Helper functions
 def extract_text_from_pdf(pdf_file) -> Optional[str]:
     try:
@@ -140,19 +152,236 @@ def clean_job_title(title: str) -> str:
     clean = re.split(r'[,(\-:&/|]', clean)[0]
     return " ".join(clean.split()).capitalize()
 
-# Scraping / Job Search functions
 def clean_html(text: str) -> str:
     try:
         return BeautifulSoup(text, "html.parser").get_text()
     except:
         return text
 
+def get_random_headers():
+    import random
+    return random.choice(SCRAPE_HEADERS)
+
+# ─── Web Scrapers for each source ───────────────────────────────────────────
+
+def scrape_indeed(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
+    """Web scraper for Indeed jobs."""
+    clean_title = clean_job_title(job_title)
+    query = urllib.parse.quote(clean_title)
+    jobs = []
+    try:
+        # Try Indeed France first
+        urls = [
+            f"https://fr.indeed.com/jobs?q={query}&l={urllib.parse.quote(location)}&limit={limit}",
+            f"https://www.indeed.com/jobs?q={query}&l={urllib.parse.quote(location)}&limit={limit}"
+        ]
+        for url in urls:
+            response = requests.get(url, headers=get_random_headers(), timeout=10)
+            if response.status_code != 200:
+                continue
+            soup = BeautifulSoup(response.text, 'html.parser')
+            cards = soup.select('div.job_seen_beacon, .jobsearch-SerpJobCard, div[data-testid="job-card"], .cardOutline')
+            if not cards:
+                cards = soup.select('div[class*="jobsearch"]')
+            if not cards:
+                continue
+            for card in cards[:limit]:
+                title_elem = card.select_one('h2.jobTitle a, a.jobtitle, a[data-jk], h2 a')
+                company_elem = card.select_one('span.companyName, .company, span[data-testid="companyname"], .company_info a')
+                location_elem = card.select_one('div.companyLocation, span[data-testid="text-location"], .location')
+                link_elem = card.select_one('h2.jobTitle a, a.jobtitle, a[data-jk]')
+                link = "#"
+                if link_elem:
+                    href = link_elem.get('href', '')
+                    if href.startswith('/'):
+                        link = "https://fr.indeed.com" + href
+                    elif href.startswith('http'):
+                        link = href
+                if title_elem:
+                    jobs.append({
+                        "titre": title_elem.get_text(strip=True),
+                        "entreprise": company_elem.get_text(strip=True) if company_elem else "Non précisé",
+                        "lien": link,
+                        "location": location_elem.get_text(strip=True) if location_elem else location,
+                        "date": "",
+                        "source": "Indeed"
+                    })
+            if jobs:
+                break  # Stop if we got results from first URL
+    except Exception as e:
+        logger.error(f"Indeed scraper error: {e}")
+    return jobs[:limit]
+
+def scrape_linkedin(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
+    """Web scraper for LinkedIn jobs."""
+    clean_title = clean_job_title(job_title)
+    query = urllib.parse.quote(clean_title)
+    loc = urllib.parse.quote(location)
+    jobs = []
+    try:
+        url = f"https://www.linkedin.com/jobs/search/?keywords={query}&location={loc}"
+        response = requests.get(url, headers=get_random_headers(), timeout=10)
+        if response.status_code != 200:
+            return jobs
+        soup = BeautifulSoup(response.text, 'html.parser')
+        cards = soup.select('li[data-occludable-job-id], .job-search-card, .base-card')
+        if not cards:
+            cards = soup.select('div[class*="job-card"]')
+        if not cards:
+            # Try to extract from script tags
+            scripts = soup.find_all('script', type='application/ld+json')
+            for script in scripts:
+                try:
+                    data = json.loads(script.string)
+                    if isinstance(data, dict) and data.get('@type') == 'ItemList':
+                        for item in data.get('itemListElement', []):
+                            job = item.get('item', {})
+                            if job.get('title'):
+                                jobs.append({
+                                    "titre": job.get('title'),
+                                    "entreprise": job.get('hiringOrganization', {}).get('name', 'Non précisé'),
+                                    "lien": job.get('url', '#'),
+                                    "location": job.get('jobLocation', {}).get('address', {}).get('addressLocality', location),
+                                    "date": "",
+                                    "source": "LinkedIn"
+                                })
+                except:
+                    pass
+        for card in cards[:limit]:
+            title_elem = card.select_one('a.base-card__full-link, h3.base-search-card__title, a[href*="/jobs/view"]')
+            company_elem = card.select_one('h4.base-search-card__subtitle, a[data-tracking-control-name*="company"]')
+            location_elem = card.select_one('span.job-search-card__location, span[class*="location"]')
+            link_elem = card.select_one('a.base-card__full-link')
+            link = link_elem.get('href', '#') if link_elem else '#'
+            if title_elem:
+                jobs.append({
+                    "titre": title_elem.get_text(strip=True),
+                    "entreprise": company_elem.get_text(strip=True) if company_elem else "Non précisé",
+                    "lien": link,
+                    "location": location_elem.get_text(strip=True) if location_elem else location,
+                    "date": "",
+                    "source": "LinkedIn"
+                })
+        return jobs[:limit]
+    except Exception as e:
+        logger.error(f"LinkedIn scraper error: {e}")
+        return jobs
+
+def scrape_monster(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
+    """Web scraper for Monster jobs."""
+    clean_title = clean_job_title(job_title)
+    query = urllib.parse.quote(clean_title)
+    jobs = []
+    try:
+        urls = [
+            f"https://www.monster.fr/emploi/recherche?q={query}&where={urllib.parse.quote(location)}",
+            f"https://www.monster.com/jobs/search?q={query}&where={urllib.parse.quote(location)}"
+        ]
+        for url in urls:
+            response = requests.get(url, headers=get_random_headers(), timeout=10)
+            if response.status_code != 200:
+                continue
+            soup = BeautifulSoup(response.text, 'html.parser')
+            cards = soup.select('div[class*="card"], section[class*="card"], .job-row, article')
+            if not cards:
+                continue
+            for card in cards[:limit]:
+                title_elem = card.select_one('h2 a, h3 a, a[data-testid="jobTitle"], a[class*="title"]')
+                company_elem = card.select_one('span[class*="company"], div[class*="company"],span[data-testid="company"]')
+                location_elem = card.select_one('span[class*="location"], div[class*="location"]')
+                link_elem = card.select_one('h2 a, h3 a, a[data-testid="jobTitle"]')
+                link = link_elem.get('href', '#') if link_elem else '#'
+                if link and not link.startswith('http'):
+                    link = "https://www.monster.fr" + link
+                if title_elem:
+                    jobs.append({
+                        "titre": title_elem.get_text(strip=True),
+                        "entreprise": company_elem.get_text(strip=True) if company_elem else "Non précisé",
+                        "lien": link,
+                        "location": location_elem.get_text(strip=True) if location_elem else location,
+                        "date": "",
+                        "source": "Monster"
+                    })
+            if jobs:
+                break
+    except Exception as e:
+        logger.error(f"Monster scraper error: {e}")
+    return jobs[:limit]
+
+def scrape_careerbuilder(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
+    """Web scraper for Careerbuilder jobs."""
+    clean_title = clean_job_title(job_title)
+    query = urllib.parse.quote(clean_title)
+    jobs = []
+    try:
+        url = f"https://www.careerbuilder.com/jobs?q={query}&location={urllib.parse.quote(location)}"
+        response = requests.get(url, headers=get_random_headers(), timeout=10)
+        if response.status_code != 200:
+            return jobs
+        soup = BeautifulSoup(response.text, 'html.parser')
+        cards = soup.select('div[data-job-id], div.job-row, article')
+        if not cards:
+            cards = soup.select('div[class*="job"]')
+        for card in cards[:limit]:
+            title_elem = card.select_one('a[data-job-id], a.job-title, h2 a')
+            company_elem = card.select_one('span[class*="company"], div[class*="company"]')
+            location_elem = card.select_one('span[class*="location"], div[class*="location"]')
+            link_elem = card.select_one('a[data-job-id], a.job-title')
+            link = link_elem.get('href', '#') if link_elem else '#'
+            if link and not link.startswith('http'):
+                link = "https://www.careerbuilder.com" + link
+            if title_elem:
+                jobs.append({
+                    "titre": title_elem.get_text(strip=True),
+                    "entreprise": company_elem.get_text(strip=True) if company_elem else "Non précisé",
+                    "lien": link,
+                    "location": location_elem.get_text(strip=True) if location_elem else location,
+                    "date": "",
+                    "source": "Careerbuilder"
+                })
+    except Exception as e:
+        logger.error(f"Careerbuilder scraper error: {e}")
+    return jobs[:limit]
+
+def scrape_simplyhired(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
+    """Web scraper for Simplyhired jobs."""
+    clean_title = clean_job_title(job_title)
+    query = urllib.parse.quote(clean_title)
+    jobs = []
+    try:
+        url = f"https://www.simplyhired.com/search?q={query}&l={urllib.parse.quote(location)}"
+        response = requests.get(url, headers=get_random_headers(), timeout=10)
+        if response.status_code != 200:
+            return jobs
+        soup = BeautifulSoup(response.text, 'html.parser')
+        cards = soup.select('div[class*="card"], div.job, article')
+        if not cards:
+            cards = soup.select('div[class*="SerpJob"]')
+        for card in cards[:limit]:
+            title_elem = card.select_one('a[class*="title"], h2 a, h3 a')
+            company_elem = card.select_one('span[class*="company"], div[class*="company"]')
+            location_elem = card.select_one('span[class*="location"], div[class*="location"]')
+            link_elem = card.select_one('a[class*="title"], h2 a')
+            link = link_elem.get('href', '#') if link_elem else '#'
+            if link and not link.startswith('http'):
+                link = "https://www.simplyhired.com" + link
+            if title_elem:
+                jobs.append({
+                    "titre": title_elem.get_text(strip=True),
+                    "entreprise": company_elem.get_text(strip=True) if company_elem else "Non précisé",
+                    "lien": link,
+                    "location": location_elem.get_text(strip=True) if location_elem else location,
+                    "date": "",
+                    "source": "Simplyhired"
+                })
+    except Exception as e:
+        logger.error(f"Simplyhired scraper error: {e}")
+    return jobs[:limit]
+
 def scrape_france_travail_jobs(job_title: str, limit: int = 10) -> List[dict]:
     clean_title = clean_job_title(job_title)
     query = urllib.parse.quote(clean_title)
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-    }
+    headers = get_random_headers()
     jobs = []
     page = 1
     try:
@@ -173,10 +402,14 @@ def scrape_france_travail_jobs(job_title: str, limit: int = 10) -> List[dict]:
                 company_elem = item.select_one('p.sub-text, .nom-entreprise, span.entreprise')
                 
                 if title_elem:
+                    link = "#"
+                    href = title_elem.get('href', '')
+                    if href:
+                        link = "https://candidat.pole-emploi.fr" + href if href.startswith('/') else href
                     jobs.append({
                         "title": title_elem.get_text(strip=True),
                         "company": company_elem.get_text(strip=True) if company_elem else "Non précisé",
-                        "link": "https://candidat.pole-emploi.fr" + title_elem.get('href', '#'),
+                        "link": link,
                         "source": "France Travail"
                     })
             page += 1
@@ -348,6 +581,176 @@ def get_jooble_jobs(job_title: str, location: str = "France", limit: int = 10) -
         logger.error(f"Jooble API error: {e}")
         return []
 
+def scrape_malt(job_title: str, limit: int = 10) -> List[dict]:
+    """Web scraper for Malt freelance missions."""
+    clean_title = clean_job_title(job_title)
+    query = urllib.parse.quote(clean_title)
+    jobs = []
+    try:
+        url = f"https://www.malt.fr/s?q={query}"
+        response = requests.get(url, headers=get_random_headers(), timeout=10)
+        if response.status_code != 200:
+            return jobs
+        soup = BeautifulSoup(response.text, 'html.parser')
+        cards = soup.select('div[class*="card"], article, div[class*="mission-card"], div[class*="project-card"]')
+        if not cards:
+            cards = soup.select('div[class*="Feed_project"], div[class*="search-result"]')
+        if not cards:
+            return jobs
+        for card in cards[:limit]:
+            title_elem = card.select_one('h2 a, h3 a, a[class*="title"], a[class*="name"]')
+            company_elem = card.select_one('span[class*="client"], div[class*="client"], span[class*="company"]')
+            link_elem = card.select_one('a[href*="/project"], a[href*="/mission"], h2 a, h3 a')
+            link = link_elem.get('href', '#') if link_elem else '#'
+            if link and not link.startswith('http'):
+                link = "https://www.malt.fr" + link
+            if title_elem:
+                jobs.append({
+                    "titre": title_elem.get_text(strip=True),
+                    "entreprise": company_elem.get_text(strip=True) if company_elem else "Client Malt",
+                    "lien": link,
+                    "date": "",
+                    "source": "Malt"
+                })
+    except Exception as e:
+        logger.error(f"Malt scraper error: {e}")
+    return jobs[:limit]
+
+def scrape_upwork(job_title: str, limit: int = 10) -> List[dict]:
+    """Web scraper for Upwork freelance jobs."""
+    clean_title = clean_job_title(job_title)
+    query = urllib.parse.quote(clean_title)
+    jobs = []
+    try:
+        url = f"https://www.upwork.com/search/jobs/?q={query}"
+        response = requests.get(url, headers=get_random_headers(), timeout=10)
+        if response.status_code != 200:
+            return jobs
+        soup = BeautifulSoup(response.text, 'html.parser')
+        cards = soup.select('article, div[class*="job-card"], div[class*="JobSearchCard"]')
+        if not cards:
+            cards = soup.select('section[class*="job"]')
+        if not cards:
+            return jobs
+        for card in cards[:limit]:
+            title_elem = card.select_one('a[class*="title"], h2 a, h3 a, a[data-test*="job-title"]')
+            company_elem = card.select_one('span[class*="client"], div[class*="client"]')
+            link_elem = card.select_one('a[class*="title"], a[data-test*="job-title"], h2 a')
+            link = link_elem.get('href', '#') if link_elem else '#'
+            if link and not link.startswith('http'):
+                link = "https://www.upwork.com" + link
+            if title_elem:
+                jobs.append({
+                    "titre": title_elem.get_text(strip=True),
+                    "entreprise": "Upwork",
+                    "lien": link,
+                    "date": "",
+                    "source": "Upwork"
+                })
+    except Exception as e:
+        logger.error(f"Upwork scraper error: {e}")
+    return jobs[:limit]
+
+def scrape_codeur(job_title: str, limit: int = 10) -> List[dict]:
+    """Web scraper for Codeur.com freelance projects."""
+    clean_title = clean_job_title(job_title)
+    query = urllib.parse.quote(clean_title)
+    jobs = []
+    try:
+        url = f"https://www.codeur.com/projects?search={query}"
+        response = requests.get(url, headers=get_random_headers(), timeout=10)
+        if response.status_code != 200:
+            return jobs
+        soup = BeautifulSoup(response.text, 'html.parser')
+        cards = soup.select('div[class*="project"], article, li[class*="project"]')
+        if not cards:
+            cards = soup.select('div[class*="card"]')
+        if not cards:
+            return jobs
+        for card in cards[:limit]:
+            title_elem = card.select_one('h2 a, h3 a, a[class*="title"], a[class*="project"]')
+            company_elem = card.select_one('span[class*="client"], div[class*="client"], span[class*="budget"]')
+            link_elem = card.select_one('a[href*="/project"], h2 a, a[class*="project"]')
+            link = link_elem.get('href', '#') if link_elem else '#'
+            if link and not link.startswith('http'):
+                link = "https://www.codeur.com" + link
+            if title_elem:
+                jobs.append({
+                    "titre": title_elem.get_text(strip=True),
+                    "entreprise": "Codeur.com",
+                    "lien": link,
+                    "date": "",
+                    "source": "Codeur.com"
+                })
+    except Exception as e:
+        logger.error(f"Codeur.com scraper error: {e}")
+    return jobs[:limit]
+
+def scrape_freelance_informatique(job_title: str, limit: int = 10) -> List[dict]:
+    """Web scraper for Freelance-Informatique.fr."""
+    clean_title = clean_job_title(job_title)
+    query = urllib.parse.quote(clean_title)
+    jobs = []
+    try:
+        url = f"https://www.freelance-informatique.fr/offres?q={query}"
+        response = requests.get(url, headers=get_random_headers(), timeout=10)
+        if response.status_code != 200:
+            return jobs
+        soup = BeautifulSoup(response.text, 'html.parser')
+        cards = soup.select('div[class*="offer"], article, div[class*="card"]')
+        if not cards:
+            return jobs
+        for card in cards[:limit]:
+            title_elem = card.select_one('h2 a, h3 a, a[class*="title"]')
+            link_elem = card.select_one('a[href*="/offre"], h2 a')
+            link = link_elem.get('href', '#') if link_elem else '#'
+            if link and not link.startswith('http'):
+                link = "https://www.freelance-informatique.fr" + link
+            if title_elem:
+                jobs.append({
+                    "titre": title_elem.get_text(strip=True),
+                    "entreprise": "Freelance Informatique",
+                    "lien": link,
+                    "date": "",
+                    "source": "FreelanceInformatique"
+                })
+    except Exception as e:
+        logger.error(f"Freelance-Informatique scraper error: {e}")
+    return jobs[:limit]
+
+def scrape_cremedelacreme(job_title: str, limit: int = 10) -> List[dict]:
+    """Web scraper for Crème de la Crème freelance."""
+    clean_title = clean_job_title(job_title)
+    query = urllib.parse.quote(clean_title)
+    jobs = []
+    try:
+        url = f"https://cremedelacreme.io/fr/missions?query={query}"
+        response = requests.get(url, headers=get_random_headers(), timeout=10)
+        if response.status_code != 200:
+            return jobs
+        soup = BeautifulSoup(response.text, 'html.parser')
+        cards = soup.select('div[class*="card"], article, div[class*="mission"]')
+        if not cards:
+            return jobs
+        for card in cards[:limit]:
+            title_elem = card.select_one('h2 a, h3 a, a[class*="title"]')
+            company_elem = card.select_one('span[class*="company"], div[class*="company"]')
+            link_elem = card.select_one('a[href*="/missions"], h2 a')
+            link = link_elem.get('href', '#') if link_elem else '#'
+            if link and not link.startswith('http'):
+                link = "https://cremedelacreme.io" + link
+            if title_elem:
+                jobs.append({
+                    "titre": title_elem.get_text(strip=True),
+                    "entreprise": company_elem.get_text(strip=True) if company_elem else "Crème de la Crème",
+                    "lien": link,
+                    "date": "",
+                    "source": "CrèmeDeLaCrème"
+                })
+    except Exception as e:
+        logger.error(f"Crème de la Crème scraper error: {e}")
+    return jobs[:limit]
+
 def get_apify_jobs(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
     if not apify_api_key:
         return []
@@ -412,6 +815,9 @@ class JobSearchRequest(BaseModel):
     lang_code: str = "fr"
     lang_label: str = "français"
     cv_data: Optional[dict] = None
+    is_freelance: Optional[bool] = False
+    tjm_min: Optional[int] = None
+    tjm_max: Optional[int] = None
 
 class CoverLetterRequest(BaseModel):
     cv_data: dict
@@ -609,8 +1015,8 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
     logger.info(f"🔍 SEARCH START: query='{req.query}', location='{req.location}', num_ads={req.num_ads}")
     logger.info(f"📡 REQUESTED SOURCES: {req.selected_sources}")
 
-    # Concurrency using ThreadPool
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    # Concurrency using ThreadPool - increased workers for more parallel scraping
+    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
         futures = {}
         
         js_sites = ["Indeed", "LinkedIn", "Google Jobs", "Glassdoor", "ZipRecruiter", "Simplyhired", "Careerbuilder", "Monster"]
@@ -621,8 +1027,6 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
             for s in selected_for_jobspy:
                 source_status[s]["status"] = "scraping"
             futures['jobspy'] = executor.submit(chercher_offres_jobspy, req.query, req.location, req.num_ads, req.selected_sources)
-        else:
-            logger.info("⏭️ JobSpy skipped (no matching sources selected)")
         
         if "Adzuna" in req.selected_sources:
             logger.info("📡 Launching Adzuna scraper...")
@@ -644,7 +1048,47 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
             source_status["LinkedIn"]["status"] = "scraping"
             futures['apify'] = executor.submit(get_apify_jobs, req.query, req.location, req.num_ads)
 
-        # Collect Jobspy results
+        # Web scrapers as fallback for sources that often fail with JobSpy
+        # We run web scrapers in parallel with JobSpy to get more results
+        if "Indeed" in req.selected_sources:
+            logger.info("📡 Launching Indeed web scraper...")
+            futures['indeed_scrape'] = executor.submit(scrape_indeed, req.query, req.location, req.num_ads)
+        
+        if "LinkedIn" in req.selected_sources:
+            logger.info("📡 Launching LinkedIn web scraper...")
+            futures['linkedin_scrape'] = executor.submit(scrape_linkedin, req.query, req.location, req.num_ads)
+        
+        if "Monster" in req.selected_sources:
+            logger.info("📡 Launching Monster web scraper...")
+            futures['monster_scrape'] = executor.submit(scrape_monster, req.query, req.location, req.num_ads)
+        
+        if "Careerbuilder" in req.selected_sources:
+            logger.info("📡 Launching Careerbuilder web scraper...")
+            futures['careerbuilder_scrape'] = executor.submit(scrape_careerbuilder, req.query, req.location, req.num_ads)
+        
+        if "Simplyhired" in req.selected_sources:
+            logger.info("📡 Launching Simplyhired web scraper...")
+            futures['simplyhired_scrape'] = executor.submit(scrape_simplyhired, req.query, req.location, req.num_ads)
+
+        # ─── Freelance-specific scrapers (when is_freelance=true) ──────────────
+        if req.is_freelance:
+            if "FreelanceInformatique" in req.selected_sources or "Freelance Informatique" in req.selected_sources:
+                logger.info("📡 Launching Freelance-Informatique scraper...")
+                futures['freelance_informatique'] = executor.submit(scrape_freelance_informatique, req.query, req.num_ads)
+            if "CrèmeDeLaCrème" in req.selected_sources or "Crème de la Crème" in req.selected_sources:
+                logger.info("📡 Launching Crème de la Crème scraper...")
+                futures['cremedelacreme'] = executor.submit(scrape_cremedelacreme, req.query, req.num_ads)
+            if "Codeur.com" in req.selected_sources:
+                logger.info("📡 Launching Codeur.com scraper...")
+                futures['codeurcom'] = executor.submit(scrape_codeur, req.query, req.num_ads)
+            if "Malt" in req.selected_sources:
+                logger.info("📡 Launching Malt scraper...")
+                futures['malt'] = executor.submit(scrape_malt, req.query, req.num_ads)
+            if "Upwork" in req.selected_sources:
+                logger.info("📡 Launching Upwork scraper...")
+                futures['upwork'] = executor.submit(scrape_upwork, req.query, req.num_ads)
+
+        # ─── Collect JobSpy results ─────────────────────────────────────────
         if 'jobspy' in futures:
             try:
                 jobspy_res = futures['jobspy'].result()
@@ -687,6 +1131,54 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
                 for s in selected_for_jobspy:
                     source_status[s] = {"status": "error", "count": 0, "error": error_msg[:100]}
 
+        # ─── Collect web scraper results (deduplicated) ─────────────────────
+        scrapers = {
+            'indeed_scrape': 'Indeed',
+            'linkedin_scrape': 'LinkedIn',
+            'monster_scrape': 'Monster',
+            'careerbuilder_scrape': 'Careerbuilder',
+            'simplyhired_scrape': 'Simplyhired'
+        }
+        
+        existing_links = set()
+        for r in all_results:
+            if r.get('link'):
+                existing_links.add(r['link'])
+        
+        for future_key, source_name in scrapers.items():
+            if future_key in futures:
+                try:
+                    scrape_res = futures[future_key].result()
+                    count = len(scrape_res)
+                    logger.info(f"✅ Web {source_name} returned {count} results")
+                    
+                    # Only update status if JobSpy didn't already succeed for this source
+                    if source_status.get(source_name, {}).get("status") in ["pending", "error", "no_results"]:
+                        source_status[source_name] = {"status": "success" if count > 0 else "no_results", "count": count, "error": "" if count > 0 else "Aucun résultat"}
+                    
+                    new_count = 0
+                    for ad in scrape_res:
+                        link = ad.get('lien', '') or ad.get('link', '')
+                        if link and link not in existing_links:
+                            existing_links.add(link)
+                            all_results.append({
+                                "title": ad.get('titre') or ad.get('title', 'N/A'),
+                                "company": ad.get('entreprise') or ad.get('company', 'N/A'),
+                                "link": link,
+                                "source": source_name,
+                                "date": ad.get('date', ''),
+                                "location": ad.get('location', ''),
+                                "desc": ad.get('desc', ''),
+                                "id": f"web_{source_name.lower()}_{len(all_results)}_{hash(link)}"
+                            })
+                            new_count += 1
+                    logger.info(f"   Web {source_name}: {new_count} new unique results added")
+                except Exception as e:
+                    error_msg = str(e)
+                    logger.error(f"❌ Web {source_name} Thread failed: {e}")
+                    if source_status.get(source_name, {}).get("status") in ["pending", "error", "no_results"]:
+                        source_status[source_name] = {"status": "error", "count": 0, "error": error_msg[:100]}
+
         # Collect Adzuna results
         if 'adzuna' in futures:
             try:
@@ -695,16 +1187,19 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
                 logger.info(f"✅ Adzuna returned {count} results")
                 source_status["Adzuna"] = {"status": "success" if count > 0 else "no_results", "count": count, "error": "" if count > 0 else "Aucun résultat"}
                 for i, ad in enumerate(adzuna_res):
-                    all_results.append({
-                        "title": ad.get('titre'),
-                        "company": ad.get('entreprise'),
-                        "link": ad.get('lien'),
-                        "source": "Adzuna",
-                        "date": ad.get('date', ''),
-                        "location": ad.get('location', ''),
-                        "desc": "",
-                        "id": f"api_adzuna_{len(all_results)}_{hash(ad.get('lien'))}"
-                    })
+                    link = ad.get('lien', '')
+                    if link and link not in existing_links:
+                        existing_links.add(link)
+                        all_results.append({
+                            "title": ad.get('titre'),
+                            "company": ad.get('entreprise'),
+                            "link": link,
+                            "source": "Adzuna",
+                            "date": ad.get('date', ''),
+                            "location": ad.get('location', ''),
+                            "desc": "",
+                            "id": f"api_adzuna_{len(all_results)}_{hash(link)}"
+                        })
             except Exception as e:
                 error_msg = str(e)
                 logger.error(f"❌ Adzuna Thread failed: {e}")
@@ -718,16 +1213,19 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
                 logger.info(f"✅ SerpApi (Google Jobs) returned {count} results")
                 source_status["Google Jobs"] = {"status": "success" if count > 0 else "no_results", "count": count, "error": "" if count > 0 else "Aucun résultat"}
                 for i, ad in enumerate(serpapi_res):
-                    all_results.append({
-                        "title": ad.get('titre'),
-                        "company": ad.get('entreprise'),
-                        "link": ad.get('lien'),
-                        "source": "Google Jobs",
-                        "date": ad.get('date', ''),
-                        "location": ad.get('location', ''),
-                        "desc": "",
-                        "id": f"api_googlejobs_{len(all_results)}_{hash(ad.get('lien'))}"
-                    })
+                    link = ad.get('lien', '')
+                    if link and link not in existing_links:
+                        existing_links.add(link)
+                        all_results.append({
+                            "title": ad.get('titre'),
+                            "company": ad.get('entreprise'),
+                            "link": link,
+                            "source": "Google Jobs",
+                            "date": ad.get('date', ''),
+                            "location": ad.get('location', ''),
+                            "desc": "",
+                            "id": f"api_googlejobs_{len(all_results)}_{hash(link)}"
+                        })
             except Exception as e:
                 error_msg = str(e)
                 logger.error(f"❌ SerpApi Thread failed: {e}")
@@ -741,39 +1239,49 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
                 logger.info(f"✅ Jooble returned {count} results")
                 source_status["Jooble"] = {"status": "success" if count > 0 else "no_results", "count": count, "error": "" if count > 0 else "Aucun résultat"}
                 for i, ad in enumerate(jooble_res):
-                    all_results.append({
-                        "title": ad.get('titre'),
-                        "company": ad.get('entreprise'),
-                        "link": ad.get('lien'),
-                        "source": "Jooble",
-                        "date": ad.get('date', ''),
-                        "location": ad.get('location', ''),
-                        "desc": "",
-                        "id": f"api_jooble_{len(all_results)}_{hash(ad.get('lien'))}"
-                    })
+                    link = ad.get('lien', '')
+                    if link and link not in existing_links:
+                        existing_links.add(link)
+                        all_results.append({
+                            "title": ad.get('titre'),
+                            "company": ad.get('entreprise'),
+                            "link": link,
+                            "source": "Jooble",
+                            "date": ad.get('date', ''),
+                            "location": ad.get('location', ''),
+                            "desc": "",
+                            "id": f"api_jooble_{len(all_results)}_{hash(link)}"
+                        })
             except Exception as e:
                 error_msg = str(e)
                 logger.error(f"❌ Jooble Thread failed: {e}")
                 source_status["Jooble"] = {"status": "error", "count": 0, "error": error_msg[:100]}
 
-    # France Travail search
+    # France Travail search (outside thread pool for simplicity)
     if "France Travail" in req.selected_sources:
         ft_results = []
         if ft_client_id and ft_client_secret:
             ft_results = get_france_travail_jobs_api(req.query, limit=req.num_ads)
         if not ft_results:
             ft_results = scrape_france_travail_jobs(req.query, limit=req.num_ads)
+        existing_links_ft = set(r.get('link', '') for r in all_results)
+        new_ft_count = 0
         for i, ad in enumerate(ft_results):
-            all_results.append({
-                "title": ad.get('title') or ad.get('titre'),
-                "company": ad.get('company') or ad.get('entreprise'),
-                "link": ad.get('link') or ad.get('lien'),
-                "source": "France Travail",
-                "date": "",
-                "location": "",
-                "desc": "",
-                "id": f"api_francetravail_{i}_{hash(ad.get('link') or ad.get('lien'))}"
-            })
+            link = ad.get('link') or ad.get('lien', '')
+            if link and link not in existing_links_ft:
+                existing_links_ft.add(link)
+                all_results.append({
+                    "title": ad.get('title') or ad.get('titre'),
+                    "company": ad.get('company') or ad.get('entreprise'),
+                    "link": link,
+                    "source": "France Travail",
+                    "date": "",
+                    "location": "",
+                    "desc": "",
+                    "id": f"api_francetravail_{i}_{hash(link)}"
+                })
+                new_ft_count += 1
+        source_status["France Travail"] = {"status": "success" if new_ft_count > 0 else "no_results", "count": new_ft_count, "error": "" if new_ft_count > 0 else "Aucun résultat"}
 
     # Sort results
     if req.sort_option in ["Plus récentes", "Most recent", "Más recientes", "Neueste", "الأحدث", "最新順", "最新发布"]:
@@ -851,12 +1359,23 @@ def api_estimate_workload(request: Request, req: WorkloadEstimationRequest):
             ollama_url=ollama_url,
             custom_gemini_key=req.custom_gemini_key
         )
-        if not workload:
-            raise HTTPException(status_code=500, detail="Workload estimation failed.")
         return {"workload": workload}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/analyze-cv-shared")
+@limiter.limit("30/minute")
+def api_analyze_cv_shared(request: Request, req: CvAnalysisRequest):
+    """Analyze CV from already extracted text (shared from frontend)."""
+    raise HTTPException(status_code=501, detail="Not implemented yet. Use file upload endpoint.")
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("api:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
