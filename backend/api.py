@@ -47,14 +47,19 @@ except ImportError as e:
     logger.warning(f"⚠️ AI modules not available: {e}")
 
 # Redis cache setup
+REDIS_AVAILABLE = False
+redis_client = None
 try:
     import redis
-    redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True, socket_connect_timeout=2)
-    redis_client.ping()
+    # Create Redis client without testing connection to avoid blocking on startup
+    redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True, socket_connect_timeout=1, socket_timeout=1)
     REDIS_AVAILABLE = True
-    logger.info("✅ Redis cache connected")
+    logger.info("✅ Redis cache configured (connection will be tested on first use)")
+except ImportError:
+    logger.warning("⚠️ Redis package not installed. Caching disabled.")
 except Exception as e:
     REDIS_AVAILABLE = False
+    redis_client = None
     logger.warning(f"⚠️ Redis not available: {e}. Caching disabled.")
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -1113,9 +1118,9 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
             source_status["Jooble"]["status"] = "scraping"
             futures['jooble'] = executor.submit(get_jooble_jobs, req.query, req.location, req.num_ads)
             
-        if "LinkedIn" in req.selected_sources and "LinkedIn" not in js_sites:
-            logger.info("📡 Launching Apify LinkedIn scraper...")
-            source_status["LinkedIn"]["status"] = "scraping"
+        # Always use Apify as a fallback/enrichment for LinkedIn if key is available
+        if "LinkedIn" in req.selected_sources and apify_api_key:
+            logger.info("📡 Launching Apify LinkedIn scraper (enrichment)...")
             futures['apify'] = executor.submit(get_apify_jobs, req.query, req.location, req.num_ads)
 
         # Web scrapers as fallback for sources that often fail with JobSpy
