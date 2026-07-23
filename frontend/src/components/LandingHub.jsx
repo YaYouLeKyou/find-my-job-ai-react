@@ -175,7 +175,7 @@ export default function LandingHub({ onSelectApp, lang, setLang, onToggleDarkMod
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
           gap: '24px',
-          maxWidth: '900px',
+          maxWidth: '1200px',
           width: '100%',
           padding: '0 20px',
         }}
@@ -391,6 +391,16 @@ export default function LandingHub({ onSelectApp, lang, setLang, onToggleDarkMod
         @keyframes pulse-dot {
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.5; transform: scale(0.7); }
+        }
+        @media (min-width: 1024px) {
+          .app-cards-grid {
+            grid-template-columns: repeat(3, 1fr) !important;
+          }
+        }
+        @media (max-width: 1023px) {
+          .app-cards-grid {
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+          }
         }
       `}</style>
     </div>
