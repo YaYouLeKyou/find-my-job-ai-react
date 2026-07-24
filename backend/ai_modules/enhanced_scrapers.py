@@ -271,9 +271,18 @@ def extract_remote(text: str) -> Optional[bool]:
         return None  # Hybrid - unclear
     return None
 
-def fetch_url(url: str, timeout: int = 15, use_proxy: bool = False) -> Optional[str]:
-    """Fetch URL with retry, proxy rotation, and anti-blocking."""
-    for attempt in range(3):
+# Blocked host cache to avoid retrying sources known to block scrapers
+_BLOCKED_HOSTS = set()
+
+def fetch_url(url: str, timeout: int = 5, use_proxy: bool = False) -> Optional[str]:
+    """Fetch URL with fast fail on blocked hosts. Only 1 retry, low timeout."""
+    from urllib.parse import urlparse as _urlparse
+    host = _urlparse(url).netloc
+    if host in _BLOCKED_HOSTS:
+        logger.debug(f"Skipping known blocked host: {host}")
+        return None
+    
+    for attempt in range(2):
         try:
             headers = get_headers()
             proxies = None
@@ -282,52 +291,55 @@ def fetch_url(url: str, timeout: int = 15, use_proxy: bool = False) -> Optional[
                 if proxy:
                     proxies = {"http": proxy, "https": proxy}
             
-            # Random delay between attempts (jitter)
             if attempt > 0:
-                time.sleep(random.uniform(1, 3) * attempt)
+                time.sleep(random.uniform(0.5, 1.5))
             
-            r = requests.get(url, headers=headers, timeout=timeout, 
+            r = requests.get(url, headers=headers, timeout=timeout,
                            allow_redirects=True, proxies=proxies)
             
             if r.status_code == 200:
                 return r.text
-            elif r.status_code == 429:
-                wait = random.uniform(2, 5) * (attempt + 1)
-                logger.warning(f"Rate limited (429) for {url[:80]}, waiting {wait:.1f}s")
-                time.sleep(wait)
-            elif r.status_code in [403, 401]:
-                if attempt == 0:
-                    continue  # Try again with different UA
+            elif r.status_code in [403, 401, 503]:
+                _BLOCKED_HOSTS.add(host)
+                logger.debug(f"Blocked by {host} (HTTP {r.status_code}), caching as blocked")
                 return None
-            elif r.status_code == 503:
-                time.sleep(random.uniform(3, 6))
+            elif r.status_code == 429:
+                time.sleep(random.uniform(1, 2))
             else:
-                time.sleep(1)
-        except requests.exceptions.ConnectionError as e:
-            logger.warning(f"Connection error for {url[:80]}: {e}")
-            time.sleep(random.uniform(2, 4))
-        except requests.exceptions.Timeout as e:
-            logger.warning(f"Timeout for {url[:80]}: {e}")
-            time.sleep(random.uniform(1, 3))
-        except Exception as e:
-            logger.warning(f"Fetch error {url[:80]}: {e}")
+                return None
+        except requests.exceptions.ConnectionError:
+            logger.debug(f"Connection error for {url[:60]}")
             time.sleep(1)
+        except requests.exceptions.Timeout:
+            logger.debug(f"Timeout for {url[:60]}")
+            return None  # Fast fail on timeout
+        except Exception as e:
+            logger.debug(f"Fetch error {url[:60]}: {e}")
+            return None
     return None
 
-def fetch_json(url: str, timeout: int = 15, use_proxy: bool = False) -> Optional[dict]:
-    """Fetch JSON API response with retry."""
-    for attempt in range(3):
+def fetch_json(url: str, timeout: int = 5, use_proxy: bool = False) -> Optional[dict]:
+    """Fetch JSON API response with fast fail. 1 retry, low timeout."""
+    from urllib.parse import urlparse as _urlparse
+    host = _urlparse(url).netloc
+    if host in _BLOCKED_HOSTS:
+        return None
+    
+    for attempt in range(2):
         try:
             headers = get_headers()
-            r = requests.get(url, headers=headers, timeout=timeout, 
+            r = requests.get(url, headers=headers, timeout=timeout,
                            allow_redirects=True)
             if r.status_code == 200:
                 return r.json()
+            if r.status_code in [403, 401]:
+                _BLOCKED_HOSTS.add(host)
+                return None
             if r.status_code == 429:
-                time.sleep(random.uniform(2, 4) * (attempt + 1))
+                time.sleep(random.uniform(1, 2))
         except Exception as e:
-            logger.warning(f"Fetch JSON error {url[:80]}: {e}")
-            time.sleep(1)
+            logger.debug(f"Fetch JSON error {url[:60]}: {e}")
+            return None
     return None
 
 def parse_date(d: str) -> str:
