@@ -603,6 +603,7 @@ def chercher_offres_jobspy(job_title: str, location: str = "Paris, France", limi
 
 def get_adzuna_jobs(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
     if not adzuna_app_id or not adzuna_app_key:
+        logger.warning("Adzuna: clés manquantes dans .env")
         return []
     url = f"https://api.adzuna.com/v1/api/jobs/fr/search/1"
     params = {
@@ -614,9 +615,15 @@ def get_adzuna_jobs(job_title: str, location: str = "France", limit: int = 10) -
         "content-type": "application/json"
     }
     try:
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        results = response.json().get("results", [])
+        logger.info(f"Adzuna: appel API what={job_title!r}, where={location!r}")
+        response = requests.get(url, params=params, timeout=5)
+        logger.info(f"Adzuna: HTTP {response.status_code}")
+        if response.status_code != 200:
+            logger.error(f"Adzuna: erreur HTTP {response.status_code}: {response.text[:200]}")
+            return []
+        data = response.json()
+        results = data.get("results", [])
+        logger.info(f"Adzuna: {len(results)} résultats bruts")
         return [{
             "titre": res.get("title"),
             "entreprise": res.get("company", {}).get("display_name", "N/C"),
@@ -631,9 +638,9 @@ def get_adzuna_jobs(job_title: str, location: str = "France", limit: int = 10) -
 
 def get_serpapi_jobs(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
     if not serpapi_key:
+        logger.warning("SerpApi: clé manquante dans .env")
         return []
     url = "https://serpapi.com/search"
-    # Clean location to avoid SerpApi 400 errors
     clean_location = location.split(',')[0].strip() if location else "France"
     params = {
         "engine": "google_jobs",
@@ -644,12 +651,17 @@ def get_serpapi_jobs(job_title: str, location: str = "France", limit: int = 10) 
         "num": limit
     }
     try:
-        response = requests.get(url, params=params, timeout=15)
-        response.raise_for_status()
+        logger.info(f"SerpApi: appel API q={job_title!r}, location={clean_location!r}")
+        response = requests.get(url, params=params, timeout=5)
+        logger.info(f"SerpApi: HTTP {response.status_code}")
+        if response.status_code != 200:
+            logger.error(f"SerpApi: erreur HTTP {response.status_code}: {response.text[:200]}")
+            return []
         data = response.json()
         results = data.get("jobs_results", [])
+        logger.info(f"SerpApi: {len(results)} résultats bruts")
         if not results:
-            logger.warning(f"SerpApi returned 0 results for: {job_title}")
+            logger.warning(f"SerpApi: 0 résultat pour {job_title!r}")
         return [{
             "titre": res.get("title"),
             "entreprise": res.get("company_name", "N/C"),
@@ -664,12 +676,19 @@ def get_serpapi_jobs(job_title: str, location: str = "France", limit: int = 10) 
 
 def get_jooble_jobs(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
     if not jooble_api_key:
+        logger.warning("Jooble: clé manquante dans .env")
         return []
     url = f"https://jooble.org/api/{jooble_api_key}"
     try:
-        response = requests.post(url, json={"keywords": job_title, "location": location}, timeout=10)
-        response.raise_for_status()
-        results = response.json().get("jobs", [])
+        logger.info(f"Jooble: appel API keywords={job_title!r}, location={location!r}")
+        response = requests.post(url, json={"keywords": job_title, "location": location}, timeout=5)
+        logger.info(f"Jooble: HTTP {response.status_code}")
+        if response.status_code != 200:
+            logger.error(f"Jooble: erreur HTTP {response.status_code}: {response.text[:200]}")
+            return []
+        data = response.json()
+        results = data.get("jobs", [])
+        logger.info(f"Jooble: {len(results)} résultats bruts")
         return [{
             "titre": clean_html(res.get("title", "")),
             "entreprise": res.get("company", "N/C"),
@@ -1166,17 +1185,9 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
             logger.info("📡 Launching LinkedIn web scraper...")
             futures['linkedin_scrape'] = executor.submit(scrape_linkedin, req.query, req.location, req.num_ads)
         
-        if "Monster" in req.selected_sources:
-            logger.info("📡 Launching Monster web scraper...")
-            futures['monster_scrape'] = executor.submit(scrape_monster, req.query, req.location, req.num_ads)
-        
-        if "Careerbuilder" in req.selected_sources:
-            logger.info("📡 Launching Careerbuilder web scraper...")
-            futures['careerbuilder_scrape'] = executor.submit(scrape_careerbuilder, req.query, req.location, req.num_ads)
-        
-        if "Simplyhired" in req.selected_sources:
-            logger.info("📡 Launching Simplyhired web scraper...")
-            futures['simplyhired_scrape'] = executor.submit(scrape_simplyhired, req.query, req.location, req.num_ads)
+        # Note: Monster, Careerbuilder, Simplyhired HTML scrapers removed
+        # These sites are either dead or consistently blocked by Cloudflare/WAF.
+        # Use JobSpy or Playwright fallback instead if needed.
 
         # ─── ENHANCED FREE SCRAPERS v2.0 (RSS + Free APIs + International + French) ──
         # These provide additional coverage from 40+ free sources
@@ -1273,10 +1284,7 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
         # ─── Collect web scraper results (deduplicated) ─────────────────────
         scrapers = {
             'indeed_scrape': 'Indeed',
-            'linkedin_scrape': 'LinkedIn',
-            'monster_scrape': 'Monster',
-            'careerbuilder_scrape': 'Careerbuilder',
-            'simplyhired_scrape': 'Simplyhired'
+            'linkedin_scrape': 'LinkedIn'
         }
         
         existing_links = set()
@@ -1438,7 +1446,7 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
         # and some sources returned 0 results
         low_result_sources = [s for s in req.selected_sources
                              if source_status.get(s, {}).get("count", 0) == 0
-                             and s in ["Indeed", "LinkedIn", "Monster", "Careerbuilder", "Simplyhired"]]
+                             and s in ["Indeed", "LinkedIn"]]
 
         if low_result_sources and len(all_results) < req.num_ads * 2:
             logger.info(f"📡 Launching Playwright fallback for: {low_result_sources}")
