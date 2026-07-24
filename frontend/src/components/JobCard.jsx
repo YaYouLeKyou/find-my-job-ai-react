@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { LANGS, STRINGS } from '../utils/translations';
-import { ExternalLink, FileText, ChevronDown, ChevronUp, Download, Loader2, Copy, Check, MessageSquare } from 'lucide-react';
+import { ExternalLink, FileText, ChevronDown, ChevronUp, Download, Loader2, Copy, Check, MessageSquare, Sparkles, Building2, MapPin, Calendar } from 'lucide-react';
 import JobSchema from './JobSchema';
 import AdComponent from './AdComponent';
 
@@ -89,75 +89,75 @@ export default function JobCard({
   };
 
   return (
-    <div className="job-card" style={{ minHeight: '180px' }}>
-      {/* Schema.org JobPosting for Google for Jobs */}
+    <div className="job-card">
       <JobSchema job={job} />
 
       <div className="job-card-header">
         <div className="job-info">
-          <h3 style={{ minHeight: '28px' }}>{job?.title || "Poste sans titre"}</h3>
-          <span className="job-company" style={{ minHeight: '20px', display: 'inline-block' }}>🏢 {job?.company || "Entreprise confidentielle"}</span>
+          <h3>{job?.title || "Poste sans titre"}</h3>
+          <div className="job-company" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-color)' }}>
+            <Building2 size={16} />
+            <strong>{job?.company || "Entreprise confidentielle"}</strong>
+          </div>
         </div>
         {job.match_score !== undefined && job.match_score !== null && (
-          <span className={`score-badge ${getScoreColorClass(job.match_score)}`}>
-            Score: {job.match_score}%
-          </span>
+          <div className={`score-badge ${getScoreColorClass(job.match_score)}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Sparkles size={14} />
+            <span>Match {job.match_score}%</span>
+          </div>
         )}
       </div>
 
-      <div className="job-card-meta" style={{ minHeight: '24px' }}>
-        {job?.source && <span className="meta-item">🏷️ Source : <strong>{job.source}</strong></span>}
-        {job?.location && <span className="meta-item">📍 {job.location}</span>}
-        {job?.date && <span className="meta-item">📅 {job.date}</span>}
+      <div className="job-card-meta">
+        {job?.source && <span className="meta-item"><strong>{job.source}</strong></span>}
+        {job?.location && <span className="meta-item"><MapPin size={14} /> {job.location}</span>}
+        {job?.date && <span className="meta-item"><Calendar size={14} /> {job.date}</span>}
       </div>
 
-      <div className="job-card-actions" style={{ minHeight: '44px' }}>
+      <div className="job-card-actions">
         <a 
           href={job?.link && job.link !== '#' ? job.link : undefined} 
           target="_blank" 
           rel="noopener noreferrer" 
           className="btn btn-secondary"
-          style={{ flexGrow: 1, textDecoration: 'none', textAlign: 'center' }}
+          style={{ flex: '1.5', textDecoration: 'none' }}
         >
-          <ExternalLink size={16} />
+          <ExternalLink size={18} />
           {S.see_job_btn}
         </a>
+        
+        <button 
+          className="btn btn-primary"
+          style={{ flex: '2' }}
+          onClick={() => setExpanded(!expanded)}
+        >
+          <FileText size={18} />
+          <span>Lettre de Motivation</span>
+          {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </button>
+
+        {onStartInterview && (
+          <button 
+            className="btn btn-secondary"
+            onClick={() => onStartInterview(job)}
+            title="Simuler un entretien"
+            style={{ flex: '0.5', padding: '12px' }}
+          >
+            <MessageSquare size={20} />
+          </button>
+        )}
+
         {onSaveJob && (
           <button 
             className="btn btn-secondary"
             onClick={() => onSaveJob(job)}
-            title={isSaved ? "Retirer des favoris" : "Sauvegarder l'offre"}
-            style={{ flexGrow: 0, padding: '8px 12px' }}
+            style={{ flex: '0.5', padding: '12px' }}
           >
-            {isSaved ? '⭐' : '☆'}
-          </button>
-        )}
-        <button 
-          className="btn btn-primary"
-          style={{ flexGrow: 1 }}
-          onClick={() => setExpanded(!expanded)}
-        >
-          <FileText size={16} />
-          Lettre de Motivation
-          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </button>
-        {onStartInterview && (
-          <button 
-            className="btn btn-secondary"
-            onClick={() => {
-              // Store job data in sessionStorage for the new window
-              sessionStorage.setItem('mockInterviewJob', JSON.stringify(job));
-              sessionStorage.setItem('mockInterviewCvData', JSON.stringify(cvData || null));
-              // Open standalone mock interview page in new window
-              window.open('/mock-interview.html', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
-            }}
-            style={{ flexGrow: 1, padding: '8px 16px', fontSize: '0.85rem' }}
-            title="Simuler un entretien d'embauche (nouvelle fenêtre)"
-          >
-            <MessageSquare size={16} /> Simuler un entretien
+            <span style={{ fontSize: '1.2rem' }}>{isSaved ? '⭐' : '☆'}</span>
           </button>
         )}
       </div>
+
 
       {expanded && (
         <div className="letter-expander" style={{ animation: 'fadeIn 0.3s ease-in' }}>

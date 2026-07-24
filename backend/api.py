@@ -29,6 +29,7 @@ from jobspy import scrape_jobs
 import pandas as pd
 from dotenv import load_dotenv
 from shared.ai import call_ai_provider, analyze_cv as shared_analyze_cv, rank_jobs_with_ai as shared_rank_jobs, generate_cover_letter as shared_generate_letter, estimate_workload as shared_estimate_workload
+from ai_modules.enhanced_scrapers import search_all_free_sources, clean_title as enhanced_clean_title
 
 # Config logging (must be before Redis setup)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -45,6 +46,38 @@ try:
 except ImportError as e:
     AI_MODULES_AVAILABLE = False
     logger.warning(f"⚠️ AI modules not available: {e}")
+
+# Import Playwright scrapers (for JS-rendered sites that block requests-based scraping)
+try:
+    from ai_modules.playwright_scraper import (
+        scrape_indeed_playwright,
+        scrape_monster_playwright,
+        scrape_careerbuilder_playwright,
+        scrape_simplyhired_playwright,
+        scrape_linkedin_playwright,
+        scrape_welcometothejungle,
+        scrape_hellowork,
+        scrape_apec,
+        scrape_jobteaser,
+        scrape_all_playwright,
+        PLAYWRIGHT_AVAILABLE,
+    )
+    logger.info("✅ Playwright scrapers loaded successfully")
+except ImportError as e:
+    PLAYWRIGHT_AVAILABLE = False
+    logger.warning(f"⚠️ Playwright scrapers not available: {e}")
+    # Create no-op fallbacks
+    def _noop(*a, **kw): return []
+    scrape_indeed_playwright = _noop
+    scrape_monster_playwright = _noop
+    scrape_careerbuilder_playwright = _noop
+    scrape_simplyhired_playwright = _noop
+    scrape_linkedin_playwright = _noop
+    scrape_welcometothejungle = _noop
+    scrape_hellowork = _noop
+    scrape_apec = _noop
+    scrape_jobteaser = _noop
+    scrape_all_playwright = _noop
 
 # Redis cache setup
 REDIS_AVAILABLE = False
@@ -1145,6 +1178,37 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
             logger.info("📡 Launching Simplyhired web scraper...")
             futures['simplyhired_scrape'] = executor.submit(scrape_simplyhired, req.query, req.location, req.num_ads)
 
+        # ─── ENHANCED FREE SCRAPERS v2.0 (RSS + Free APIs + International + French) ──
+        # These provide additional coverage from 40+ free sources
+        enhanced_sources = ["Indeed", "LinkedIn", "Simplyhired", "Careerbuilder", 
+                            "France Travail", "Google Jobs", "Remotive", "RemoteOK",
+                            "Welcome to the Jungle", "HelloWork", "Emploi Public",
+                            "Reed", "StepStone", "Xing", "InfoJobs", "Dice",
+                            "Naukri", "Bayt", "Seek",
+                            "RégionsJob", "ChooseYourBoss", "LesJeudis", "Talent.io",
+                            "Jobijoba", "Glassdoor", "ZipRecruiter",
+                            "Freelance.com", "Malt"]
+        enhanced_needed = [s for s in req.selected_sources if s in enhanced_sources]
+        if enhanced_needed:
+            logger.info(f"📡 Launching enhanced free scrapers (parallel) for: {enhanced_needed}")
+            futures['enhanced_scrapers'] = executor.submit(
+                search_all_free_sources, req.query, req.location, req.num_ads, enhanced_needed
+            )
+
+        # ─── New French job sources (Welcome to the Jungle, HelloWork, APEC, JobTeaser) ──
+        if "Welcome to the Jungle" in req.selected_sources:
+            logger.info("📡 Launching Welcome to the Jungle scraper...")
+            futures['welcometothejungle'] = executor.submit(scrape_welcometothejungle, req.query, req.location, req.num_ads)
+        if "HelloWork" in req.selected_sources:
+            logger.info("📡 Launching HelloWork scraper...")
+            futures['hellowork'] = executor.submit(scrape_hellowork, req.query, req.location, req.num_ads)
+        if "APEC" in req.selected_sources:
+            logger.info("📡 Launching APEC scraper...")
+            futures['apec'] = executor.submit(scrape_apec, req.query, req.location, req.num_ads)
+        if "JobTeaser" in req.selected_sources:
+            logger.info("📡 Launching JobTeaser scraper...")
+            futures['jobteaser'] = executor.submit(scrape_jobteaser, req.query, req.location, req.num_ads)
+
         # ─── Freelance-specific scrapers (when is_freelance=true) ──────────────
         if req.is_freelance:
             if "FreelanceInformatique" in req.selected_sources or "Freelance Informatique" in req.selected_sources:
@@ -1332,6 +1396,77 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
                 logger.error(f"❌ Jooble Thread failed: {e}")
                 source_status["Jooble"] = {"status": "error", "count": 0, "error": error_msg[:100]}
 
+    # ─── Collect new French source results (Welcome to the Jungle, HelloWork, APEC, JobTeaser) ─
+    new_french_sources = {
+        'welcometothejungle': 'Welcome to the Jungle',
+        'hellowork': 'HelloWork',
+        'apec': 'APEC',
+        'jobteaser': 'JobTeaser'
+    }
+    for future_key, source_name in new_french_sources.items():
+        if future_key in futures:
+            try:
+                pw_res = futures[future_key].result()
+                count = len(pw_res)
+                logger.info(f"✅ {source_name} returned {count} results")
+                source_status[source_name] = {"status": "success" if count > 0 else "no_results", "count": count, "error": "" if count > 0 else "Aucun résultat"}
+                for ad in pw_res:
+                    link = ad.get('lien', '') or ad.get('link', '')
+                    if link and link not in existing_links:
+                        existing_links.add(link)
+                        all_results.append({
+                            "title": ad.get('titre') or ad.get('title', 'N/A'),
+                            "company": ad.get('entreprise') or ad.get('company', 'N/A'),
+                            "link": link,
+                            "source": source_name,
+                            "date": ad.get('date', ''),
+                            "location": ad.get('location', ''),
+                            "desc": "",
+                            "id": f"pw_{source_name.lower().replace(' ', '_')}_{len(all_results)}_{hash(link)}"
+                        })
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"❌ {source_name} Thread failed: {e}")
+                source_status[source_name] = {"status": "error", "count": 0, "error": error_msg[:100]}
+
+    # ─── Playwright Fallback ────────────────────────────────────────────────
+    # When requests-based scrapers return 0 results (due to anti-bot detection),
+    # run Playwright scrapers as a fallback. These use a real browser engine
+    # to execute JavaScript and bypass bot detection.
+    if PLAYWRIGHT_AVAILABLE and all_results:
+        # Only run Playwright fallback if we have very few results (< num_ads)
+        # and some sources returned 0 results
+        low_result_sources = [s for s in req.selected_sources
+                             if source_status.get(s, {}).get("count", 0) == 0
+                             and s in ["Indeed", "LinkedIn", "Monster", "Careerbuilder", "Simplyhired"]]
+
+        if low_result_sources and len(all_results) < req.num_ads * 2:
+            logger.info(f"📡 Launching Playwright fallback for: {low_result_sources}")
+            try:
+                pw_jobs = scrape_all_playwright(req.query, req.location, req.num_ads)
+                pw_added = 0
+                for job in pw_jobs:
+                    link = job.get('lien', '') or job.get('link', '')
+                    if link and link not in existing_links:
+                        existing_links.add(link)
+                        source_label = job.get('source', 'Playwright')
+                        all_results.append({
+                            "title": job.get('titre') or job.get('title', 'N/A'),
+                            "company": job.get('entreprise') or job.get('company', 'N/A'),
+                            "link": link,
+                            "source": source_label,
+                            "date": job.get('date', ''),
+                            "location": job.get('location', ''),
+                            "desc": "",
+                            "id": f"pw_{source_label.lower().replace(' ', '_')}_{len(all_results)}_{hash(link)}"
+                        })
+                        pw_added += 1
+                        if source_label in source_status:
+                            source_status[source_label] = {"status": "success", "count": source_status[source_label].get("count", 0) + 1, "error": ""}
+                logger.info(f"✅ Playwright fallback added {pw_added} new unique results")
+            except Exception as e:
+                logger.error(f"❌ Playwright fallback failed: {e}")
+
     # France Travail search (outside thread pool for simplicity)
     if "France Travail" in req.selected_sources:
         ft_results = []
@@ -1357,6 +1492,61 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
                 })
                 new_ft_count += 1
         source_status["France Travail"] = {"status": "success" if new_ft_count > 0 else "no_results", "count": new_ft_count, "error": "" if new_ft_count > 0 else "Aucun résultat"}
+
+    # ─── Collect enhanced free scraper results (from parallel execution) ────
+    if 'enhanced_scrapers' in futures:
+        try:
+            enhanced_jobs = futures['enhanced_scrapers'].result()
+            enhanced_added = 0
+            for job in enhanced_jobs:
+                link = job.get("lien", "")
+                if link and link not in existing_links:
+                    existing_links.add(link)
+                    source_name = job.get("source", "Enhanced")
+                    all_results.append({
+                        "title": job.get("titre", "N/A"),
+                        "company": job.get("entreprise", "N/A"),
+                        "link": link,
+                        "source": source_name,
+                        "date": job.get("date", ""),
+                        "location": job.get("location", ""),
+                        "desc": "",
+                        "id": f"enh_{source_name.lower().replace(' ', '_')}_{len(all_results)}_{hash(link)}"
+                    })
+                    enhanced_added += 1
+                    if source_name in source_status:
+                        source_status[source_name] = {"status": "success", "count": source_status[source_name].get("count", 0) + 1, "error": ""}
+            logger.info(f"✅ Enhanced scrapers (parallel) added {enhanced_added} new unique results")
+        except Exception as e:
+            logger.error(f"❌ Enhanced scrapers (parallel) failed: {e}")
+
+    # ─── DEDUPLICATION & ENRICHMENT ────────────────────────────────────────
+    # Use AI modules to remove near-duplicates and enrich job data
+    if AI_MODULES_AVAILABLE and len(all_results) > 1:
+        try:
+            # First deduplicate
+            from ai_modules.deduplication import deduplicate_jobs
+            from ai_modules.enrichment import enrich_jobs_batch
+            
+            before_count = len(all_results)
+            all_results = deduplicate_jobs(all_results, threshold=0.88)
+            logger.info(f"📊 Deduplication: {before_count} -> {len(all_results)} jobs")
+            
+            # Then enrich with quality scores, salary estimates, tags
+            all_results = enrich_jobs_batch(all_results)
+            logger.info(f"✨ Enriched {len(all_results)} jobs with quality scores and tags")
+        except Exception as e:
+            logger.warning(f"⚠️ Deduplication/Enrichment failed: {e}")
+    else:
+        # Simple quality score fallback
+        for job in all_results:
+            score = 50
+            if job.get('title') and job.get('title') != 'N/A': score += 10
+            if job.get('company') and job.get('company') != 'N/A': score += 10
+            if job.get('location'): score += 10
+            if job.get('desc'): score += 10
+            if job.get('date'): score += 10
+            job['quality_score'] = min(score, 100)
 
     # Sort results
     if req.sort_option in ["Plus récentes", "Most recent", "Más recientes", "Neueste", "الأحدث", "最新順", "最新发布"]:
