@@ -1259,6 +1259,15 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
                 "execution_time": 0
             }
     
+    # Normalize job keys for AI ranking (ensure 'title' and 'company' exist)
+    for job in all_results:
+        # If job has 'titre' but not 'title', copy it
+        if 'titre' in job and 'title' not in job:
+            job['title'] = job['titre']
+        # If job has 'entreprise' but not 'company', copy it
+        if 'entreprise' in job and 'company' not in job:
+            job['company'] = job['entreprise']
+    
     # ─── DEDUPLICATION & ENRICHMENT ────────────────────────────────────────
     if AI_MODULES_AVAILABLE and len(all_results) > 1:
         try:
@@ -1299,15 +1308,6 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
             ranking_engine=req.ranking_engine, 
             custom_gemini_key=req.custom_gemini_key
         )
-
-    # Normalize job keys for AI ranking (ensure 'title' and 'company' exist)
-    for job in all_results:
-        # If job has 'titre' but not 'title', copy it
-        if 'titre' in job and 'title' not in job:
-            job['title'] = job['titre']
-        # If job has 'entreprise' but not 'company', copy it
-        if 'entreprise' in job and 'company' not in job:
-            job['company'] = job['entreprise']
     
     # Collect source statistics
     source_counts = {}
