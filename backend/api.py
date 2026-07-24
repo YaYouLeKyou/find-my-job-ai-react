@@ -30,6 +30,9 @@ import pandas as pd
 from dotenv import load_dotenv
 from shared.ai import call_ai_provider, analyze_cv as shared_analyze_cv, rank_jobs_with_ai as shared_rank_jobs, generate_cover_letter as shared_generate_letter, estimate_workload as shared_estimate_workload
 from ai_modules.enhanced_scrapers import search_all_free_sources, clean_title as enhanced_clean_title
+from ai_modules.search_coordinator import SearchCoordinator, SearchConfig
+from ai_modules.france_travail_api import get_france_travail_client
+from ai_modules.playwright_worker import get_playwright_worker
 
 # Config logging (must be before Redis setup)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -94,6 +97,16 @@ except Exception as e:
     REDIS_AVAILABLE = False
     redis_client = None
     logger.warning(f"⚠️ Redis not available: {e}. Caching disabled.")
+
+# Initialize Search Coordinator
+search_coordinator = SearchCoordinator(
+    redis_client=redis_client,
+    timeout_per_source=5,
+    cache_ttl=86400,  # 24 hours
+    enable_fallback=True,
+    max_fallback_attempts=3
+)
+logger.info("✅ Search Coordinator initialized with fallback and caching")
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -1119,420 +1132,136 @@ async def api_analyze_cv(
 @app.post("/api/search-jobs")
 @limiter.limit("20/minute")  # Max 20 searches per minute per IP
 def api_search_jobs(request: Request, req: JobSearchRequest):
-    all_results = []
-    
-    # Check cache first
-    cache_key = None
-    if REDIS_AVAILABLE:
-        cache_key = get_cache_key(req.dict())
-        try:
-            cached_result = redis_client.get(cache_key)
-            if cached_result:
-                logger.info(f"Cache hit for query: {req.query}")
-                return json.loads(cached_result)
-        except Exception as e:
-            logger.warning(f"Cache read error: {e}")
-    
-    # Track source status (per source: success count or error)
-    source_status = {}
-    for s in req.selected_sources:
-        source_status[s] = {"status": "pending", "count": 0, "error": ""}
-
-    # Log which sources are being queried
+    """
+    Search for jobs using the new SearchCoordinator with fallback and caching.
+    """
     logger.info(f"🔍 SEARCH START: query='{req.query}', location='{req.location}', num_ads={req.num_ads}")
     logger.info(f"📡 REQUESTED SOURCES: {req.selected_sources}")
-
-    # Concurrency using ThreadPool - increased workers for more parallel scraping
-    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
-        futures = {}
-        
-        js_sites = ["Indeed", "LinkedIn", "Google Jobs", "Glassdoor", "ZipRecruiter", "Simplyhired", "Careerbuilder", "Monster"]
-        # If any of the Jobspy sites are selected
-        selected_for_jobspy = [s for s in req.selected_sources if s in js_sites]
-        if selected_for_jobspy:
-            logger.info(f"📡 Launching JobSpy for: {selected_for_jobspy}")
-            for s in selected_for_jobspy:
-                source_status[s]["status"] = "scraping"
-            futures['jobspy'] = executor.submit(chercher_offres_jobspy, req.query, req.location, req.num_ads, req.selected_sources)
-        
-        if "Adzuna" in req.selected_sources:
-            logger.info("📡 Launching Adzuna scraper...")
-            source_status["Adzuna"]["status"] = "scraping"
-            futures['adzuna'] = executor.submit(get_adzuna_jobs, req.query, req.location, req.num_ads)
-            
-        if "Google Jobs" in req.selected_sources:
-            logger.info("📡 Launching SerpApi (Google Jobs)...")
-            source_status["Google Jobs"]["status"] = "scraping"
-            futures['serpapi'] = executor.submit(get_serpapi_jobs, req.query, req.location, req.num_ads)
-            
-        if "Jooble" in req.selected_sources:
-            logger.info("📡 Launching Jooble scraper...")
-            source_status["Jooble"]["status"] = "scraping"
-            futures['jooble'] = executor.submit(get_jooble_jobs, req.query, req.location, req.num_ads)
-            
-        # Always use Apify as a fallback/enrichment for LinkedIn if key is available
-        if "LinkedIn" in req.selected_sources and apify_api_key:
-            logger.info("📡 Launching Apify LinkedIn scraper (enrichment)...")
-            futures['apify'] = executor.submit(get_apify_jobs, req.query, req.location, req.num_ads)
-
-        # Web scrapers as fallback for sources that often fail with JobSpy
-        # We run web scrapers in parallel with JobSpy to get more results
-        if "Indeed" in req.selected_sources:
-            logger.info("📡 Launching Indeed web scraper...")
-            futures['indeed_scrape'] = executor.submit(scrape_indeed, req.query, req.location, req.num_ads)
-        
-        if "LinkedIn" in req.selected_sources:
-            logger.info("📡 Launching LinkedIn web scraper...")
-            futures['linkedin_scrape'] = executor.submit(scrape_linkedin, req.query, req.location, req.num_ads)
-        
-        # Note: Monster, Careerbuilder, Simplyhired HTML scrapers removed
-        # These sites are either dead or consistently blocked by Cloudflare/WAF.
-        # Use JobSpy or Playwright fallback instead if needed.
-
-        # ─── ENHANCED FREE SCRAPERS v2.0 (RSS + Free APIs + International + French) ──
-        # These provide additional coverage from 40+ free sources
-        enhanced_sources = ["Indeed", "LinkedIn", "Simplyhired", "Careerbuilder", 
-                            "France Travail", "Google Jobs", "Remotive", "RemoteOK",
-                            "Welcome to the Jungle", "HelloWork", "Emploi Public",
-                            "Reed", "StepStone", "Xing", "InfoJobs", "Dice",
-                            "Naukri", "Bayt", "Seek",
-                            "RégionsJob", "ChooseYourBoss", "LesJeudis", "Talent.io",
-                            "Jobijoba", "Glassdoor", "ZipRecruiter",
-                            "Freelance.com", "Malt"]
-        enhanced_needed = [s for s in req.selected_sources if s in enhanced_sources]
-        if enhanced_needed:
-            logger.info(f"📡 Launching enhanced free scrapers (parallel) for: {enhanced_needed}")
-            futures['enhanced_scrapers'] = executor.submit(
-                search_all_free_sources, req.query, req.location, req.num_ads, enhanced_needed
-            )
-
-        # ─── New French job sources (Welcome to the Jungle, HelloWork, APEC, JobTeaser) ──
-        if "Welcome to the Jungle" in req.selected_sources:
-            logger.info("📡 Launching Welcome to the Jungle scraper...")
-            futures['welcometothejungle'] = executor.submit(scrape_welcometothejungle, req.query, req.location, req.num_ads)
-        if "HelloWork" in req.selected_sources:
-            logger.info("📡 Launching HelloWork scraper...")
-            futures['hellowork'] = executor.submit(scrape_hellowork, req.query, req.location, req.num_ads)
-        if "APEC" in req.selected_sources:
-            logger.info("📡 Launching APEC scraper...")
-            futures['apec'] = executor.submit(scrape_apec, req.query, req.location, req.num_ads)
-        if "JobTeaser" in req.selected_sources:
-            logger.info("📡 Launching JobTeaser scraper...")
-            futures['jobteaser'] = executor.submit(scrape_jobteaser, req.query, req.location, req.num_ads)
-
-        # ─── Freelance-specific scrapers (when is_freelance=true) ──────────────
-        if req.is_freelance:
-            if "FreelanceInformatique" in req.selected_sources or "Freelance Informatique" in req.selected_sources:
-                logger.info("📡 Launching Freelance-Informatique scraper...")
-                futures['freelance_informatique'] = executor.submit(scrape_freelance_informatique, req.query, req.num_ads)
-            if "CrèmeDeLaCrème" in req.selected_sources or "Crème de la Crème" in req.selected_sources:
-                logger.info("📡 Launching Crème de la Crème scraper...")
-                futures['cremedelacreme'] = executor.submit(scrape_cremedelacreme, req.query, req.num_ads)
-            if "Codeur.com" in req.selected_sources:
-                logger.info("📡 Launching Codeur.com scraper...")
-                futures['codeurcom'] = executor.submit(scrape_codeur, req.query, req.num_ads)
-            if "Malt" in req.selected_sources:
-                logger.info("📡 Launching Malt scraper...")
-                futures['malt'] = executor.submit(scrape_malt, req.query, req.num_ads)
-            if "Upwork" in req.selected_sources:
-                logger.info("📡 Launching Upwork scraper...")
-                futures['upwork'] = executor.submit(scrape_upwork, req.query, req.num_ads)
-
-        # ─── Collect JobSpy results ─────────────────────────────────────────
-        if 'jobspy' in futures:
-            try:
-                jobspy_res = futures['jobspy'].result()
-                logger.info(f"✅ JobSpy returned {len(jobspy_res)} results")
-                
-                site_counts = {}
-                for row in jobspy_res:
-                    site = str(row.get('site', 'Jobspy')).lower()
-                    if site == "linkedin": source_label = "LinkedIn"
-                    elif site == "glassdoor": source_label = "Glassdoor"
-                    elif site == "zip_recruiter": source_label = "ZipRecruiter"
-                    elif site == "careerbuilder": source_label = "Careerbuilder"
-                    elif site == "monster": source_label = "Monster"
-                    elif site == "simplyhired": source_label = "Simplyhired"
-                    else: source_label = site.capitalize()
-                    site_counts[source_label] = site_counts.get(source_label, 0) + 1
-                    all_results.append({
-                        "title": row.get('title', 'N/A'),
-                        "company": row.get('company', 'N/A'),
-                        "link": row.get('job_url', '#'),
-                        "source": source_label,
-                        "date": str(row.get('date_posted', '')),
-                        "location": row.get('location', ''),
-                        "desc": row.get('description', ''),
-                        "id": f"js_{len(all_results)}_{hash(row.get('job_url'))}"
-                    })
-                for src, cnt in site_counts.items():
-                    logger.info(f"   JobSpy -> {src}: {cnt} results")
-                    if src in source_status:
-                        source_status[src] = {"status": "success", "count": cnt, "error": ""}
-                # Mark JobSpy sources that returned 0 as "no_results"
-                for s in selected_for_jobspy:
-                    if s in site_counts:
-                        source_status[s] = {"status": "success", "count": site_counts[s], "error": ""}
-                    elif source_status[s]["status"] != "success":
-                        source_status[s] = {"status": "no_results", "count": 0, "error": "Aucun résultat trouvé"}
-            except Exception as e:
-                error_msg = str(e)
-                logger.error(f"❌ JobSpy Thread failed: {e}")
-                for s in selected_for_jobspy:
-                    source_status[s] = {"status": "error", "count": 0, "error": error_msg[:100]}
-
-        # ─── Collect web scraper results (deduplicated) ─────────────────────
-        scrapers = {
-            'indeed_scrape': 'Indeed',
-            'linkedin_scrape': 'LinkedIn'
-        }
-        
-        existing_links = set()
-        for r in all_results:
-            if r.get('link'):
-                existing_links.add(r['link'])
-        
-        for future_key, source_name in scrapers.items():
-            if future_key in futures:
-                try:
-                    scrape_res = futures[future_key].result()
-                    count = len(scrape_res)
-                    logger.info(f"✅ Web {source_name} returned {count} results")
-                    
-                    # Only update status if JobSpy didn't already succeed for this source
-                    if source_status.get(source_name, {}).get("status") in ["pending", "error", "no_results"]:
-                        source_status[source_name] = {"status": "success" if count > 0 else "no_results", "count": count, "error": "" if count > 0 else "Aucun résultat"}
-                    
-                    new_count = 0
-                    for ad in scrape_res:
-                        link = ad.get('lien', '') or ad.get('link', '')
-                        if link and link not in existing_links:
-                            existing_links.add(link)
-                            all_results.append({
-                                "title": ad.get('titre') or ad.get('title', 'N/A'),
-                                "company": ad.get('entreprise') or ad.get('company', 'N/A'),
-                                "link": link,
-                                "source": source_name,
-                                "date": ad.get('date', ''),
-                                "location": ad.get('location', ''),
-                                "desc": ad.get('desc', ''),
-                                "id": f"web_{source_name.lower()}_{len(all_results)}_{hash(link)}"
-                            })
-                            new_count += 1
-                    logger.info(f"   Web {source_name}: {new_count} new unique results added")
-                except Exception as e:
-                    error_msg = str(e)
-                    logger.error(f"❌ Web {source_name} Thread failed: {e}")
-                    if source_status.get(source_name, {}).get("status") in ["pending", "error", "no_results"]:
-                        source_status[source_name] = {"status": "error", "count": 0, "error": error_msg[:100]}
-
-        # Collect Adzuna results
-        if 'adzuna' in futures:
-            try:
-                adzuna_res = futures['adzuna'].result()
-                count = len(adzuna_res)
-                logger.info(f"✅ Adzuna returned {count} results")
-                source_status["Adzuna"] = {"status": "success" if count > 0 else "no_results", "count": count, "error": "" if count > 0 else "Aucun résultat"}
-                for i, ad in enumerate(adzuna_res):
-                    link = ad.get('lien', '')
-                    if link and link not in existing_links:
-                        existing_links.add(link)
-                        all_results.append({
-                            "title": ad.get('titre'),
-                            "company": ad.get('entreprise'),
-                            "link": link,
-                            "source": "Adzuna",
-                            "date": ad.get('date', ''),
-                            "location": ad.get('location', ''),
-                            "desc": "",
-                            "id": f"api_adzuna_{len(all_results)}_{hash(link)}"
-                        })
-            except Exception as e:
-                error_msg = str(e)
-                logger.error(f"❌ Adzuna Thread failed: {e}")
-                source_status["Adzuna"] = {"status": "error", "count": 0, "error": error_msg[:100]}
-
-        # Collect SerpApi results
-        if 'serpapi' in futures:
-            try:
-                serpapi_res = futures['serpapi'].result()
-                count = len(serpapi_res)
-                logger.info(f"✅ SerpApi (Google Jobs) returned {count} results")
-                source_status["Google Jobs"] = {"status": "success" if count > 0 else "no_results", "count": count, "error": "" if count > 0 else "Aucun résultat"}
-                for i, ad in enumerate(serpapi_res):
-                    link = ad.get('lien', '')
-                    if link and link not in existing_links:
-                        existing_links.add(link)
-                        all_results.append({
-                            "title": ad.get('titre'),
-                            "company": ad.get('entreprise'),
-                            "link": link,
-                            "source": "Google Jobs",
-                            "date": ad.get('date', ''),
-                            "location": ad.get('location', ''),
-                            "desc": "",
-                            "id": f"api_googlejobs_{len(all_results)}_{hash(link)}"
-                        })
-            except Exception as e:
-                error_msg = str(e)
-                logger.error(f"❌ SerpApi Thread failed: {e}")
-                source_status["Google Jobs"] = {"status": "error", "count": 0, "error": error_msg[:100]}
-
-        # Collect Jooble results
-        if 'jooble' in futures:
-            try:
-                jooble_res = futures['jooble'].result()
-                count = len(jooble_res)
-                logger.info(f"✅ Jooble returned {count} results")
-                source_status["Jooble"] = {"status": "success" if count > 0 else "no_results", "count": count, "error": "" if count > 0 else "Aucun résultat"}
-                for i, ad in enumerate(jooble_res):
-                    link = ad.get('lien', '')
-                    if link and link not in existing_links:
-                        existing_links.add(link)
-                        all_results.append({
-                            "title": ad.get('titre'),
-                            "company": ad.get('entreprise'),
-                            "link": link,
-                            "source": "Jooble",
-                            "date": ad.get('date', ''),
-                            "location": ad.get('location', ''),
-                            "desc": "",
-                            "id": f"api_jooble_{len(all_results)}_{hash(link)}"
-                        })
-            except Exception as e:
-                error_msg = str(e)
-                logger.error(f"❌ Jooble Thread failed: {e}")
-                source_status["Jooble"] = {"status": "error", "count": 0, "error": error_msg[:100]}
-
-    # ─── Collect new French source results (Welcome to the Jungle, HelloWork, APEC, JobTeaser) ─
-    new_french_sources = {
-        'welcometothejungle': 'Welcome to the Jungle',
-        'hellowork': 'HelloWork',
-        'apec': 'APEC',
-        'jobteaser': 'JobTeaser'
-    }
-    for future_key, source_name in new_french_sources.items():
-        if future_key in futures:
-            try:
-                pw_res = futures[future_key].result()
-                count = len(pw_res)
-                logger.info(f"✅ {source_name} returned {count} results")
-                source_status[source_name] = {"status": "success" if count > 0 else "no_results", "count": count, "error": "" if count > 0 else "Aucun résultat"}
-                for ad in pw_res:
-                    link = ad.get('lien', '') or ad.get('link', '')
-                    if link and link not in existing_links:
-                        existing_links.add(link)
-                        all_results.append({
-                            "title": ad.get('titre') or ad.get('title', 'N/A'),
-                            "company": ad.get('entreprise') or ad.get('company', 'N/A'),
-                            "link": link,
-                            "source": source_name,
-                            "date": ad.get('date', ''),
-                            "location": ad.get('location', ''),
-                            "desc": "",
-                            "id": f"pw_{source_name.lower().replace(' ', '_')}_{len(all_results)}_{hash(link)}"
-                        })
-            except Exception as e:
-                error_msg = str(e)
-                logger.error(f"❌ {source_name} Thread failed: {e}")
-                source_status[source_name] = {"status": "error", "count": 0, "error": error_msg[:100]}
-
-    # ─── Playwright Fallback ────────────────────────────────────────────────
-    # When requests-based scrapers return 0 results (due to anti-bot detection),
-    # run Playwright scrapers as a fallback. These use a real browser engine
-    # to execute JavaScript and bypass bot detection.
-    if PLAYWRIGHT_AVAILABLE and all_results:
-        # Only run Playwright fallback if we have very few results (< num_ads)
-        # and some sources returned 0 results
-        low_result_sources = [s for s in req.selected_sources
-                             if source_status.get(s, {}).get("count", 0) == 0
-                             and s in ["Indeed", "LinkedIn"]]
-
-        if low_result_sources and len(all_results) < req.num_ads * 2:
-            logger.info(f"📡 Launching Playwright fallback for: {low_result_sources}")
-            try:
-                pw_jobs = scrape_all_playwright(req.query, req.location, req.num_ads)
-                pw_added = 0
-                for job in pw_jobs:
-                    link = job.get('lien', '') or job.get('link', '')
-                    if link and link not in existing_links:
-                        existing_links.add(link)
-                        source_label = job.get('source', 'Playwright')
-                        all_results.append({
-                            "title": job.get('titre') or job.get('title', 'N/A'),
-                            "company": job.get('entreprise') or job.get('company', 'N/A'),
-                            "link": link,
-                            "source": source_label,
-                            "date": job.get('date', ''),
-                            "location": job.get('location', ''),
-                            "desc": "",
-                            "id": f"pw_{source_label.lower().replace(' ', '_')}_{len(all_results)}_{hash(link)}"
-                        })
-                        pw_added += 1
-                        if source_label in source_status:
-                            source_status[source_label] = {"status": "success", "count": source_status[source_label].get("count", 0) + 1, "error": ""}
-                logger.info(f"✅ Playwright fallback added {pw_added} new unique results")
-            except Exception as e:
-                logger.error(f"❌ Playwright fallback failed: {e}")
-
-    # France Travail search (outside thread pool for simplicity)
+    
+    # Build source registry from available scrapers
+    source_registry = {}
+    
+    # Add JobSpy sources
+    js_sites = ["Indeed", "LinkedIn", "Google Jobs", "Glassdoor", "ZipRecruiter", "Simplyhired", "Careerbuilder", "Monster"]
+    selected_for_jobspy = [s for s in req.selected_sources if s in js_sites]
+    if selected_for_jobspy:
+        source_registry['jobspy'] = lambda q, l, n: chercher_offres_jobspy(q, l, n, selected_for_jobspy)
+    
+    # Add API sources
+    if "Adzuna" in req.selected_sources:
+        source_registry['Adzuna'] = get_adzuna_jobs
+    if "Google Jobs" in req.selected_sources:
+        source_registry['Google Jobs'] = get_serpapi_jobs
+    if "Jooble" in req.selected_sources:
+        source_registry['Jooble'] = get_jooble_jobs
+    
+    # Add web scrapers
+    if "Indeed" in req.selected_sources:
+        source_registry['Indeed'] = scrape_indeed
+    if "LinkedIn" in req.selected_sources:
+        source_registry['LinkedIn'] = scrape_linkedin
+    
+    # Add enhanced scrapers
+    enhanced_sources = ["Indeed", "LinkedIn", "Simplyhired", "Careerbuilder", 
+                        "France Travail", "Google Jobs", "Remotive", "RemoteOK",
+                        "Welcome to the Jungle", "HelloWork", "Emploi Public",
+                        "Reed", "StepStone", "Xing", "InfoJobs", "Dice",
+                        "Naukri", "Bayt", "Seek",
+                        "RégionsJob", "ChooseYourBoss", "LesJeudis", "Talent.io",
+                        "Jobijoba", "Glassdoor", "ZipRecruiter",
+                        "Freelance.com", "Malt"]
+    enhanced_needed = [s for s in req.selected_sources if s in enhanced_sources]
+    if enhanced_needed:
+        source_registry['enhanced'] = lambda q, l, n: search_all_free_sources(q, l, n, enhanced_needed)
+    
+    # Add French sources
+    if "Welcome to the Jungle" in req.selected_sources:
+        source_registry['Welcome to the Jungle'] = scrape_welcometothejungle
+    if "HelloWork" in req.selected_sources:
+        source_registry['HelloWork'] = scrape_hellowork
+    if "APEC" in req.selected_sources:
+        source_registry['APEC'] = scrape_apec
+    if "JobTeaser" in req.selected_sources:
+        source_registry['JobTeaser'] = scrape_jobteaser
+    
+    # Add freelance sources
+    if req.is_freelance:
+        if "Malt" in req.selected_sources:
+            source_registry['Malt'] = scrape_malt
+        if "Upwork" in req.selected_sources:
+            source_registry['Upwork'] = scrape_upwork
+        if "Codeur.com" in req.selected_sources:
+            source_registry['Codeur.com'] = scrape_codeur
+        if "FreelanceInformatique" in req.selected_sources or "Freelance Informatique" in req.selected_sources:
+            source_registry['FreelanceInformatique'] = scrape_freelance_informatique
+        if "CrèmeDeLaCrème" in req.selected_sources or "Crème de la Crème" in req.selected_sources:
+            source_registry['CrèmeDeLaCrème'] = scrape_cremedelacreme
+    
+    # Add France Travail official API
     if "France Travail" in req.selected_sources:
-        ft_results = []
-        if ft_client_id and ft_client_secret:
-            ft_results = get_france_travail_jobs_api(req.query, limit=req.num_ads)
-        if not ft_results:
-            ft_results = scrape_france_travail_jobs(req.query, limit=req.num_ads)
-        existing_links_ft = set(r.get('link', '') for r in all_results)
-        new_ft_count = 0
-        for i, ad in enumerate(ft_results):
-            link = ad.get('link') or ad.get('lien', '')
-            if link and link not in existing_links_ft:
-                existing_links_ft.add(link)
-                all_results.append({
-                    "title": ad.get('title') or ad.get('titre'),
-                    "company": ad.get('company') or ad.get('entreprise'),
-                    "link": link,
-                    "source": "France Travail",
-                    "date": "",
-                    "location": "",
-                    "desc": "",
-                    "id": f"api_francetravail_{i}_{hash(link)}"
-                })
-                new_ft_count += 1
-        source_status["France Travail"] = {"status": "success" if new_ft_count > 0 else "no_results", "count": new_ft_count, "error": "" if new_ft_count > 0 else "Aucun résultat"}
-
-    # ─── Collect enhanced free scraper results (from parallel execution) ────
-    if 'enhanced_scrapers' in futures:
-        try:
-            enhanced_jobs = futures['enhanced_scrapers'].result()
-            enhanced_added = 0
-            for job in enhanced_jobs:
-                link = job.get("lien", "")
-                if link and link not in existing_links:
-                    existing_links.add(link)
-                    source_name = job.get("source", "Enhanced")
-                    all_results.append({
-                        "title": job.get("titre", "N/A"),
-                        "company": job.get("entreprise", "N/A"),
-                        "link": link,
-                        "source": source_name,
-                        "date": job.get("date", ""),
-                        "location": job.get("location", ""),
-                        "desc": "",
-                        "id": f"enh_{source_name.lower().replace(' ', '_')}_{len(all_results)}_{hash(link)}"
-                    })
-                    enhanced_added += 1
-                    if source_name in source_status:
-                        source_status[source_name] = {"status": "success", "count": source_status[source_name].get("count", 0) + 1, "error": ""}
-            logger.info(f"✅ Enhanced scrapers (parallel) added {enhanced_added} new unique results")
-        except Exception as e:
-            logger.error(f"❌ Enhanced scrapers (parallel) failed: {e}")
-
+        ft_client = get_france_travail_client()
+        if ft_client:
+            source_registry['France Travail'] = lambda q, l, n: ft_client.search_jobs(
+                query=q,
+                location=l,
+                limit=n,
+                contract_type=req.contract if req.contract else "",
+                remote_only=req.remote
+            )
+    
+    # Create search configuration
+    search_config = SearchConfig(
+        query=req.query,
+        location=req.location,
+        num_ads=req.num_ads,
+        contract=req.contract,
+        remote=req.remote,
+        selected_sources=req.selected_sources,
+        is_freelance=req.is_freelance,
+        tjm_min=req.tjm_min,
+        tjm_max=req.tjm_max
+    )
+    
+    # Execute search with coordinator
+    try:
+        all_results, source_results = search_coordinator.search(search_config, source_registry)
+    except Exception as e:
+        logger.error(f"Search coordinator failed: {e}", exc_info=True)
+        # Fallback to empty results
+        all_results = []
+        source_results = {}
+    
+    # Collect source statistics
+    source_status = {}
+    for source_name, result in source_results.items():
+        if result.success:
+            source_status[source_name] = {
+                "status": "success" if result.jobs else "no_results",
+                "count": len(result.jobs),
+                "error": "" if result.jobs else "Aucun résultat",
+                "execution_time": result.execution_time
+            }
+        else:
+            source_status[source_name] = {
+                "status": "error",
+                "count": 0,
+                "error": result.error or "Erreur inconnue",
+                "execution_time": result.execution_time
+            }
+    
+    # Add sources that weren't executed
+    for source_name in req.selected_sources:
+        if source_name not in source_status:
+            source_status[source_name] = {
+                "status": "pending",
+                "count": 0,
+                "error": "Non exécuté",
+                "execution_time": 0
+            }
+    
     # ─── DEDUPLICATION & ENRICHMENT ────────────────────────────────────────
-    # Use AI modules to remove near-duplicates and enrich job data
     if AI_MODULES_AVAILABLE and len(all_results) > 1:
         try:
-            # First deduplicate
             from ai_modules.deduplication import deduplicate_jobs
             from ai_modules.enrichment import enrich_jobs_batch
             
@@ -1540,7 +1269,6 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
             all_results = deduplicate_jobs(all_results, threshold=0.88)
             logger.info(f"📊 Deduplication: {before_count} -> {len(all_results)} jobs")
             
-            # Then enrich with quality scores, salary estimates, tags
             all_results = enrich_jobs_batch(all_results)
             logger.info(f"✨ Enriched {len(all_results)} jobs with quality scores and tags")
         except Exception as e:
@@ -1572,6 +1300,15 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
             custom_gemini_key=req.custom_gemini_key
         )
 
+    # Normalize job keys for AI ranking (ensure 'title' and 'company' exist)
+    for job in all_results:
+        # If job has 'titre' but not 'title', copy it
+        if 'titre' in job and 'title' not in job:
+            job['title'] = job['titre']
+        # If job has 'entreprise' but not 'company', copy it
+        if 'entreprise' in job and 'company' not in job:
+            job['company'] = job['entreprise']
+    
     # Collect source statistics
     source_counts = {}
     for res in all_results:
@@ -1580,16 +1317,11 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
 
     result = {
         "results": all_results,
-        "source_counts": source_counts
+        "source_counts": source_counts,
+        "source_status": source_status
     }
-
-    # Cache result for 1 hour
-    if REDIS_AVAILABLE and all_results and cache_key:
-        try:
-            redis_client.setex(cache_key, 3600, json.dumps(result))
-            logger.info(f"Cached result for query: {req.query}")
-        except Exception as e:
-            logger.warning(f"Cache write error: {e}")
+    
+    logger.info(f"✅ Search complete: {len(all_results)} jobs from {len(source_counts)} sources")
 
     return result
 
