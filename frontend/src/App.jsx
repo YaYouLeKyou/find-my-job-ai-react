@@ -176,7 +176,19 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
           
           // Use the actual error message from backend if available
           if (statusInfo.error && statusInfo.error !== 'Aucun résultat' && statusInfo.error !== 'Non exécuté') {
-            reason = statusInfo.error;
+            // Translate backend error messages to French
+            const error = statusInfo.error;
+            if (error.includes('401') || error.includes('clé API invalide')) {
+              reason = 'clé API invalide ou expirée';
+            } else if (error.includes('403') || error.includes('accès refusé')) {
+              reason = 'accès refusé (403 Forbidden)';
+            } else if (error.includes('429') || error.includes('quota')) {
+              reason = 'quota de requêtes dépassé';
+            } else if (error.includes('Cloudflare')) {
+              reason = 'bloqué par Cloudflare';
+            } else {
+              reason = error;
+            }
           } else {
             // Fallback to generic messages based on source
             if (source === 'Adzuna') {
