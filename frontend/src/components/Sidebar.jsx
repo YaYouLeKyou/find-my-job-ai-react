@@ -19,7 +19,8 @@ export default function Sidebar({
   onSelectHistory,
   onToggleDarkMode,
   onClearHistory,
-  onClearSavedJobs
+  onClearSavedJobs,
+  onClearCache
 }) {
   const S = STRINGS[LANGS[lang].code];
   const [saved, setSaved] = useState(!!customGeminiKey);
@@ -406,16 +407,28 @@ export default function Sidebar({
                 <h3 className="sidebar-section-title" style={{ margin: 0 }}>
                   📋 Historique des recherches
                 </h3>
-                {searchHistory.length > 0 && onClearHistory && (
-                  <button
-                    onClick={onClearHistory}
-                    className="btn btn-secondary"
-                    style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-                    title="Vider l'historique"
-                  >
-                    <Trash2 size={12} /> Vider
-                  </button>
-                )}
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {searchHistory.length > 0 && onClearHistory && (
+                    <button
+                      onClick={onClearHistory}
+                      className="btn btn-secondary"
+                      style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                      title="Vider l'historique"
+                    >
+                      <Trash2 size={12} /> Vider
+                    </button>
+                  )}
+                  {onClearCache && (
+                    <button
+                      onClick={onClearCache}
+                      className="btn btn-secondary"
+                      style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                      title="Vider le cache des résultats"
+                    >
+                      <Trash2 size={12} /> Cache
+                    </button>
+                  )}
+                </div>
               </div>
               {searchHistory.length === 0 ? (
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>

@@ -17,6 +17,16 @@ import { Search, Loader2, RefreshCw, Key, ExternalLink, X, ArrowLeft } from 'luc
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
+function hashCode(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36);
+}
+
 // ─── FindMyJobAI Inner App ───────────────────────────────────────────────────
 function FindMyJobApp({ onBackToHub, lang, setLang }) {
   // Global States
@@ -27,16 +37,20 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   const [cvData, setCvData] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState("Paris, France");
-  const [numAds, setNumAds] = useState(15);
+  const [numAds, setNumAds] = useState(75);
+  const [maxMode, setMaxMode] = useState(false);
+
+  useEffect(() => {
+    setSelectedSources([
+      "LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Remotive", "RemoteOK", "enhanced", "jobspy"
+    ]);
+  }, []);
   const [sortOption, setSortOption] = useState("Pertinence (IA)");
   const [contract, setContract] = useState("CDI");
   const [remote, setRemote] = useState(false);
   const [globalSearch, setGlobalSearch] = useState(false);
   const [selectedSources, setSelectedSources] = useState([
-    "LinkedIn", "France Travail", "Google Jobs", "Adzuna",
-    "Indeed", "Simplyhired", "Careerbuilder", "Monster",
-    "Welcome to the Jungle", "HelloWork", "APEC", "JobTeaser",
-    "Emploi Public", "RégionsJob", "ChooseYourBoss", "LesJeudis"
+    "LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Remotive", "RemoteOK", "enhanced", "jobspy"
   ]);
   const [excludedSources, setExcludedSources] = useState([]);
   const [dismissKeyPrompt, setDismissKeyPrompt] = useState(false);
@@ -48,7 +62,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   const [errorJobs, setErrorJobs] = useState("");
   const [ollamaOnline, setOllamaOnline] = useState(false);
   const [searchTime, setSearchTime] = useState(null);
-  const [visibleCount, setVisibleCount] = useState(10);
+  const [visibleCount, setVisibleCount] = useState(20);
   const [searchHistory, setSearchHistory] = useState([]);
   const [savedJobs, setSavedJobs] = useState([]);
   const [toast, setToast] = useState(null);
@@ -63,10 +77,16 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
       .then(data => { setOllamaOnline(data.ollama_online); })
       .catch(err => console.error("Backend not running or unreachable:", err));
 
-    fetch("https://ipapi.co/json/")
-      .then(res => res.json())
-      .then(data => { if (data.city && data.country_name) setLocation(`${data.city}, ${data.country_name}`); })
-      .catch(err => { console.error("Geolocation failed, using default:", err); });
+    // Non-blocking geolocation: run in background, don't block UI
+    const geoTimer = setTimeout(() => {
+      const controller = new AbortController();
+      const geoTimeout = setTimeout(() => controller.abort(), 3000);
+      fetch("https://ipapi.co/json/", { signal: controller.signal })
+        .then(res => res.ok ? res.json() : Promise.reject())
+        .then(data => { if (data.city && data.country_name) setLocation(`${data.city}, ${data.country_name}`); })
+        .catch(err => { console.debug("Geolocation skipped:", err); })
+        .finally(() => clearTimeout(geoTimeout));
+    }, 500);
 
     const savedHistory = localStorage.getItem('searchHistory');
     if (savedHistory) setSearchHistory(JSON.parse(savedHistory));
@@ -76,6 +96,8 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
 
     const darkMode = localStorage.getItem('darkMode');
     if (darkMode === 'true') document.documentElement.setAttribute('data-theme', 'dark');
+
+    return () => clearTimeout(geoTimer);
   }, []);
 
   const handleCvAnalysisSuccess = (data) => {
@@ -103,21 +125,57 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
     setJobs([]);
     setSourceCounts({});
     setExcludedSources([]);
-    setVisibleCount(10);
+    setVisibleCount(20);
+
+    const effectiveNumAds = maxMode ? 100 : numAds;
+    const effectiveSortOption = maxMode ? "Plus récentes" : sortOption;
+
+    // Build cache key from search params
+    const cacheKey = `job_cache_${hashCode(JSON.stringify({
+      q: activeQuery.toLowerCase().trim(),
+      l: globalSearch ? "" : location,
+      n: effectiveNumAds,
+      c: contract,
+      r: remote,
+      s: selectedSources.sort(),
+      sort: effectiveSortOption
+    }))}`;
 
     try {
+      // Check localStorage cache first (valid for 30 min)
+      const cachedRaw = localStorage.getItem(cacheKey);
+      if (cachedRaw) {
+        try {
+          const cached = JSON.parse(cachedRaw);
+          const cacheAge = Date.now() - (cached.ts || 0);
+          if (cacheAge < 30 * 60 * 1000) {
+            const results = cached.results || [];
+            const sourceCounts = cached.source_counts || {};
+            setJobs(results);
+            setSourceCounts(sourceCounts);
+            const searchDuration = ((Date.now() - startTime) / 1000).toFixed(2);
+            setSearchTime(searchDuration);
+            showToast(`⚡ ${results.length} offres depuis le cache (${(cacheAge/1000).toFixed(0)}s)`, 'success');
+            setLoadingJobs(false);
+            return;
+          }
+        } catch (e) {
+          localStorage.removeItem(cacheKey);
+        }
+      }
+
       const response = await fetch(`${API_BASE}/api/search-jobs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query: activeQuery,
           location: globalSearch ? "" : location,
-          num_ads: numAds,
+          num_ads: effectiveNumAds,
           contract: contract,
           remote: remote,
           global_search: globalSearch,
           selected_sources: selectedSources,
-          sort_option: S.sort_relevant,
+          sort_option: effectiveSortOption,
           ranking_engine: rankingEngine,
           custom_gemini_key: customGeminiKey || null,
           lang_code: currentLangCode,
@@ -130,11 +188,28 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
 
       const data = await response.json();
       const results = data.results || [];
-      const sourceCounts = data.source_counts || {};
       const sourceStatus = data.source_status || {};
       
-      // ─── RAPPORT DÉTAILLÉ PAR SOURCE ─────────────────────────────────
+      // Build sourceCounts from source_status for UI consistency
+      const sourceCounts = {};
+      Object.entries(sourceStatus).forEach(([source, status]) => {
+        if (status && status.count !== undefined) {
+          sourceCounts[source] = status.count;
+        }
+      });
+      
+      // ─── RAPPORT CONSOLE SIMPLIFIÉ ─────────────────────────────────
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      const activeSources = Object.entries(sourceStatus)
+        .filter(([, status]) => status && status.count > 0)
+        .map(([name]) => name);
+      
+      const bySource = {};
+      results.forEach(job => {
+        const src = job.source || 'Inconnue';
+        if (!bySource[src]) bySource[src] = [];
+        bySource[src].push(job);
+      });
       
       console.log('%c═══════════════════════════════════════════════════════', 'font-weight:bold;color:#7c4dff');
       console.log('%c  📊 RAPPORT DE SCAN MULTI-SOURCES', 'font-weight:bold;font-size:14px;color:#7c4dff');
@@ -143,85 +218,21 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
       console.log(`%c⏱️  Temps total: ${duration}s | 📦 Total: ${results.length} offres`, 'color:#555');
       console.log('%c───────────────────────────────────────────────────────', 'color:#999');
       
-      const bySource = {};
-      const requestedSources = selectedSources.length > 0 ? selectedSources : ["LinkedIn", "Indeed", "France Travail", "Google Jobs", "Adzuna", "Jooble", "Glassdoor", "ZipRecruiter", "Simplyhired", "Careerbuilder", "Monster"];
-      requestedSources.forEach(s => { bySource[s] = []; });
-      
-      results.forEach(job => {
-        const src = job.source || 'Inconnue';
-        if (!bySource[src]) bySource[src] = [];
-        bySource[src].push(job);
-      });
-      
-      const blockerIcons = { 'Glassdoor': '🛡️', 'ZipRecruiter': '🛡️', 'Monster': '⚠️', 'Careerbuilder': '⚠️' };
-      const workingIcons = { 'LinkedIn': '💼', 'Indeed': '📋', 'France Travail': '🇫🇷', 'Google Jobs': '🔎', 'Adzuna': '💰', 'Jooble': '🌐' };
-      
-      const failedSources = [];
-      const successSources = [];
-      
-      requestedSources.forEach(source => {
-        const jobs = bySource[source] || [];
-        if (jobs.length > 0) {
-          successSources.push(source);
-          const icon = workingIcons[source] || '✅';
-          console.log(`%c${icon} %c${source}: %c${jobs.length} résultat${jobs.length > 1 ? 's' : ''}`, 'font-weight:bold', 'color:#2e7d32;font-weight:bold', 'color:#1b5e20;font-weight:bold');
-          console.log(`%c   ┌─ ${jobs.slice(0,3).map((j,i) => `${i+1}. ${j.title || 'N/A'} @ ${j.company || 'N/A'}`).join('\n   │  ')}`, 'color:#2e7d32');
-          if (jobs.length > 3) console.log(`%c   └─ ... et ${jobs.length - 3} autre${jobs.length - 3 > 1 ? 's' : ''}`, 'color:#2e7d32;font-style:italic');
-          else console.log(`%c   └─ ✓`, 'color:#2e7d32');
-        } else {
-          failedSources.push(source);
-          const icon = blockerIcons[source] || '❌';
-          
-          // Get detailed error from source_status if available
-          const statusInfo = sourceStatus[source] || {};
-          let reason = 'source indisponible ou bloquée';
-          
-          // Use the actual error message from backend if available
-          if (statusInfo.error && statusInfo.error !== 'Aucun résultat' && statusInfo.error !== 'Non exécuté') {
-            // Translate backend error messages to French
-            const error = statusInfo.error;
-            if (error.includes('401') || error.includes('clé API invalide')) {
-              reason = 'clé API invalide ou expirée';
-            } else if (error.includes('403') || error.includes('accès refusé')) {
-              reason = 'accès refusé (403 Forbidden)';
-            } else if (error.includes('429') || error.includes('quota')) {
-              reason = 'quota de requêtes dépassé';
-            } else if (error.includes('Cloudflare')) {
-              reason = 'bloqué par Cloudflare';
-            } else {
-              reason = error;
-            }
-          } else {
-            // Fallback to generic messages based on source
-            if (source === 'Adzuna') {
-              reason = 'API key ou quota insuffisant';
-            } else if (source === 'Google Jobs') {
-              reason = 'SerpApi nécessite une clé valide';
-            } else if (source === 'Jooble') {
-              reason = 'Cloudflare bloque les requêtes automatisées';
-            } else if (source === 'Glassdoor' || source === 'ZipRecruiter') {
-              reason = 'bloqué par Cloudflare/WAF 🛡️';
-            } else if (source === 'Simplyhired') {
-              reason = 'scraper web bloqué';
-            } else if (['Indeed', 'Careerbuilder', 'Monster'].includes(source)) {
-              reason = 'source indisponible ou bloquée';
-            }
+      if (activeSources.length === 0) {
+        console.log('%c⚠️ Aucune source active n\'a retourné de résultats.', 'color:#ff6f00');
+      } else {
+        activeSources.forEach(source => {
+          const jobs = (bySource[source] || []).slice(0, 3);
+          const count = (bySource[source] || []).length;
+          console.log(`%c✅ %c${source}: %c${count} résultat${count > 1 ? 's' : ''}`, 'font-weight:bold', 'color:#2e7d32;font-weight:bold', 'color:#1b5e20;font-weight:bold');
+          if (jobs.length > 0) {
+            console.log(`%c   ┌─ ${jobs.map((j,i) => `${i+1}. ${j.title || 'N/A'} @ ${j.company || 'N/A'}`).join('\n   │  ')}`, 'color:#2e7d32');
+            if (count > 3) console.log(`%c   └─ ... et ${count - 3} autre${count - 3 > 1 ? 's' : ''}`, 'color:#2e7d32;font-style:italic');
+            else console.log(`%c   └─ ✓`, 'color:#2e7d32');
           }
-          
-          console.log(`%c${icon} %c${source}: %c0 résultat (${reason})`, '', 'color:#c62828;font-weight:bold', 'color:#b71c1c;font-style:italic');
-        }
-        console.log('');
-      });
+        });
+      }
       
-      console.log('%c═══════════════════════════════════════════════════════', 'font-weight:bold;color:#7c4dff');
-      if (successSources.length > 0) {
-        console.log(`%c✅ SOURCES ACTIVES (${successSources.length}): ${successSources.join(', ')}`, 'color:#2e7d32;font-weight:bold');
-      }
-      if (failedSources.length > 0) {
-        console.log(`%c❌ SOURCES INACCESSIBLES (${failedSources.length}): ${failedSources.join(', ')}`, 'color:#c62828');
-        console.log('%c💡 Conseil: Vérifiez vos clés API dans le backend (.env)', 'color:#ff6f00;font-style:italic');
-        console.log('%c💡 Conseil: Activez SerpApi (google_jobs), Adzuna, Jooble dans votre .env', 'color:#ff6f00;font-style:italic');
-      }
       console.log('%c═══════════════════════════════════════════════════════', 'font-weight:bold;color:#7c4dff');
       
       setJobs(results);
@@ -230,6 +241,13 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
       const endTime = Date.now();
       const searchDuration = ((endTime - startTime) / 1000).toFixed(2);
       setSearchTime(searchDuration);
+
+      // Cache results in localStorage (30 min TTL)
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({ results, source_counts: sourceCounts, ts: Date.now() }));
+      } catch (e) {
+        // Storage full or private mode — ignore
+      }
 
       const newHistory = [{ query: activeQuery, time: new Date().toISOString(), count: data.results?.length || 0 }, ...searchHistory.filter(h => h.query !== activeQuery)].slice(0, 10);
       setSearchHistory(newHistory);
@@ -309,6 +327,29 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
     showToast('⭐ Annonces sauvegardées vidées', 'success');
   };
 
+  const handleClearCache = async () => {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('job_cache_')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+
+    try {
+      const response = await fetch(`${API_BASE}/api/clear-cache`, { method: 'DELETE' });
+      if (response.ok) {
+        const data = await response.json();
+        showToast(`🧹 Cache vidé (${keysToRemove.length} entrées locale${keysToRemove.length > 1 ? 's' : ''}, ${data.cleared || 0} clé${(data.cleared || 0) > 1 ? 's' : ''} backend)`, 'success');
+      } else {
+        showToast(`🧹 Cache local vidé (${keysToRemove.length} entrées)`, 'success');
+      }
+    } catch (err) {
+      showToast(`🧹 Cache local vidé (${keysToRemove.length} entrées)`, 'success');
+    }
+  };
+
   const handleStartInterview = (job) => {
     // Store job data in sessionStorage for the new window
     sessionStorage.setItem('mockInterviewJob', JSON.stringify(job));
@@ -321,62 +362,77 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   const generateJobSearchLinks = (jobTitle, langCode) => {
     const q = encodeURIComponent(jobTitle);
     const qSlug = q.replace(/%20/g, '-');
-    const links = {
+    const categories = {
       fr: {
-        "Welcome to the Jungle": `https://www.welcometothejungle.com/fr/jobs?query=${q}`,
-        "HelloWork": `https://www.hellowork.com/fr-fr/emploi/recherche.html?k=${q}`,
-        "Service Public": `https://www.choisirleservicepublic.gouv.fr/nos-offres/filtres/mots-cles/${q}/`,
-        "Indeed France": `https://fr.indeed.com/jobs?q=${q}`,
-        "Glassdoor FR": `https://www.glassdoor.fr/emploi/emploi.htm?sc.keyword=${q}`,
-        "APEC": `https://www.apec.fr/offres-d-emploi-cadre/recherche.html?motsCles=${q}`,
-        "Monster FR": `https://www.monster.fr/emploi/recherche?q=${q}`,
-        "LinkedIn FR": `https://fr.linkedin.com/jobs/search/?keywords=${q}`,
-        "Pôle Emploi": `https://candidat.pole-emploi.fr/offres/recherche?motsCles=${q}`,
-        "JobTeaser": `https://www.jobteaser.com/fr/jobs?query=${q}`
+        "Généralistes France": [
+          ["Indeed France", `https://fr.indeed.com/jobs?q=${q}`],
+          ["HelloWork", `https://www.hellowork.com/fr-fr/emploi/recherche.html?k=${q}`],
+          ["Glassdoor FR", `https://www.glassdoor.fr/emploi/emploi.htm?sc.keyword=${q}`],
+          ["France Travail", `https://candidat.pole-emploi.fr/offres/recherche?motsCles=${q}`],
+          ["APEC", `https://www.apec.fr/offres-d-emploi-cadre/recherche.html?motsCles=${q}`],
+          ["Monster FR", `https://www.monster.fr/emploi/recherche?q=${q}`],
+        ],
+        "Tech & Cadres": [
+          ["Welcome to the Jungle", `https://www.welcometothejungle.com/fr/jobs?query=${q}`],
+          ["JobTeaser", `https://www.jobteaser.com/fr/jobs?query=${q}`],
+          ["LinkedIn FR", `https://fr.linkedin.com/jobs/search/?keywords=${q}`],
+        ]
       },
       en: {
-        "LinkedIn US": `https://www.linkedin.com/jobs/search/?keywords=${q}`,
-        "Reed.co.uk": `https://www.reed.co.uk/jobs/${qSlug}-jobs`,
-        "Dice (Tech US)": `https://www.dice.com/jobs?q=${q}`,
-        "Indeed US": `https://www.indeed.com/jobs?q=${q}`,
-        "Glassdoor US": `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${q}`,
-        "Monster US": `https://www.monster.com/jobs/search?q=${q}`,
-        "CareerBuilder": `https://www.careerbuilder.com/jobs?q=${q}`,
-        "SimplyHired": `https://www.simplyhired.com/jobs?q=${q}`,
-        "ZipRecruiter": `https://www.ziprecruiter.com/jobs/search?search=${q}`,
-        "Google Jobs": `https://www.google.com/search?q=${q}+jobs&ibp=htl;jobs`
+        "Remote & Global": [
+          ["Remote OK", `https://remoteok.com/remote-${qSlug}-jobs`],
+          ["Indeed Global", `https://www.indeed.com/jobs?q=${q}`],
+          ["Glassdoor Global", `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${q}`],
+          ["LinkedIn Global", `https://www.linkedin.com/jobs/search/?keywords=${q}`],
+        ],
+        "Tech & Cadres": [
+          ["Reed.co.uk", `https://www.reed.co.uk/jobs/${qSlug}-jobs`],
+          ["Dice (Tech US)", `https://www.dice.com/jobs?q=${q}`],
+          ["LinkedIn US", `https://www.linkedin.com/jobs/search/?keywords=${q}`],
+        ]
       },
       es: {
-        "InfoJobs ES": `https://www.infojobs.net/jobsearch/search-results.xhtml?keywords=${q}`,
-        "Tecnoempleo": `https://www.tecnoempleo.com/busqueda-empleo.php?te=${q}`,
-        "LinkedIn ES": `https://es.linkedin.com/jobs/search/?keywords=${q}`,
-        "Indeed ES": `https://es.indeed.com/jobs?q=${q}`,
-        "Glassdoor ES": `https://www.glassdoor.es/empleo/empleo.htm?sc.keyword=${q}`,
-        "Monster ES": `https://www.monster.es/empleo/buscar?q=${q}`,
+        "Généralistes ES": [
+          ["InfoJobs ES", `https://www.infojobs.net/jobsearch/search-results.xhtml?keywords=${q}`],
+          ["Tecnoempleo", `https://www.tecnoempleo.com/busqueda-empleo.php?te=${q}`],
+          ["LinkedIn ES", `https://es.linkedin.com/jobs/search/?keywords=${q}`],
+          ["Indeed ES", `https://es.indeed.com/jobs?q=${q}`],
+          ["Glassdoor ES", `https://www.glassdoor.es/empleo/empleo.htm?sc.keyword=${q}`],
+          ["Monster ES", `https://www.monster.es/empleo/buscar?q=${q}`],
+        ]
       },
       de: {
-        "Xing DE": `https://www.xing.com/jobs/search?keywords=${q}`,
-        "StepStone DE": `https://www.stepstone.de/jobs/${qSlug}`,
-        "LinkedIn DE": `https://de.linkedin.com/jobs/search/?keywords=${q}`,
-        "Indeed DE": `https://de.indeed.com/jobs?q=${q}`,
-        "Glassdoor DE": `https://www.glassdoor.de/Job/jobs.htm?sc.keyword=${q}`,
-        "Monster DE": `https://www.monster.de/jobs/suche?q=${q}`,
+        "Généralistes DE": [
+          ["Xing DE", `https://www.xing.com/jobs/search?keywords=${q}`],
+          ["StepStone DE", `https://www.stepstone.de/jobs/${qSlug}`],
+          ["LinkedIn DE", `https://de.linkedin.com/jobs/search/?keywords=${q}`],
+          ["Indeed DE", `https://de.indeed.com/jobs?q=${q}`],
+          ["Glassdoor DE", `https://www.glassdoor.de/Job/jobs.htm?sc.keyword=${q}`],
+          ["Monster DE", `https://www.monster.de/jobs/suche?q=${q}`],
+        ]
       },
       ar: {
-        "Bayt (Middle East)": `https://www.bayt.com/en/international/jobs/?keyword=${q}`,
-        "GulfTalent": `https://www.gulftalent.com/jobs/search?q=${q}`,
-        "LinkedIn AR": `https://ar.linkedin.com/jobs/search/?keywords=${q}`,
-        "Indeed AE": `https://ae.indeed.com/jobs?q=${q}`,
+        "Middle East": [
+          ["Bayt (Middle East)", `https://www.bayt.com/en/international/jobs/?keyword=${q}`],
+          ["GulfTalent", `https://www.gulftalent.com/jobs/search?q=${q}`],
+          ["LinkedIn AR", `https://ar.linkedin.com/jobs/search/?keywords=${q}`],
+          ["Indeed AE", `https://ae.indeed.com/jobs?q=${q}`],
+        ]
       },
       ja: {
-        "Indeed Japan": `https://jp.indeed.com/jobs?q=${q}`,
-        "LinkedIn JP": `https://jp.linkedin.com/jobs/search/?keywords=${q}`,
+        "Japan": [
+          ["Indeed Japan", `https://jp.indeed.com/jobs?q=${q}`],
+          ["LinkedIn JP", `https://jp.linkedin.com/jobs/search/?keywords=${q}`],
+        ]
       },
       zh: {
-        "51job": `https://search.51job.com/list/000000,000000,0000,00,9,99,${q},2,1.html`,
-        "LinkedIn CN": `https://cn.linkedin.com/jobs/search/?keywords=${q}`,
+        "China": [
+          ["51job", `https://search.51job.com/list/000000,000000,0000,00,9,99,${q},2,1.html`],
+          ["LinkedIn CN", `https://cn.linkedin.com/jobs/search/?keywords=${q}`],
+        ]
       }
     };
+    
     const globalLinks = {
       "Remote OK": `https://remoteok.com/remote-${qSlug}-jobs`,
       "Indeed Global": `https://www.indeed.com/jobs?q=${q}`,
@@ -385,10 +441,20 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
       "France Travail (API)": `https://candidat.pole-emploi.fr/offres/recherche?motsCles=${q}&offresPartenaires=true`,
       "Adzuna (API)": `https://www.adzuna.fr/emploi?q=${q}`,
     };
-    return { ...(links[langCode] || {}), ...globalLinks };
+    
+    const langCategories = categories[langCode] || {};
+    const allLinks = [];
+    
+    Object.entries(langCategories).forEach(([category, links]) => {
+      allLinks.push({ category, links });
+    });
+    
+    allLinks.push({ category: "Global", links: Object.entries(globalLinks) });
+    
+    return allLinks;
   };
 
-  const directLinks = searchQuery ? generateJobSearchLinks(searchQuery, currentLangCode) : {};
+  const directLinks = searchQuery ? generateJobSearchLinks(searchQuery, currentLangCode) : [];
   const displayedJobs = jobs.filter(job => !excludedSources.includes(job.source));
   const visibleJobs = displayedJobs.slice(0, visibleCount);
   const hasMoreJobs = visibleCount < displayedJobs.length;
@@ -434,6 +500,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
         onToggleDarkMode={toggleDarkMode}
         onClearHistory={handleClearHistory}
         onClearSavedJobs={handleClearSavedJobs}
+        onClearCache={handleClearCache}
       />
 
       {/* Main Container */}
@@ -530,19 +597,33 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
                   ))}
                 </div>
               )}
-              <div className="search-box-container">
-                <div className="search-input-wrapper">
-                  <input
-                    type="text" className="input-control" placeholder={S.search_placeholder}
-                    value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') handleSearchJobs(); }}
-                  />
-                  <Search size={18} className="search-icon-inside" />
+                <div className="search-box-container">
+                  <div className="search-input-wrapper">
+                    <input
+                      type="text" className="input-control" placeholder={S.search_placeholder}
+                      value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleSearchJobs(); }}
+                    />
+                    <Search size={18} className="search-icon-inside" />
+                  </div>
+                  <button className="btn btn-primary" onClick={() => handleSearchJobs()} disabled={loadingJobs}>
+                    {loadingJobs ? <Loader2 size={18} className="spin" style={{ animation: 'spin 1s linear infinite' }} /> : S.search}
+                  </button>
+                  <button 
+                    className={`btn ${maxMode ? 'btn-primary' : 'btn-secondary'}`} 
+                    onClick={() => setMaxMode(!maxMode)} 
+                    disabled={loadingJobs}
+                    title="Mode Max: 100 annonces par source, tri par date"
+                    style={{ 
+                      marginLeft: '8px',
+                      fontSize: '0.85rem',
+                      fontWeight: maxMode ? '700' : '500',
+                      background: maxMode ? 'linear-gradient(135deg, #ff6b6b, #ee5a24)' : ''
+                    }}
+                  >
+                    🚀 {maxMode ? 'MAX ON' : 'Mode Max'}
+                  </button>
                 </div>
-                <button className="btn btn-primary" onClick={() => handleSearchJobs()} disabled={loadingJobs}>
-                  {loadingJobs ? <Loader2 size={18} className="spin" style={{ animation: 'spin 1s linear infinite' }} /> : S.search}
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -554,32 +635,41 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
             <div className="card-content">
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{S.scan_help}</span>
               <div className="dashboard-grid">
-                {Object.entries(sourceCounts).map(([src, count]) => {
-                  const isExcluded = excludedSources.includes(src);
-                  return (
-                    <button key={src} className={`dashboard-btn ${isExcluded ? 'excluded' : 'active'}`} onClick={() => toggleSourceExclusion(src)}>
-                      <span>{isExcluded ? '❌' : '✅'} {src}</span>
-                      <span>({count})</span>
-                    </button>
-                  );
-                })}
+                {Object.entries(sourceCounts)
+                  .filter(([, count]) => count > 0)
+                  .map(([src, count]) => {
+                    const isExcluded = excludedSources.includes(src);
+                    return (
+                      <button key={src} className={`dashboard-btn ${isExcluded ? 'excluded' : 'active'}`} onClick={() => toggleSourceExclusion(src)}>
+                        <span>{isExcluded ? '❌' : '✅'} {src}</span>
+                        <span>({count})</span>
+                      </button>
+                    );
+                  })}
               </div>
             </div>
           </div>
         )}
 
         {/* Direct Access platform links */}
-        {searchQuery && (
+        {searchQuery && directLinks.length > 0 && (
           <div className="card">
             <div className="card-title"><span>{S.direct_access}</span></div>
             <div className="card-content">
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>{S.direct_access_desc}</span>
-              <div className="direct-links-grid">
-                {Object.entries(directLinks).map(([name, url]) => (
-                  <a key={name} href={url} target="_blank" rel="noopener noreferrer" className="btn btn-secondary"
-                    style={{ textDecoration: 'none', textAlign: 'center' }}>
-                    🔍 {name}
-                  </a>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '12px', display: 'block' }}>{S.direct_access_desc}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {directLinks.map(({ category, links }) => (
+                  <div key={category}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '8px' }}>{category}</div>
+                    <div className="direct-links-grid">
+                      {links.map(([name, url]) => (
+                        <a key={name} href={url} target="_blank" rel="noopener noreferrer" className="btn btn-secondary"
+                          style={{ textDecoration: 'none', textAlign: 'center', display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                          🔍 {name}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>

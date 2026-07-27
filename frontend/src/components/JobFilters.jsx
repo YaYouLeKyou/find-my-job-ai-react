@@ -23,15 +23,7 @@ export default function JobFilters({
   const S = STRINGS[LANGS[lang].code];
 
   const allAvailableSources = [
-    "LinkedIn", "Indeed", "France Travail", "Google Jobs", 
-    "Adzuna", "Jooble", "Glassdoor", "ZipRecruiter", 
-    "Simplyhired", "Careerbuilder", "Monster",
-    "Welcome to the Jungle", "HelloWork", "APEC", "JobTeaser",
-    "Reed", "StepStone", "Xing", "InfoJobs", "Dice",
-    "Naukri", "Bayt", "Seek",
-    "RégionsJob", "ChooseYourBoss", "LesJeudis", "Talent.io",
-    "Remotive", "RemoteOK", "Jobijoba", "Emploi Public",
-    "Freelance.com", "Malt"
+    "LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Remotive", "RemoteOK", "enhanced", "jobspy"
   ];
 
   const handleSourceChange = (source) => {
@@ -164,31 +156,43 @@ export default function JobFilters({
 
         </div>
 
-        {/* Checkboxes: Sources */}
+        {/* Sources pills */}
         <div style={{ background: 'var(--surface-secondary)', padding: '20px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
           <label style={{ display: 'block', marginBottom: '16px', fontWeight: '800', color: 'var(--text-primary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             {S.select_sources}
           </label>
-          <div className="source-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px' }}>
-            {allAvailableSources.map((source) => (
-              <label key={source} className="checkbox-container" style={{ fontSize: '0.85rem' }}>
-                <input
-                  type="checkbox"
-                  checked={selectedSources.includes(source)}
-                  onChange={() => handleSourceChange(source)}
-                />
-                <div className="checkbox-custom"></div>
-                <span>{source}</span>
-              </label>
-            ))}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+            {allAvailableSources.map((source) => {
+              const isActive = selectedSources.includes(source);
+              return (
+                <button
+                  key={source}
+                  type="button"
+                  onClick={() => handleSourceChange(source)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '9999px',
+                    border: '1px solid ' + (isActive ? 'var(--primary-color)' : 'var(--border-color)'),
+                    background: isActive ? 'var(--primary-color)' : 'var(--surface-color)',
+                    color: isActive ? '#ffffff' : 'var(--text-primary)',
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {source}
+                </button>
+              );
+            })}
           </div>
         </div>
 
 
         {/* Refresh / Apply changes button */}
         <button
-          className="btn btn-secondary"
-          style={{ width: '100%' }}
+          className="btn btn-primary"
+          style={{ width: '100%', padding: '12px 20px' }}
           onClick={onRefresh}
         >
           {S.relaunch}

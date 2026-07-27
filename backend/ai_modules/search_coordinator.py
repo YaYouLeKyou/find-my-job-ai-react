@@ -291,7 +291,7 @@ class CacheManager:
 class ParallelSourceExecutor:
     """Executes multiple sources in parallel with strict timeouts."""
     
-    def __init__(self, timeout_per_source: int = 5, max_workers: int = 15):
+    def __init__(self, timeout_per_source: int = 5, max_workers: int = 12):
         self.timeout_per_source = timeout_per_source
         self.max_workers = max_workers
     
@@ -311,6 +311,7 @@ class ParallelSourceExecutor:
             List of SourceResult objects
         """
         results = []
+        logger.info(f"Executor: starting {len(source_functions)} sources: {list(source_functions.keys())}")
         
         with ThreadPoolExecutor(max_workers=min(self.max_workers, len(source_functions))) as executor:
             futures = {}
@@ -328,6 +329,8 @@ class ParallelSourceExecutor:
                         success=False,
                         error=f"Submission error: {str(e)}"
                     ))
+            
+            logger.info(f"Executor: {len(futures)} futures submitted, waiting for results...")
             
             # Collect results with timeout
             for future in as_completed(futures):
@@ -353,6 +356,8 @@ class ParallelSourceExecutor:
                             success=False,
                             error=str(e)[:100]
                         ))
+            
+            logger.info(f"Executor: completed, got {len(results)} results")
         
         return results
     
@@ -436,11 +441,16 @@ class SearchCoordinator:
         Returns:
             Tuple of (all_jobs, source_results_dict)
         """
+        logger.info(f"SearchCoordinator: starting search with {len(source_registry)} sources")
+        
         # Check cache first
         cache_key = self.cache_manager.get_cache_key(config)
         cached_result = self.cache_manager.get_cached_result(cache_key, self.redis_client)
         if cached_result:
+            logger.info(f"Cache hit, returning {len(cached_result.get('jobs', []))} jobs")
             return cached_result.get("jobs", []), {}
+        
+        logger.info("Cache miss, executing sources...")
         
         # Execute search with fallback
         all_jobs = []
@@ -451,6 +461,8 @@ class SearchCoordinator:
         fallback_configs = [config]
         if self.enable_fallback:
             fallback_configs = self.fallback_engine.generate_fallback_queries(config)
+        
+        logger.info(f"Fallback configs: {len(fallback_configs)}")
         
         # Try each fallback configuration
         for fallback_config in fallback_configs[:self.max_fallback_attempts]:
@@ -466,6 +478,8 @@ class SearchCoordinator:
                 if not fallback_config.selected_sources or name in fallback_config.selected_sources
             }
             
+            logger.info(f"Available sources for attempt {attempts}: {list(available_sources.keys())}")
+            
             if not available_sources:
                 logger.warning("No sources available for search")
                 continue
@@ -479,6 +493,8 @@ class SearchCoordinator:
                 source_results[result.source_name] = result
                 if result.success and result.jobs:
                     attempt_jobs.extend(result.jobs)
+            
+            logger.info(f"Attempt {attempts}: got {len(attempt_jobs)} jobs from {len(results)} sources")
             
             # Deduplicate
             attempt_jobs = self._deduplicate_jobs(attempt_jobs)
@@ -495,6 +511,7 @@ class SearchCoordinator:
             result_dict = {"jobs": all_jobs, "timestamp": datetime.now().isoformat()}
             self.cache_manager.cache_result(cache_key, result_dict, self.redis_client, self.cache_ttl)
         
+        logger.info(f"SearchCoordinator: finished with {len(all_jobs)} jobs")
         return all_jobs, source_results
     
     def _deduplicate_jobs(self, jobs: List[dict]) -> List[dict]:

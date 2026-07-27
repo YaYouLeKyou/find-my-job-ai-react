@@ -14,17 +14,36 @@ import json
 import urllib.parse
 import os
 import random
+import sys
+import re
 from typing import List, Dict, Optional
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Playwright is imported lazily so the backend still works if it's not installed
-PLAYWRIGHT_AVAILABLE = False
+sys_path_added = False
+if not sys_path_added:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    sys_path_added = True
+
+
+def clean_job_title(title: str) -> str:
+    if not title:
+        return ""
+    if isinstance(title, list):
+        title = " ".join(map(str, title))
+    clean = title.lower()
+    clean = re.sub(r'\b(h/f|f/h|hf|fh|métier:|poste:)\b', '', clean, flags=re.IGNORECASE)
+    clean = re.split(r'[,(\-:&/|]', clean)[0]
+    return " ".join(clean.split()).capitalize()
+
+
 try:
     from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
     PLAYWRIGHT_AVAILABLE = True
     logger.info("✅ Playwright available for JS-rendered scraping")
 except ImportError:
+    PLAYWRIGHT_AVAILABLE = False
     logger.warning("⚠️ Playwright not installed. JS-rendered scrapers will be disabled.")
     logger.warning("  Install with: pip install playwright && playwright install chromium")
 
@@ -154,6 +173,87 @@ def _extract_jobs_from_page(page, source_name: str, selectors: dict, limit: int)
         except Exception as e:
             logger.debug(f"[{source_name}] Error extracting card: {e}")
             continue
+
+    return jobs[:limit]
+
+
+def _extract_jobs_with_scroll(page, source_name: str, selectors: dict, limit: int, seen_links: set) -> List[dict]:
+    """
+    Extract jobs with auto-scroll to load more content.
+    Used for LinkedIn infinite scroll pages.
+    """
+    jobs = []
+    scroll_pause = 2.0
+    max_scrolls = 10
+    no_new_jobs_count = 0
+    max_no_new = 3
+
+    for scroll in range(max_scrolls):
+        # Extract jobs from current view
+        new_jobs = _extract_jobs_from_page(page, source_name, selectors, limit * 2)
+        
+        # Add only new jobs
+        added = 0
+        for job in new_jobs:
+            link = job.get("lien", "")
+            if link and link not in seen_links:
+                seen_links.add(link)
+                jobs.append(job)
+                added += 1
+        
+        logger.info(f"[{source_name}] Scroll {scroll + 1}: extracted {len(new_jobs)} jobs, {added} new, total: {len(jobs)}")
+        
+        if len(jobs) >= limit:
+            logger.info(f"[{source_name}] Reached limit of {limit} jobs")
+            break
+        
+        if added == 0:
+            no_new_jobs_count += 1
+            if no_new_jobs_count >= max_no_new:
+                logger.info(f"[{source_name}] No new jobs after {max_no_new} scrolls, stopping")
+                break
+        else:
+            no_new_jobs_count = 0
+
+        # Scroll down
+        page.evaluate("window.scrollBy(0, window.innerHeight * 0.8)")
+        time.sleep(scroll_pause)
+
+        # Try to click "Voir plus" / "Load more" / "Show more" buttons
+        load_more_selectors = [
+            "button:has-text('Voir plus')",
+            "button:has-text('Show more')",
+            "button:has-text('Load more')",
+            "button[aria-label='Voir plus']",
+            "button[aria-label='Show more']",
+            "button[data-control-name='infinite_scroll_show_more']",
+            ".infinite-scroller__show-more-button",
+            "button.artdeco-button--primary",
+        ]
+        
+        clicked = False
+        for btn_selector in load_more_selectors:
+            try:
+                btn = page.query_selector(btn_selector)
+                if btn and btn.is_visible():
+                    btn.click()
+                    logger.info(f"[{source_name}] Clicked load more button: {btn_selector}")
+                    time.sleep(2)
+                    clicked = True
+                    break
+            except:
+                continue
+        
+        if not clicked and scroll == 0:
+            # If no button found and first scroll, try pagination
+            try:
+                next_btn = page.query_selector("button[aria-label='Suivant'], button[aria-label='Next']")
+                if next_btn and next_btn.is_visible():
+                    next_btn.click()
+                    logger.info(f"[{source_name}] Clicked next page button")
+                    time.sleep(3)
+            except:
+                pass
 
     return jobs[:limit]
 
@@ -324,8 +424,8 @@ def scrape_simplyhired_playwright(job_title: str, location: str = "France", limi
     return jobs[:limit]
 
 
-def scrape_linkedin_playwright(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
-    """Scrape LinkedIn jobs using Playwright."""
+def scrape_linkedin_playwright(job_title: str, location: str = "France", limit: int = 10, auto_scroll: bool = True) -> List[dict]:
+    """Scrape LinkedIn jobs using Playwright with auto-scroll to load more jobs."""
     if not PLAYWRIGHT_AVAILABLE:
         return []
 
@@ -333,6 +433,7 @@ def scrape_linkedin_playwright(job_title: str, location: str = "France", limit: 
     query = urllib.parse.quote(clean_title)
     loc = urllib.parse.quote(location)
     jobs = []
+    seen_links = set()
 
     with sync_playwright() as p:
         browser, context = _get_browser_context(p)
@@ -352,19 +453,22 @@ def scrape_linkedin_playwright(job_title: str, location: str = "France", limit: 
                         for item in data.get("itemListElement", []):
                             job = item.get("item", {})
                             if job.get("title"):
-                                jobs.append({
-                                    "titre": job.get("title"),
-                                    "entreprise": job.get("hiringOrganization", {}).get("name", "Non précisé"),
-                                    "lien": job.get("url", "#"),
-                                    "location": job.get("jobLocation", {}).get("address", {}).get("addressLocality", location),
-                                    "date": "",
-                                    "source": "LinkedIn",
-                                })
+                                link = job.get("url", "#")
+                                if link not in seen_links:
+                                    seen_links.add(link)
+                                    jobs.append({
+                                        "titre": job.get("title"),
+                                        "entreprise": job.get("hiringOrganization", {}).get("name", "Non précisé"),
+                                        "lien": link,
+                                        "location": job.get("jobLocation", {}).get("address", {}).get("addressLocality", location),
+                                        "date": "",
+                                        "source": "LinkedIn",
+                                    })
                 except:
                     pass
 
-            # Fallback to card scraping
-            if not jobs:
+            # Fallback to card scraping with auto-scroll
+            if not jobs or auto_scroll:
                 selectors = {
                     "card": "li[data-occludable-job-id], .job-search-card, .base-card",
                     "alt_cards": ["div[class*='job-card']", "a[href*='/jobs/view']"],
@@ -374,7 +478,11 @@ def scrape_linkedin_playwright(job_title: str, location: str = "France", limit: 
                     "link": "a.base-card__full-link",
                     "base_url": "https://www.linkedin.com",
                 }
-                jobs = _extract_jobs_from_page(page, "LinkedIn", selectors, limit)
+                
+                if auto_scroll:
+                    jobs = _extract_jobs_with_scroll(page, "LinkedIn", selectors, limit, seen_links)
+                else:
+                    jobs = _extract_jobs_from_page(page, "LinkedIn", selectors, limit)
 
             logger.info(f"[LinkedIn-PW] Extracted {len(jobs)} jobs")
 

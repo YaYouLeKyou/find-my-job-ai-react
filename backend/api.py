@@ -2,6 +2,7 @@ import os
 import re
 import json
 import sys
+import asyncio
 import urllib.parse
 import logging
 import time
@@ -10,6 +11,7 @@ import concurrent.futures
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Body, Request
+from fastapi.responses import JSONResponse, StreamingResponse
 
 # Ensure the parent directory is in sys.path so 'shared' module is found
 # This is needed because Railway starts the app from /app/backend/ but shared/ is at /app/shared/
@@ -19,10 +21,6 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import PyPDF2
 from groq import Groq
-try:
-    import google.genai as genai
-except ImportError:
-    import google.generativeai as genai
 import requests
 from bs4 import BeautifulSoup
 from jobspy import scrape_jobs
@@ -38,6 +36,13 @@ from ai_modules.playwright_worker import get_playwright_worker
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+try:
+    import google.generativeai as genai
+    logger.info("Google Generative AI SDK loaded")
+except ImportError:
+    import google.genai as genai
+    logger.info("Google Gen AI SDK loaded")
+
 # Import AI modules for enhanced scraping
 try:
     from ai_modules.data_extraction import extract_job_data
@@ -49,6 +54,73 @@ try:
 except ImportError as e:
     AI_MODULES_AVAILABLE = False
     logger.warning(f"⚠️ AI modules not available: {e}")
+
+# Translation mapping for international sources
+TRANSLATE_MAP = {
+    "développeur": "developer",
+    "ingénieur": "engineer",
+    "data scientist": "data scientist",
+    "chef de projet": "project manager",
+    "marketing": "marketing",
+    "commercial": "sales",
+    "finance": "finance",
+    "comptabilité": "accounting",
+    "ressources humaines": "human resources",
+    "cybersécurité": "cybersecurity",
+    "full stack": "full stack",
+    "devops": "devops",
+    "ia": "ai",
+    "intelligence artificielle": "artificial intelligence",
+    "machine learning": "machine learning",
+    "cloud": "cloud",
+    "système": "system",
+    "réseau": "network",
+    "support": "support",
+    "consultant": "consultant",
+    "analyste": "analyst",
+    "architecte": "architect",
+    "lead": "lead",
+    "senior": "senior",
+    "junior": "junior",
+    "alternance": "apprenticeship",
+    "stage": "internship",
+    "cdi": "permanent",
+    "cdd": "fixed-term",
+}
+
+def translate_query_fr_to_en(query: str) -> str:
+    """Translate French job query to English for international sources."""
+    if not query:
+        return query
+    q = query.lower()
+    # Replace French terms with English equivalents
+    for fr, en in TRANSLATE_MAP.items():
+        q = q.replace(fr, en)
+    # Clean up extra spaces
+    q = " ".join(q.split())
+    return q.strip()
+
+def get_source_timeout(source: str) -> float:
+    """Return timeout in seconds based on source type."""
+    fast_sources = {"France Travail", "LinkedIn", "jobspy", "enhanced"}
+    remote_sources = {"Google Jobs", "Adzuna", "Remotive", "RemoteOK"}
+    if source in fast_sources:
+        return 2.5
+    elif source in remote_sources:
+        return 3.5
+    return 3.0
+
+def log_source_diagnostic(source: str, status: str, detail: str = ""):
+    """Log diagnostic for source execution."""
+    status_map = {
+        "timeout": "[TIMEOUT]",
+        "auth_error": "[AUTH_ERROR]",
+        "empty": "[EMPTY]",
+        "success": "[OK]",
+        "error": "[ERROR]",
+    }
+    prefix = status_map.get(status, "[INFO]")
+    logger.info(f"{prefix} {source}: {detail}")
 
 # Import Playwright scrapers (for JS-rendered sites that block requests-based scraping)
 try:
@@ -107,11 +179,12 @@ except Exception as e:
 # Initialize Search Coordinator with optimized settings
 search_coordinator = SearchCoordinator(
     redis_client=redis_client,
-    timeout_per_source=8,  # 8s timeout (balanced between speed and results)
+    timeout_per_source=90,  # 90s timeout for Playwright scrapers with auto-scroll
     cache_ttl=86400,  # 24 hours
-    enable_fallback=True,
-    max_fallback_attempts=2  # Reduced from 3 to 2
+    enable_fallback=False,  # Disable fallback
+    max_fallback_attempts=0
 )
+logger.info("✅ Search Coordinator initialized with fallback and caching")
 logger.info("✅ Search Coordinator initialized with fallback and caching")
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -246,6 +319,52 @@ def get_random_headers():
     import random
     return random.choice(SCRAPE_HEADERS)
 
+# ─── Viability Filter ────────────────────────────────────────────────────────
+def filter_viable_jobs(jobs: List[dict], max_age_days: int = 45) -> List[dict]:
+    """
+    Filter out non-viable job offers based on quality heuristics.
+    Keeps only jobs that are recent, complete, and likely actionable.
+    """
+    from datetime import datetime, timedelta
+
+    viable = []
+    now = datetime.now()
+    cutoff = now - timedelta(days=max_age_days)
+
+    for job in jobs:
+        title = (job.get("title") or job.get("titre") or "").strip()
+        company = (job.get("company") or job.get("entreprise") or "").strip()
+        link = (job.get("link") or job.get("url") or job.get("lien") or "").strip()
+        date_str = (job.get("date") or "").strip()
+
+        if not title or len(title) < 2 or title.lower() in {"n/a", "non renseigné", "indéfini"}:
+            continue
+
+        if not company or len(company) < 2 or company.lower() in {"n/a", "non renseigné", "indéfini"}:
+            continue
+
+        if not link or not link.startswith("http"):
+            continue
+
+        if date_str:
+            try:
+                job_date = None
+                date_str_clean = date_str.strip()
+                for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+                    try:
+                        job_date = datetime.strptime(date_str_clean, fmt)
+                        break
+                    except Exception:
+                        continue
+                if job_date and job_date < cutoff:
+                    continue
+            except Exception:
+                pass
+
+        viable.append(job)
+
+    return viable
+
 # ─── Web Scrapers for each source ───────────────────────────────────────────
 
 def scrape_indeed(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
@@ -260,7 +379,7 @@ def scrape_indeed(job_title: str, location: str = "France", limit: int = 10) -> 
             f"https://www.indeed.com/jobs?q={query}&l={urllib.parse.quote(location)}&limit={limit}"
         ]
         for url in urls:
-            response = requests.get(url, headers=get_random_headers(), timeout=10)
+            response = requests.get(url, headers=get_random_headers(), timeout=3)
             if response.status_code != 200:
                 continue
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -304,7 +423,7 @@ def scrape_linkedin(job_title: str, location: str = "France", limit: int = 10) -
     jobs = []
     try:
         url = f"https://www.linkedin.com/jobs/search/?keywords={query}&location={loc}"
-        response = requests.get(url, headers=get_random_headers(), timeout=10)
+        response = requests.get(url, headers=get_random_headers(), timeout=3)
         if response.status_code != 200:
             return jobs
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -362,7 +481,7 @@ def scrape_monster(job_title: str, location: str = "France", limit: int = 10) ->
             f"https://www.monster.com/jobs/search?q={query}&where={urllib.parse.quote(location)}"
         ]
         for url in urls:
-            response = requests.get(url, headers=get_random_headers(), timeout=10)
+            response = requests.get(url, headers=get_random_headers(), timeout=3)
             if response.status_code != 200:
                 continue
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -399,7 +518,7 @@ def scrape_careerbuilder(job_title: str, location: str = "France", limit: int = 
     jobs = []
     try:
         url = f"https://www.careerbuilder.com/jobs?q={query}&location={urllib.parse.quote(location)}"
-        response = requests.get(url, headers=get_random_headers(), timeout=10)
+        response = requests.get(url, headers=get_random_headers(), timeout=3)
         if response.status_code != 200:
             return jobs
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -434,7 +553,7 @@ def scrape_simplyhired(job_title: str, location: str = "France", limit: int = 10
     jobs = []
     try:
         url = f"https://www.simplyhired.com/search?q={query}&l={urllib.parse.quote(location)}"
-        response = requests.get(url, headers=get_random_headers(), timeout=10)
+        response = requests.get(url, headers=get_random_headers(), timeout=3)
         if response.status_code != 200:
             return jobs
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -480,7 +599,7 @@ def scrape_france_travail_jobs(job_title: str, limit: int = 10) -> List[dict]:
             response = None
             for url in urls:
                 try:
-                    response = requests.get(url, headers=headers, timeout=10)
+                    response = requests.get(url, headers=headers, timeout=3)
                     if response.status_code == 200:
                         break
                 except:
@@ -545,7 +664,7 @@ def get_france_travail_token() -> Optional[str]:
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     try:
-        response = requests.post(auth_url, data=data, headers=headers, timeout=10)
+        response = requests.post(auth_url, data=data, headers=headers, timeout=3)
         if response.status_code != 200:
             logger.error(f"France Travail auth failed: HTTP {response.status_code} - {response.text[:200]}")
             return None
@@ -571,7 +690,7 @@ def get_france_travail_jobs_api(job_title: str, limit: int = 10) -> List[dict]:
         }
         try:
             logger.info(f"France Travail API: range={page}-{page+9}")
-            response = requests.get(search_url, headers=headers, params=params, timeout=10)
+            response = requests.get(search_url, headers=headers, params=params, timeout=3)
             logger.info(f"France Travail API: HTTP {response.status_code}")
             
             if response.status_code == 204:
@@ -673,7 +792,7 @@ def get_adzuna_jobs(job_title: str, location: str = "France", limit: int = 10) -
         }
         try:
             logger.info(f"Adzuna: page {page} - what={job_title!r}, where={location!r}")
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get(url, params=params, timeout=3)
             logger.info(f"Adzuna: page {page} - HTTP {response.status_code}")
             
             if response.status_code == 401:
@@ -747,7 +866,7 @@ def get_serpapi_jobs(job_title: str, location: str = "France", limit: int = 10) 
         }
         try:
             logger.info(f"SerpApi: query={query!r}")
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get(url, params=params, timeout=3)
             logger.info(f"SerpApi: HTTP {response.status_code}")
             
             if response.status_code == 401:
@@ -791,7 +910,7 @@ def get_serpapi_jobs(job_title: str, location: str = "France", limit: int = 10) 
     return [{
         "titre": res.get("title"),
         "entreprise": res.get("company_name", "N/C"),
-        "lien": res.get("related_links", [{}])[0].get("link") if res.get("related_links") else "#",
+        "lien": res.get("apply_options", [{}])[0].get("link") if res.get("apply_options") else (res.get("source_link") or "#"),
         "date": res.get("detected_extensions", {}).get("posted_at", ""),
         "location": res.get("location", ""),
         "source": "Google Jobs"
@@ -804,7 +923,7 @@ def get_jooble_jobs(job_title: str, location: str = "France", limit: int = 10) -
     url = f"https://jooble.org/api/{jooble_api_key}"
     try:
         logger.info(f"Jooble: appel API keywords={job_title!r}, location={location!r}")
-        response = requests.post(url, json={"keywords": job_title, "location": location}, timeout=10)
+        response = requests.post(url, json={"keywords": job_title, "location": location}, timeout=3)
         logger.info(f"Jooble: HTTP {response.status_code}")
         
         if response.status_code == 401:
@@ -842,7 +961,7 @@ def scrape_malt(job_title: str, limit: int = 10) -> List[dict]:
     jobs = []
     try:
         url = f"https://www.malt.fr/s?q={query}"
-        response = requests.get(url, headers=get_random_headers(), timeout=10)
+        response = requests.get(url, headers=get_random_headers(), timeout=3)
         if response.status_code != 200:
             return jobs
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -877,7 +996,7 @@ def scrape_upwork(job_title: str, limit: int = 10) -> List[dict]:
     jobs = []
     try:
         url = f"https://www.upwork.com/search/jobs/?q={query}"
-        response = requests.get(url, headers=get_random_headers(), timeout=10)
+        response = requests.get(url, headers=get_random_headers(), timeout=3)
         if response.status_code != 200:
             return jobs
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -912,7 +1031,7 @@ def scrape_codeur(job_title: str, limit: int = 10) -> List[dict]:
     jobs = []
     try:
         url = f"https://www.codeur.com/projects?search={query}"
-        response = requests.get(url, headers=get_random_headers(), timeout=10)
+        response = requests.get(url, headers=get_random_headers(), timeout=3)
         if response.status_code != 200:
             return jobs
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -947,7 +1066,7 @@ def scrape_freelance_informatique(job_title: str, limit: int = 10) -> List[dict]
     jobs = []
     try:
         url = f"https://www.freelance-informatique.fr/offres?q={query}"
-        response = requests.get(url, headers=get_random_headers(), timeout=10)
+        response = requests.get(url, headers=get_random_headers(), timeout=3)
         if response.status_code != 200:
             return jobs
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -979,7 +1098,7 @@ def scrape_cremedelacreme(job_title: str, limit: int = 10) -> List[dict]:
     jobs = []
     try:
         url = f"https://cremedelacreme.io/fr/missions?query={query}"
-        response = requests.get(url, headers=get_random_headers(), timeout=10)
+        response = requests.get(url, headers=get_random_headers(), timeout=3)
         if response.status_code != 200:
             return jobs
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -1250,6 +1369,225 @@ async def api_analyze_cv(
         logger.error(f"Unexpected error in api_analyze_cv: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+def _build_source_registry(req: JobSearchRequest) -> Dict[str, Any]:
+    source_registry = {}
+    stable_sources = {
+        "LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Remotive", "RemoteOK"
+    }
+    selected_stable = [s for s in req.selected_sources if s in stable_sources]
+    blocked_sources = [s for s in req.selected_sources if s not in stable_sources]
+    if blocked_sources:
+        logger.info(f"Sources désactivées temporairement: {blocked_sources}")
+
+    if "LinkedIn" in selected_stable:
+        if PLAYWRIGHT_AVAILABLE:
+            source_registry['LinkedIn'] = scrape_linkedin_playwright
+        else:
+            source_registry['LinkedIn'] = scrape_linkedin
+
+    if "France Travail" in selected_stable:
+        ft_client = get_france_travail_client()
+        if ft_client:
+            source_registry['France Travail'] = lambda q, l, n: ft_client.search_jobs(
+                query=q,
+                location=l,
+                limit=n,
+                contract_type=req.contract if req.contract else "",
+                remote_only=req.remote
+            )
+
+    if "Google Jobs" in selected_stable:
+        source_registry['Google Jobs'] = get_serpapi_jobs
+
+    if "Adzuna" in selected_stable:
+        source_registry['Adzuna'] = get_adzuna_jobs
+
+    remote_sources = [s for s in selected_stable if s in {"Remotive", "RemoteOK"}]
+    if remote_sources:
+        for remote_source in remote_sources:
+            if remote_source == "Remotive":
+                source_registry['Remotive'] = lambda q, l, n: search_all_free_sources(q, l, n, ["Remotive"])
+            elif remote_source == "RemoteOK":
+                source_registry['RemoteOK'] = lambda q, l, n: search_all_free_sources(q, l, n, ["RemoteOK"])
+
+    return source_registry
+
+@app.post("/api/search-jobs-stream")
+@limiter.limit("5/minute")
+async def api_search_jobs_stream(request: Request, req: JobSearchRequest):
+    async def event_generator():
+        try:
+            logger.info("SSE: event_generator started")
+            source_registry = _build_source_registry(req)
+            total_sources = len(source_registry)
+            logger.info(f"SSE: built registry with {total_sources} sources")
+
+            yield f"data: {json.dumps({'type': 'STARTED', 'query': req.query, 'total_sources': total_sources})}\n\n"
+            await asyncio.sleep(0)
+
+            if total_sources == 0:
+                logger.warning("SSE: no sources to execute")
+                yield f"data: {json.dumps({'type': 'COMPLETED', 'jobs': [], 'source_status': {}, 'progress': 100})}\n\n"
+                return
+
+            completed = 0
+            all_results = []
+            source_results = {}
+            tasks = {}
+
+            for source_name, source_fn in source_registry.items():
+                try:
+                    logger.info(f"SSE: submitting {source_name}")
+                    tasks[source_name] = asyncio.create_task(
+                        asyncio.to_thread(source_fn, req.query, req.location, req.num_ads)
+                    )
+                except Exception as e:
+                    logger.error(f"SSE: failed to submit {source_name}: {e}", exc_info=True)
+                    source_results[source_name] = {
+                        "source_name": source_name,
+                        "jobs": [],
+                        "success": False,
+                        "error": f"Submission error: {str(e)}",
+                    }
+                    completed += 1
+                    progress = int((completed / max(total_sources, 1)) * 100)
+                    yield f"data: {json.dumps({'type': 'PROGRESS', 'progress': progress, 'source': source_name, 'status': 'error', 'jobs': []})}\n\n"
+
+            for coro in asyncio.as_completed(tasks.values()):
+                source_name = next(name for name, task in tasks.items() if task == coro)
+                try:
+                    jobs = await asyncio.wait_for(coro, timeout=get_source_timeout(source_name))
+                    source_results[source_name] = {
+                        "source_name": source_name,
+                        "jobs": jobs,
+                        "success": True,
+                    }
+                    all_results.extend(jobs)
+                    log_source_diagnostic(source_name, "success", f"{len(jobs)} jobs")
+                except Exception as e:
+                    error_msg = str(e)
+                    logger.error(f"SSE: ❌ {source_name} failed: {e}", exc_info=True)
+                    source_results[source_name] = {
+                        "source_name": source_name,
+                        "jobs": [],
+                        "success": False,
+                        "error": error_msg[:100],
+                    }
+                    if "timeout" in error_msg.lower():
+                        log_source_diagnostic(source_name, "timeout", f">{get_source_timeout(source_name)}s")
+                    elif "401" in error_msg or "403" in error_msg:
+                        log_source_diagnostic(source_name, "auth_error", error_msg[:100])
+                    else:
+                        log_source_diagnostic(source_name, "error", error_msg[:100])
+                finally:
+                    completed += 1
+                    progress = int((completed / max(total_sources, 1)) * 100)
+                    jobs = source_results.get(source_name, {}).get("jobs", [])
+                    yield f"data: {json.dumps({'type': 'PROGRESS', 'progress': progress, 'source': source_name, 'status': 'completed' if source_results.get(source_name, {}).get('success') else 'error', 'jobs': jobs})}\n\n"
+
+            logger.info(f"SSE: completed, {len(all_results)} jobs collected. Running AI scoring pipeline...")
+
+            # ─── AI SCORING PIPELINE WITH MD5 CACHE ─────────────────────
+            scored_results = all_results
+            if all_results and req.cv_data:
+                try:
+                    # Compute MD5 hashes for each job and check cache
+                    cache_hits = 0
+                    uncached_jobs = []
+                    uncached_hashes = []
+
+                    for job in all_results:
+                        job_key = json.dumps({
+                            "title": job.get("title", "") or job.get("titre", ""),
+                            "company": job.get("company", "") or job.get("entreprise", ""),
+                            "link": job.get("link", "") or job.get("lien", ""),
+                        }, sort_keys=True)
+                        job_hash = hashlib.md5(job_key.encode()).hexdigest()
+                        cache_key = f"job_score:{job_hash}"
+
+                        if REDIS_AVAILABLE and redis_client:
+                            try:
+                                cached_score = redis_client.get(cache_key)
+                                if cached_score is not None:
+                                    job["match_score"] = float(cached_score)
+                                    job["score_cached"] = True
+                                    cache_hits += 1
+                                    continue
+                            except Exception as e:
+                                logger.warning(f"SSE: Redis cache read error for {cache_key}: {e}")
+
+                        uncached_jobs.append(job)
+                        uncached_hashes.append((job, job_hash, cache_key))
+
+                    logger.info(f"SSE: AI scoring — {cache_hits} cache hits, {len(uncached_jobs)} uncached jobs")
+
+                    if uncached_jobs:
+                        # Run batch scoring in a thread to avoid blocking the event loop
+                        scored_batch = await asyncio.to_thread(
+                            rank_jobs_with_ai,
+                            req.cv_data,
+                            uncached_jobs,
+                            {"contrat": req.contract, "remote": req.remote},
+                            req.ranking_engine,
+                            req.custom_gemini_key,
+                        )
+
+                        # Store scores in Redis cache and attach to results
+                        for i, scored_job in enumerate(scored_batch):
+                            match_score = scored_job.get("match_score", 0)
+                            _, job_hash, cache_key = uncached_hashes[i] if i < len(uncached_hashes) else (None, None, None)
+                            if job_hash and REDIS_AVAILABLE and redis_client:
+                                try:
+                                    redis_client.setex(cache_key, 86400, str(match_score))
+                                except Exception as e:
+                                    logger.warning(f"SSE: Redis cache write error for {cache_key}: {e}")
+
+                        # Merge scored jobs back into all_results
+                        scored_map = {}
+                        for scored_job in scored_batch:
+                            key = json.dumps({
+                                "title": scored_job.get("title", "") or scored_job.get("titre", ""),
+                                "company": scored_job.get("company", "") or scored_job.get("entreprise", ""),
+                                "link": scored_job.get("link", "") or scored_job.get("lien", ""),
+                            }, sort_keys=True)
+                            scored_map[hashlib.md5(key.encode()).hexdigest()] = scored_job
+
+                        for job in all_results:
+                            job_key = json.dumps({
+                                "title": job.get("title", "") or job.get("titre", ""),
+                                "company": job.get("company", "") or job.get("entreprise", ""),
+                                "link": job.get("link", "") or job.get("lien", ""),
+                            }, sort_keys=True)
+                            job_hash = hashlib.md5(job_key.encode()).hexdigest()
+                            if job_hash in scored_map:
+                                scored_job = scored_map[job_hash]
+                                job["match_score"] = scored_job.get("match_score", job.get("match_score", 0))
+                                job["quality_score"] = scored_job.get("quality_score", job.get("quality_score", 0))
+                                job["score_cached"] = False
+
+                    scored_results = all_results
+                    logger.info(f"SSE: AI scoring pipeline completed")
+
+                except Exception as scoring_err:
+                    logger.exception("SSE: AI scoring pipeline failed")
+                    # Continue without scoring — return unscored results
+
+            yield f"data: {json.dumps({'type': 'SCORES_UPDATED', 'jobs': scored_results, 'progress': 100})}\n\n"
+            yield f"data: {json.dumps({'type': 'COMPLETED', 'jobs': scored_results, 'source_status': source_results, 'progress': 100})}\n\n"
+        except Exception as e:
+            logger.exception("SSE: global generator error")
+            yield f"data: {json.dumps({'type': 'ERROR', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
 @app.post("/api/search-jobs")
 @limiter.limit("20/minute")  # Max 20 searches per minute per IP
 def api_search_jobs(request: Request, req: JobSearchRequest):
@@ -1262,75 +1600,50 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
     # Build source registry from available scrapers
     source_registry = {}
     
-    # Add JobSpy sources
-    js_sites = ["Indeed", "LinkedIn", "Google Jobs", "Glassdoor", "ZipRecruiter", "Simplyhired", "Careerbuilder", "Monster"]
-    selected_for_jobspy = [s for s in req.selected_sources if s in js_sites]
-    if selected_for_jobspy:
-        source_registry['jobspy'] = lambda q, l, n: chercher_offres_jobspy(q, l, n, selected_for_jobspy)
+    stable_sources = {
+        "LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Remotive", "RemoteOK"
+    }
+    selected_stable = [s for s in req.selected_sources if s in stable_sources]
+    blocked_sources = [s for s in req.selected_sources if s not in stable_sources]
+    if blocked_sources:
+        logger.info(f"Sources désactivées temporairement: {blocked_sources}")
     
-    # Add API sources
-    if "Adzuna" in req.selected_sources:
-        source_registry['Adzuna'] = get_adzuna_jobs
-    if "Google Jobs" in req.selected_sources:
-        source_registry['Google Jobs'] = get_serpapi_jobs
-    if "Jooble" in req.selected_sources:
-        source_registry['Jooble'] = get_jooble_jobs
-    
-    # Add web scrapers - prefer Playwright versions when available
-    if "Indeed" in req.selected_sources:
-        if PLAYWRIGHT_AVAILABLE:
-            source_registry['Indeed'] = scrape_indeed_playwright
-            logger.info("   Using Playwright for Indeed")
-        else:
-            source_registry['Indeed'] = scrape_indeed
-    if "LinkedIn" in req.selected_sources:
+    # LinkedIn
+    if "LinkedIn" in selected_stable:
         if PLAYWRIGHT_AVAILABLE:
             source_registry['LinkedIn'] = scrape_linkedin_playwright
             logger.info("   Using Playwright for LinkedIn")
         else:
             source_registry['LinkedIn'] = scrape_linkedin
-    if "Simplyhired" in req.selected_sources:
-        if PLAYWRIGHT_AVAILABLE:
-            source_registry['Simplyhired'] = scrape_simplyhired_playwright
-            logger.info("   Using Playwright for Simplyhired")
-        else:
-            source_registry['Simplyhired'] = scrape_simplyhired
-    if "Careerbuilder" in req.selected_sources:
-        if PLAYWRIGHT_AVAILABLE:
-            source_registry['Careerbuilder'] = scrape_careerbuilder_playwright
-            logger.info("   Using Playwright for Careerbuilder")
-        else:
-            source_registry['Careerbuilder'] = scrape_careerbuilder
-    if "Monster" in req.selected_sources:
-        if PLAYWRIGHT_AVAILABLE:
-            source_registry['Monster'] = scrape_monster_playwright
-            logger.info("   Using Playwright for Monster")
-        else:
-            source_registry['Monster'] = scrape_monster
-    if "Jooble" in req.selected_sources:
-        if PLAYWRIGHT_AVAILABLE:
-            source_registry['Jooble'] = scrape_jooble_playwright
-            logger.info("   Using Playwright for Jooble")
-        else:
-            source_registry['Jooble'] = get_jooble_jobs
     
-    # Add enhanced scrapers (France Travail RSS, Welcome to the Jungle, etc.)
-    enhanced_sources = ["Indeed", "LinkedIn", "Simplyhired", "Careerbuilder", 
-                        "France Travail", "Google Jobs", "Remotive", "RemoteOK",
-                        "Welcome to the Jungle", "HelloWork", "Emploi Public",
-                        "Reed", "StepStone", "Xing", "InfoJobs", "Dice",
-                        "Naukri", "Bayt", "Seek",
-                        "RégionsJob", "ChooseYourBoss", "LesJeudis", "Talent.io",
-                        "Jobijoba", "Glassdoor", "ZipRecruiter",
-                        "Freelance.com", "Malt"]
-    enhanced_needed = [s for s in req.selected_sources if s in enhanced_sources]
-    if enhanced_needed:
-        source_registry['enhanced'] = lambda q, l, n: search_all_free_sources(q, l, n, enhanced_needed)
+    # France Travail official API
+    if "France Travail" in selected_stable:
+        ft_client = get_france_travail_client()
+        if ft_client:
+            source_registry['France Travail'] = lambda q, l, n: ft_client.search_jobs(
+                query=q,
+                location=l,
+                limit=n,
+                contract_type=req.contract if req.contract else "",
+                remote_only=req.remote
+            )
     
-    # Add French sources with Playwright (prefer Playwright over basic scrapers)
-    if "Welcome to the Jungle" in req.selected_sources and "Welcome to the Jungle" not in source_registry:
-        source_registry['Welcome to the Jungle'] = scrape_welcometothejungle
-        logger.info("   Using Playwright for Welcome to the Jungle")
+    # Google Jobs via SerpApi
+    if "Google Jobs" in selected_stable:
+        source_registry['Google Jobs'] = get_serpapi_jobs
+    
+    # Adzuna API
+    if "Adzuna" in selected_stable:
+        source_registry['Adzuna'] = get_adzuna_jobs
+    
+    # Remote job boards (free APIs)
+    remote_sources = [s for s in selected_stable if s in {"Remotive", "RemoteOK"}]
+    if remote_sources:
+        for remote_source in remote_sources:
+            if remote_source == "Remotive":
+                source_registry['Remotive'] = lambda q, l, n: search_all_free_sources(q, l, n, ["Remotive"])
+            elif remote_source == "RemoteOK":
+                source_registry['RemoteOK'] = lambda q, l, n: search_all_free_sources(q, l, n, ["RemoteOK"])
     if "HelloWork" in req.selected_sources and "HelloWork" not in source_registry:
         source_registry['HelloWork'] = scrape_hellowork
         logger.info("   Using Playwright for HelloWork")
@@ -1353,31 +1666,6 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
         source_registry['LesJeudis'] = scrape_lesjeudis
         logger.info("   Using Playwright for LesJeudis")
     
-    # Add freelance sources
-    if req.is_freelance:
-        if "Malt" in req.selected_sources:
-            source_registry['Malt'] = scrape_malt
-        if "Upwork" in req.selected_sources:
-            source_registry['Upwork'] = scrape_upwork
-        if "Codeur.com" in req.selected_sources:
-            source_registry['Codeur.com'] = scrape_codeur
-        if "FreelanceInformatique" in req.selected_sources or "Freelance Informatique" in req.selected_sources:
-            source_registry['FreelanceInformatique'] = scrape_freelance_informatique
-        if "CrèmeDeLaCrème" in req.selected_sources or "Crème de la Crème" in req.selected_sources:
-            source_registry['CrèmeDeLaCrème'] = scrape_cremedelacreme
-    
-    # Add France Travail official API
-    if "France Travail" in req.selected_sources:
-        ft_client = get_france_travail_client()
-        if ft_client:
-            source_registry['France Travail'] = lambda q, l, n: ft_client.search_jobs(
-                query=q,
-                location=l,
-                limit=n,
-                contract_type=req.contract if req.contract else "",
-                remote_only=req.remote
-            )
-    
     # Create search configuration
     search_config = SearchConfig(
         query=req.query,
@@ -1391,36 +1679,90 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
         tjm_max=req.tjm_max
     )
     
-    # Execute search with coordinator
-    try:
-        all_results, source_results = search_coordinator.search(search_config, source_registry)
-    except Exception as e:
-        logger.error(f"Search coordinator failed: {e}", exc_info=True)
-        # Fallback to empty results
-        all_results = []
-        source_results = {}
+    # Execute search in parallel with strict 3s timeout per source
+    logger.info(f"Starting search with {len(source_registry)} sources")
+    all_results = []
+    source_results = {}
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(source_registry) or 1)) as executor:
+        future_to_source = {}
+        for source_name, source_fn in source_registry.items():
+            try:
+                future = executor.submit(source_fn, req.query, req.location, req.num_ads)
+                future_to_source[future] = source_name
+            except Exception as e:
+                logger.error(f"Failed to submit {source_name}: {e}")
+                source_results[source_name] = {
+                    "source_name": source_name,
+                    "jobs": [],
+                    "success": False,
+                    "error": f"Submission error: {str(e)}",
+                    "execution_time": 0
+                }
+        
+        for future in concurrent.futures.as_completed(future_to_source):
+            source_name = future_to_source[future]
+            try:
+                jobs = future.result(timeout=3)
+                source_results[source_name] = {
+                    "source_name": source_name,
+                    "jobs": jobs,
+                    "success": True,
+                    "execution_time": 0
+                }
+                all_results.extend(jobs)
+                logger.info(f"✅ {source_name}: {len(jobs)} jobs")
+            except Exception as e:
+                logger.error(f"❌ {source_name} failed: {e}")
+                source_results[source_name] = {
+                    "source_name": source_name,
+                    "jobs": [],
+                    "success": False,
+                    "error": str(e)[:100],
+                    "execution_time": 0
+                }
+    
+    logger.info(f"Search complete: {len(all_results)} jobs from {len(source_results)} sources")
     
     # Collect source statistics
     source_status = {}
+    stable_sources = {"LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Remotive", "RemoteOK", "enhanced", "jobspy"}
+    internal_wrappers = {"remote"}
+    
     for source_name, result in source_results.items():
-        if result.success:
+        # Skip only true internal wrappers from UI reporting
+        if source_name in internal_wrappers:
+            continue
+            
+        if isinstance(result, dict):
+            success = result.get("success", False)
+            jobs = result.get("jobs", [])
+            error = result.get("error", "")
+            execution_time = result.get("execution_time", 0)
+        else:
+            success = result.success
+            jobs = result.jobs
+            error = result.error or ""
+            execution_time = result.execution_time
+            
+        if success:
             source_status[source_name] = {
-                "status": "success" if result.jobs else "no_results",
-                "count": len(result.jobs),
-                "error": "" if result.jobs else "Aucun résultat",
-                "execution_time": result.execution_time
+                "status": "success" if jobs else "no_results",
+                "count": len(jobs),
+                "error": "" if jobs else "Aucun résultat",
+                "execution_time": execution_time
             }
         else:
             source_status[source_name] = {
                 "status": "error",
                 "count": 0,
-                "error": result.error or "Erreur inconnue",
-                "execution_time": result.execution_time
+                "error": error or "Erreur inconnue",
+                "execution_time": execution_time
             }
     
-    # Add sources that weren't executed
+    # Add only stable sources that weren't executed
     for source_name in req.selected_sources:
-        if source_name not in source_status:
+        if source_name in stable_sources and source_name not in source_status and source_name not in internal_wrappers:
             source_status[source_name] = {
                 "status": "pending",
                 "count": 0,
@@ -1461,6 +1803,13 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
             if job.get('desc'): score += 10
             if job.get('date'): score += 10
             job['quality_score'] = min(score, 100)
+
+    # ─── VIABILITY FILTER ────────────────────────────────────────────────────
+    before_viability = len(all_results)
+    all_results = filter_viable_jobs(all_results)
+    viability_removed = before_viability - len(all_results)
+    if viability_removed > 0:
+        logger.info(f"🛡️ Viability filter: {before_viability} -> {len(all_results)} jobs (removed {viability_removed} non-viable)")
 
     # Sort results
     if req.sort_option in ["Plus récentes", "Most recent", "Más recientes", "Neueste", "الأحدث", "最新順", "最新发布"]:
@@ -1649,6 +1998,22 @@ Sois bienveillant mais professionnel."""
 def api_analyze_cv_shared(request: Request, req: CvAnalysisRequest):
     """Analyze CV from already extracted text (shared from frontend)."""
     raise HTTPException(status_code=501, detail="Not implemented yet. Use file upload endpoint.")
+
+@app.delete("/api/clear-cache")
+async def api_clear_cache(request: Request):
+    """Clear all Redis cache entries."""
+    if not REDIS_AVAILABLE or not redis_client:
+        raise HTTPException(status_code=503, detail="Cache service not available")
+    try:
+        keys = redis_client.keys("job_search:*")
+        keys += redis_client.keys("job_score:*")
+        if keys:
+            redis_client.delete(*keys)
+        logger.info(f"Cache cleared: {len(keys)} keys removed")
+        return {"status": "ok", "cleared": len(keys)}
+    except Exception as e:
+        logger.error(f"Error clearing cache: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
