@@ -618,7 +618,7 @@ def chercher_offres_jobspy(job_title: str, location: str = "Paris, France", limi
 
 def get_adzuna_jobs(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
     if not adzuna_app_id or not adzuna_app_key:
-        logger.warning("Adzuna: clés manquantes dans .env")
+        logger.warning("⚠️ Adzuna: clés manquantes dans .env (ADZUNA_APP_ID ou ADZUNA_APP_KEY)")
         return []
     url = f"https://api.adzuna.com/v1/api/jobs/fr/search/1"
     params = {
@@ -633,12 +633,21 @@ def get_adzuna_jobs(job_title: str, location: str = "France", limit: int = 10) -
         logger.info(f"Adzuna: appel API what={job_title!r}, where={location!r}")
         response = requests.get(url, params=params, timeout=15)
         logger.info(f"Adzuna: HTTP {response.status_code}")
-        if response.status_code != 200:
-            logger.error(f"Adzuna: erreur HTTP {response.status_code}: {response.text[:200]}")
+        if response.status_code == 401:
+            logger.error("❌ Adzuna: clé API invalide ou expirée (401 Unauthorized)")
+            return []
+        elif response.status_code == 403:
+            logger.error("❌ Adzuna: accès refusé - vérifiez vos clés API (403 Forbidden)")
+            return []
+        elif response.status_code == 429:
+            logger.error("❌ Adzuna: quota de requêtes dépassé (429 Too Many Requests)")
+            return []
+        elif response.status_code != 200:
+            logger.error(f"❌ Adzuna: erreur HTTP {response.status_code}: {response.text[:200]}")
             return []
         data = response.json()
         results = data.get("results", [])
-        logger.info(f"Adzuna: {len(results)} résultats bruts")
+        logger.info(f"✅ Adzuna: {len(results)} résultats bruts")
         return [{
             "titre": res.get("title"),
             "entreprise": res.get("company", {}).get("display_name", "N/C"),
@@ -648,12 +657,12 @@ def get_adzuna_jobs(job_title: str, location: str = "France", limit: int = 10) -
             "source": "Adzuna"
         } for res in results]
     except Exception as e:
-        logger.error(f"Adzuna API error: {e}")
+        logger.error(f"❌ Adzuna API error: {e}")
         return []
 
 def get_serpapi_jobs(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
     if not serpapi_key:
-        logger.warning("SerpApi: clé manquante dans .env")
+        logger.warning("⚠️ SerpApi: clé manquante dans .env (SERPAPI_KEY)")
         return []
     url = "https://serpapi.com/search"
     clean_location = location.split(',')[0].strip() if location else "France"
@@ -669,14 +678,23 @@ def get_serpapi_jobs(job_title: str, location: str = "France", limit: int = 10) 
         logger.info(f"SerpApi: appel API q={job_title!r}, location={clean_location!r}")
         response = requests.get(url, params=params, timeout=15)
         logger.info(f"SerpApi: HTTP {response.status_code}")
-        if response.status_code != 200:
-            logger.error(f"SerpApi: erreur HTTP {response.status_code}: {response.text[:200]}")
+        if response.status_code == 401:
+            logger.error("❌ SerpApi: clé API invalide ou expirée (401 Unauthorized)")
+            return []
+        elif response.status_code == 403:
+            logger.error("❌ SerpApi: accès refusé - vérifiez votre clé API (403 Forbidden)")
+            return []
+        elif response.status_code == 429:
+            logger.error("❌ SerpApi: quota de requêtes dépassé (429 Too Many Requests)")
+            return []
+        elif response.status_code != 200:
+            logger.error(f"❌ SerpApi: erreur HTTP {response.status_code}: {response.text[:200]}")
             return []
         data = response.json()
         results = data.get("jobs_results", [])
-        logger.info(f"SerpApi: {len(results)} résultats bruts")
+        logger.info(f"✅ SerpApi: {len(results)} résultats bruts")
         if not results:
-            logger.warning(f"SerpApi: 0 résultat pour {job_title!r}")
+            logger.warning(f"⚠️ SerpApi: 0 résultat pour {job_title!r}")
         return [{
             "titre": res.get("title"),
             "entreprise": res.get("company_name", "N/C"),
@@ -686,7 +704,7 @@ def get_serpapi_jobs(job_title: str, location: str = "France", limit: int = 10) 
             "source": "Google Jobs"
         } for res in results[:limit]]
     except Exception as e:
-        logger.error(f"SerpApi error: {e}")
+        logger.error(f"❌ SerpApi error: {e}")
         return []
 
 def get_jooble_jobs(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
