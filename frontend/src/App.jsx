@@ -33,7 +33,8 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   const [remote, setRemote] = useState(false);
   const [globalSearch, setGlobalSearch] = useState(false);
   const [selectedSources, setSelectedSources] = useState([
-    "LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Jooble"
+    "LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Jooble",
+    "Indeed", "Glassdoor", "ZipRecruiter", "Simplyhired", "Careerbuilder", "Monster"
   ]);
   const [excludedSources, setExcludedSources] = useState([]);
   const [dismissKeyPrompt, setDismissKeyPrompt] = useState(false);
@@ -128,6 +129,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
       const data = await response.json();
       const results = data.results || [];
       const sourceCounts = data.source_counts || {};
+      const sourceStatus = data.source_status || {};
       
       // ─── RAPPORT DÉTAILLÉ PAR SOURCE ─────────────────────────────────
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -169,7 +171,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
           const icon = blockerIcons[source] || '❌';
           
           // Get detailed error from source_status if available
-          const statusInfo = sourceCounts[source] || {};
+          const statusInfo = sourceStatus[source] || {};
           let reason = 'source indisponible ou bloquée';
           
           if (source === 'Adzuna') {
