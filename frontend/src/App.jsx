@@ -11,6 +11,7 @@ import MockInterview from './components/MockInterview';
 import AdComponent from './components/AdComponent';
 import SEO from './components/SEO';
 import HeaderButtons from './components/HeaderButtons';
+import SearchProgressBar from './components/SearchProgressBar';
 import { LANGS, STRINGS } from './utils/translations';
 import { Search, Loader2, RefreshCw, Key, ExternalLink, X, ArrowLeft } from 'lucide-react';
 
@@ -552,11 +553,17 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
           </div>
         )}
 
+        {/* Search Progress Bar */}
+        <SearchProgressBar 
+          isSearching={loadingJobs} 
+          totalSources={selectedSources.length} 
+          sourcesCompleted={Object.keys(sourceCounts).length}
+        />
+
         {/* Search Results */}
         {loadingJobs && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', padding: '40px 0' }}>
-            <Loader2 size={48} className="spin" style={{ animation: 'spin 1.5s linear infinite', color: 'var(--primary-color)' }} />
-            <span>Scan global des plateformes en cours...</span>
+            <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Scan global des plateformes en cours...</span>
             <AdComponent style={{ marginTop: '24px' }} />
           </div>
         )}
