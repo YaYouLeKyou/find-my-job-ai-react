@@ -52,7 +52,7 @@ except ImportError as e:
 
 # Import Playwright scrapers (for JS-rendered sites that block requests-based scraping)
 try:
-    from ai_modules.playwright_scraper import (
+from ai_modules.playwright_scraper import (
         scrape_indeed_playwright,
         scrape_monster_playwright,
         scrape_careerbuilder_playwright,
@@ -62,6 +62,10 @@ try:
         scrape_hellowork,
         scrape_apec,
         scrape_jobteaser,
+        scrape_emploi_public,
+        scrape_regionsjob,
+        scrape_chooseyourboss,
+        scrape_lesjeudis,
         scrape_jooble_playwright,
         scrape_all_playwright,
         PLAYWRIGHT_AVAILABLE,
@@ -1338,6 +1342,18 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
     if "JobTeaser" in req.selected_sources and "JobTeaser" not in source_registry:
         source_registry['JobTeaser'] = scrape_jobteaser
         logger.info("   Using Playwright for JobTeaser")
+    if "Emploi Public" in req.selected_sources and "Emploi Public" not in source_registry:
+        source_registry['Emploi Public'] = scrape_emploi_public
+        logger.info("   Using Playwright for Emploi Public")
+    if "RégionsJob" in req.selected_sources and "RégionsJob" not in source_registry:
+        source_registry['RégionsJob'] = scrape_regionsjob
+        logger.info("   Using Playwright for RégionsJob")
+    if "ChooseYourBoss" in req.selected_sources and "ChooseYourBoss" not in source_registry:
+        source_registry['ChooseYourBoss'] = scrape_chooseyourboss
+        logger.info("   Using Playwright for ChooseYourBoss")
+    if "LesJeudis" in req.selected_sources and "LesJeudis" not in source_registry:
+        source_registry['LesJeudis'] = scrape_lesjeudis
+        logger.info("   Using Playwright for LesJeudis")
     
     # Add freelance sources
     if req.is_freelance:

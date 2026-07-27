@@ -600,6 +600,165 @@ def scrape_jobteaser(job_title: str, location: str = "France", limit: int = 10) 
     return jobs[:limit]
 
 
+def scrape_emploi_public(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
+    """Scrape Emploi Public (fonction publique) using Playwright."""
+    if not PLAYWRIGHT_AVAILABLE:
+        return []
+
+    clean_title = clean_job_title(job_title)
+    query = urllib.parse.quote(clean_title)
+    jobs = []
+
+    with sync_playwright() as p:
+        browser, context = _get_browser_context(p)
+        try:
+            page = context.new_page()
+            url = f"https://www.choisirleservicepublic.gouv.fr/nos-offres/filtres/mots-cles/{query}/"
+            logger.info(f"[EmploiPublic-PW] Navigating to: {url}")
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(3)
+
+            selectors = {
+                "card": "article[class*='offer'], div[class*='offer-card'], li[class*='result']",
+                "alt_cards": ["a[href*='/offre/']", "div[class*='card']"],
+                "title": "h2 a, h3 a, a[class*='title'], a[href*='/offre/']",
+                "company": "span[class*='employer'], div[class*='employer'], p[class*='organization']",
+                "location": "span[class*='location'], div[class*='location']",
+                "link": "a[href*='/offre/'], h2 a, h3 a",
+                "base_url": "https://www.choisirleservicepublic.gouv.fr",
+            }
+            jobs = _extract_jobs_from_page(page, "Emploi Public", selectors, limit)
+            logger.info(f"[EmploiPublic-PW] Extracted {len(jobs)} jobs")
+
+        except Exception as e:
+            logger.error(f"[EmploiPublic-PW] Error: {e}")
+        finally:
+            context.close()
+            browser.close()
+
+    return jobs[:limit]
+
+
+def scrape_regionsjob(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
+    """Scrape RegionsJob using Playwright."""
+    if not PLAYWRIGHT_AVAILABLE:
+        return []
+
+    clean_title = clean_job_title(job_title)
+    query = urllib.parse.quote(clean_title)
+    loc = urllib.parse.quote(location)
+    jobs = []
+
+    with sync_playwright() as p:
+        browser, context = _get_browser_context(p)
+        try:
+            page = context.new_page()
+            url = f"https://www.regionsjob.com/offres/emploi?motsCles={query}&lieu={loc}"
+            logger.info(f"[RegionsJob-PW] Navigating to: {url}")
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(3)
+
+            selectors = {
+                "card": "div[class*='job'], article, div[class*='offer-card'], li[class*='result']",
+                "alt_cards": ["a[href*='/offre/']", "div[class*='card']"],
+                "title": "h2 a, h3 a, a[class*='title'], a[href*='/offre/']",
+                "company": "span[class*='company'], div[class*='company']",
+                "location": "span[class*='location'], div[class*='location']",
+                "link": "a[href*='/offre/'], h2 a, h3 a",
+                "base_url": "https://www.regionsjob.com",
+            }
+            jobs = _extract_jobs_from_page(page, "RégionsJob", selectors, limit)
+            logger.info(f"[RegionsJob-PW] Extracted {len(jobs)} jobs")
+
+        except Exception as e:
+            logger.error(f"[RegionsJob-PW] Error: {e}")
+        finally:
+            context.close()
+            browser.close()
+
+    return jobs[:limit]
+
+
+def scrape_chooseyourboss(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
+    """Scrape ChooseYourBoss using Playwright."""
+    if not PLAYWRIGHT_AVAILABLE:
+        return []
+
+    clean_title = clean_job_title(job_title)
+    query = urllib.parse.quote(clean_title)
+    loc = urllib.parse.quote(location)
+    jobs = []
+
+    with sync_playwright() as p:
+        browser, context = _get_browser_context(p)
+        try:
+            page = context.new_page()
+            url = f"https://www.chooseyourboss.com/jobs?q={query}&l={loc}"
+            logger.info(f"[ChooseYourBoss-PW] Navigating to: {url}")
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(3)
+
+            selectors = {
+                "card": "div[class*='job'], article, div[class*='offer-card'], li[class*='result']",
+                "alt_cards": ["a[href*='/jobs/']", "div[class*='card']"],
+                "title": "h2 a, h3 a, a[class*='title'], a[href*='/jobs/']",
+                "company": "span[class*='company'], div[class*='company']",
+                "location": "span[class*='location'], div[class*='location']",
+                "link": "a[href*='/jobs/'], h2 a, h3 a",
+                "base_url": "https://www.chooseyourboss.com",
+            }
+            jobs = _extract_jobs_from_page(page, "ChooseYourBoss", selectors, limit)
+            logger.info(f"[ChooseYourBoss-PW] Extracted {len(jobs)} jobs")
+
+        except Exception as e:
+            logger.error(f"[ChooseYourBoss-PW] Error: {e}")
+        finally:
+            context.close()
+            browser.close()
+
+    return jobs[:limit]
+
+
+def scrape_lesjeudis(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
+    """Scrape LesJeudis using Playwright."""
+    if not PLAYWRIGHT_AVAILABLE:
+        return []
+
+    clean_title = clean_job_title(job_title)
+    query = urllib.parse.quote(clean_title)
+    loc = urllib.parse.quote(location)
+    jobs = []
+
+    with sync_playwright() as p:
+        browser, context = _get_browser_context(p)
+        try:
+            page = context.new_page()
+            url = f"https://www.lesjeudis.com/jobs?search={query}&location={loc}"
+            logger.info(f"[LesJeudis-PW] Navigating to: {url}")
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(3)
+
+            selectors = {
+                "card": "div[class*='job'], article, div[class*='offer-card'], li[class*='result']",
+                "alt_cards": ["a[href*='/jobs/']", "div[class*='card']"],
+                "title": "h2 a, h3 a, a[class*='title'], a[href*='/jobs/']",
+                "company": "span[class*='company'], div[class*='company']",
+                "location": "span[class*='location'], div[class*='location']",
+                "link": "a[href*='/jobs/'], h2 a, h3 a",
+                "base_url": "https://www.lesjeudis.com",
+            }
+            jobs = _extract_jobs_from_page(page, "LesJeudis", selectors, limit)
+            logger.info(f"[LesJeudis-PW] Extracted {len(jobs)} jobs")
+
+        except Exception as e:
+            logger.error(f"[LesJeudis-PW] Error: {e}")
+        finally:
+            context.close()
+            browser.close()
+
+    return jobs[:limit]
+
+
 def scrape_jooble_playwright(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
     """Scrape Jooble using Playwright to bypass Cloudflare protection with proxy rotation."""
     if not PLAYWRIGHT_AVAILABLE:
