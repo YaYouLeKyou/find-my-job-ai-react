@@ -554,27 +554,60 @@ def get_france_travail_jobs_api(job_title: str, limit: int = 10) -> List[dict]:
     token = get_france_travail_token()
     if not token:
         return []
+    
+    all_results = []
     search_url = "https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search"
     headers = {"Authorization": f"Bearer {token}"}
-    params = {
-        "motsCles": job_title,
-        "range": f"0-{limit-1}"
-    }
-    try:
-        response = requests.get(search_url, headers=headers, params=params)
-        if response.status_code == 204:
-            return []
-        response.raise_for_status()
-        results = response.json().get("resultats", [])
-        return [{
-            "titre": res.get("intitule"),
-            "entreprise": res.get("entreprise", {}).get("nom", "Confidentiel"),
-            "lien": f"https://candidat.francetravail.fr/offres/recherche/detail/{res.get('id')}",
-            "source": "France Travail"
-        } for res in results]
-    except Exception as e:
-        logger.error(f"Error official France Travail API: {e}")
-        return []
+    
+    # Try multiple pages to get more results
+    for page in range(0, min(limit, 50), 10):  # Pages 0, 10, 20, 30, 40
+        params = {
+            "motsCles": job_title,
+            "range": f"{page}-{page+9}"
+        }
+        try:
+            logger.info(f"France Travail API: range={page}-{page+9}")
+            response = requests.get(search_url, headers=headers, params=params, timeout=15)
+            logger.info(f"France Travail API: HTTP {response.status_code}")
+            
+            if response.status_code == 204:
+                logger.info("France Travail API: no more results (204)")
+                break
+            elif response.status_code != 200:
+                logger.error(f"❌ France Travail API: erreur HTTP {response.status_code}")
+                break
+            
+            data = response.json()
+            results = data.get("resultats", [])
+            all_results.extend(results)
+            logger.info(f"✅ France Travail API: {len(results)} résultats (page {page//10 + 1})")
+            
+            # Stop if we got enough results or no more results
+            if len(all_results) >= limit or not results:
+                break
+                
+        except Exception as e:
+            logger.error(f"❌ France Travail API: erreur page {page//10 + 1}: {e}")
+            break
+    
+    # Deduplicate by ID
+    seen_ids = set()
+    unique_results = []
+    for res in all_results:
+        job_id = res.get("id", "")
+        if job_id and job_id not in seen_ids:
+            seen_ids.add(job_id)
+            unique_results.append(res)
+    
+    final_results = unique_results[:limit]
+    logger.info(f"✅ France Travail API: {len(final_results)} résultats finaux (après déduplication)")
+    
+    return [{
+        "titre": res.get("intitule"),
+        "entreprise": res.get("entreprise", {}).get("nom", "Confidentiel"),
+        "lien": f"https://candidat.francetravail.fr/offres/recherche/detail/{res.get('id')}",
+        "source": "France Travail"
+    } for res in final_results]
 
 def chercher_offres_jobspy(job_title: str, location: str = "Paris, France", limit: int = 10, selected_sites: List[str] = None) -> List[dict]:
     try:
