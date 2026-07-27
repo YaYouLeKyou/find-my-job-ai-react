@@ -1155,13 +1155,39 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
     if "Jooble" in req.selected_sources:
         source_registry['Jooble'] = get_jooble_jobs
     
-    # Add web scrapers
+    # Add web scrapers - prefer Playwright versions when available
     if "Indeed" in req.selected_sources:
-        source_registry['Indeed'] = scrape_indeed
+        if PLAYWRIGHT_AVAILABLE:
+            source_registry['Indeed'] = scrape_indeed_playwright
+            logger.info("   Using Playwright for Indeed")
+        else:
+            source_registry['Indeed'] = scrape_indeed
     if "LinkedIn" in req.selected_sources:
-        source_registry['LinkedIn'] = scrape_linkedin
+        if PLAYWRIGHT_AVAILABLE:
+            source_registry['LinkedIn'] = scrape_linkedin_playwright
+            logger.info("   Using Playwright for LinkedIn")
+        else:
+            source_registry['LinkedIn'] = scrape_linkedin
+    if "Simplyhired" in req.selected_sources:
+        if PLAYWRIGHT_AVAILABLE:
+            source_registry['Simplyhired'] = scrape_simplyhired_playwright
+            logger.info("   Using Playwright for Simplyhired")
+        else:
+            source_registry['Simplyhired'] = scrape_simplyhired
+    if "Careerbuilder" in req.selected_sources:
+        if PLAYWRIGHT_AVAILABLE:
+            source_registry['Careerbuilder'] = scrape_careerbuilder_playwright
+            logger.info("   Using Playwright for Careerbuilder")
+        else:
+            source_registry['Careerbuilder'] = scrape_careerbuilder
+    if "Monster" in req.selected_sources:
+        if PLAYWRIGHT_AVAILABLE:
+            source_registry['Monster'] = scrape_monster_playwright
+            logger.info("   Using Playwright for Monster")
+        else:
+            source_registry['Monster'] = scrape_monster
     
-    # Add enhanced scrapers
+    # Add enhanced scrapers (France Travail RSS, Welcome to the Jungle, etc.)
     enhanced_sources = ["Indeed", "LinkedIn", "Simplyhired", "Careerbuilder", 
                         "France Travail", "Google Jobs", "Remotive", "RemoteOK",
                         "Welcome to the Jungle", "HelloWork", "Emploi Public",
@@ -1174,10 +1200,10 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
     if enhanced_needed:
         source_registry['enhanced'] = lambda q, l, n: search_all_free_sources(q, l, n, enhanced_needed)
     
-    # Add French sources
-    if "Welcome to the Jungle" in req.selected_sources:
+    # Add French sources (only if not already added via Playwright)
+    if "Welcome to the Jungle" in req.selected_sources and "Welcome to the Jungle" not in source_registry:
         source_registry['Welcome to the Jungle'] = scrape_welcometothejungle
-    if "HelloWork" in req.selected_sources:
+    if "HelloWork" in req.selected_sources and "HelloWork" not in source_registry:
         source_registry['HelloWork'] = scrape_hellowork
     if "APEC" in req.selected_sources:
         source_registry['APEC'] = scrape_apec
