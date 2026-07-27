@@ -4,6 +4,7 @@ Integrates with the official Pole Emploi / France Travail API
 """
 
 import logging
+import re
 import time
 from typing import List, Dict, Optional
 from datetime import datetime
@@ -133,11 +134,24 @@ class FranceTravailAPI:
             }
             
             # Add location filter - always send a location parameter
-            if location and location.lower() not in ["france", "global", "remote"]:
-                params["lieu"] = location
+            # Clean location: extract city only, remove "France" suffix, country names, and extra whitespace
+            clean_location = ""
+            if location:
+                # Remove "France" from location string (case insensitive)
+                clean_location = re.sub(r',?\s*France\s*$', '', location, flags=re.IGNORECASE)
+                # Remove leading/trailing whitespace and commas
+                clean_location = clean_location.strip().strip(',').strip()
+            
+            if clean_location and clean_location.lower() not in ["france", "global", "remote", ""]:
+                params["lieu"] = clean_location
             else:
                 # For country-wide or remote searches, use "France" as default
                 params["lieu"] = "France"
+            
+            # Extract first city only (before any comma) for France Travail API compatibility
+            if params["lieu"] and "," in params["lieu"]:
+                params["lieu"] = params["lieu"].split(",")[0].strip()
+                logger.info(f"   Normalized location to: {params['lieu']}")
             
             # Add contract type filter
             if contract_type:
