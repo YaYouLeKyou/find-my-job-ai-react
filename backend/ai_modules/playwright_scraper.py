@@ -606,54 +606,136 @@ def scrape_jooble_playwright(job_title: str, location: str = "France", limit: in
     jobs = []
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-setuid-sandbox"])
+            # Launch browser with stealth settings
+            browser = p.chromium.launch(
+                headless=True, 
+                args=[
+                    "--no-sandbox", 
+                    "--disable-setuid-sandbox",
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-web-security",
+                    "--disable-features=IsolateOrigins,site-per-process",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    "--window-size=1920,1080",
+                ]
+            )
+            
+            # Create context with realistic settings
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                 viewport={"width": 1920, "height": 1080},
-                locale="fr-FR"
+                locale="fr-FR",
+                timezone_id="Europe/Paris",
+                java_script_enabled=True,
+                accept_downloads=False,
+                bypass_csp=True,
             )
+            
+            # Inject stealth scripts
+            context.add_init_script("""
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['fr-FR', 'fr', 'en-US', 'en'],
+                });
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [1, 2, 3, 4, 5],
+                });
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined,
+                });
+            """)
+            
             page = context.new_page()
             
-            # Navigate to Jooble search page
-            search_url = f"https://fr.jooble.org/jobs?keywords={urllib.parse.quote(job_title)}&location={urllib.parse.quote(location)}"
-            logger.info(f"[Playwright] Jooble: navigating to {search_url}")
+            # Try multiple Jooble URLs
+            urls_to_try = [
+                f"https://fr.jooble.org/jobs?keywords={urllib.parse.quote(job_title)}&location={urllib.parse.quote(location)}",
+                f"https://jooble.org/jobs?keywords={urllib.parse.quote(job_title)}&location={urllib.parse.quote(location)}",
+                f"https://fr.jooble.org/offres?keywords={urllib.parse.quote(job_title)}&location={urllib.parse.quote(location)}",
+            ]
             
-            page.goto(search_url, wait_until="domcontentloaded", timeout=15000)
-            page.wait_for_timeout(3000)  # Wait for JS to load
-            
-            # Extract job listings
-            job_cards = page.query_selector_all('[data-test="job-card"], .job-card, article[class*="job"]')
-            logger.info(f"[Playwright] Jooble: found {len(job_cards)} job cards")
-            
-            for card in job_cards[:limit]:
+            for url in urls_to_try:
                 try:
-                    title_elem = card.query_selector('h2, h3, [class*="title"]')
-                    company_elem = card.query_selector('[class*="company"], [class*="employer"]')
-                    link_elem = card.query_selector('a[href*="/job/"], a[href*="/offre/"]')
-                    location_elem = card.query_selector('[class*="location"], [class*="region"]')
+                    logger.info(f"[Playwright] Jooble: trying {url}")
                     
-                    title = title_elem.inner_text().strip() if title_elem else ""
-                    company = company_elem.inner_text().strip() if company_elem else "N/C"
-                    link = link_elem.get_attribute("href") if link_elem else ""
-                    if link and not link.startswith("http"):
-                        link = "https://fr.jooble.org" + link
-                    location_text = location_elem.inner_text().strip() if location_elem else location
+                    # Navigate with human-like behavior
+                    page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                    page.wait_for_timeout(2000)  # Wait for initial load
                     
-                    if title:
-                        jobs.append({
-                            "titre": title,
-                            "entreprise": company,
-                            "lien": link,
-                            "location": location_text,
-                            "date": "",
-                            "source": "Jooble"
-                        })
+                    # Simulate human scrolling
+                    page.evaluate("window.scrollBy(0, 300)")
+                    page.wait_for_timeout(1000)
+                    page.evaluate("window.scrollBy(0, 300)")
+                    page.wait_for_timeout(1000)
+                    
+                    # Try multiple selectors for job cards
+                    selectors = [
+                        'div[data-test="job-card"]',
+                        '.job-card',
+                        'article[class*="job"]',
+                        'div[class*="JobCard"]',
+                        'div[class*="job-listing"]',
+                        'a[href*="/job/"]',
+                        'a[href*="/offre/"]',
+                    ]
+                    
+                    job_cards = []
+                    for selector in selectors:
+                        try:
+                            cards = page.query_selector_all(selector)
+                            if cards and len(cards) > len(job_cards):
+                                job_cards = cards
+                                logger.info(f"[Playwright] Jooble: found {len(cards)} cards with selector '{selector}'")
+                                if len(job_cards) >= limit:
+                                    break
+                        except Exception:
+                            continue
+                    
+                    if not job_cards:
+                        # Try to extract from page content
+                        logger.warning("[Playwright] Jooble: no job cards found, trying alternative extraction")
+                        continue
+                    
+                    logger.info(f"[Playwright] Jooble: found {len(job_cards)} job cards")
+                    
+                    for card in job_cards[:limit]:
+                        try:
+                            # Try multiple selectors for each field
+                            title_elem = card.query_selector('h2, h3, h4, [class*="title"], [class*="Title"]')
+                            company_elem = card.query_selector('[class*="company"], [class*="employer"], [class*="Company"]')
+                            link_elem = card.query_selector('a[href*="/job/"], a[href*="/offre/"], a[href*="/emploi/"]')
+                            location_elem = card.query_selector('[class*="location"], [class*="region"], [class*="Location"]')
+                            
+                            title = title_elem.inner_text().strip() if title_elem else ""
+                            company = company_elem.inner_text().strip() if company_elem else "N/C"
+                            link = link_elem.get_attribute("href") if link_elem else ""
+                            if link and not link.startswith("http"):
+                                link = "https://fr.jooble.org" + link
+                            location_text = location_elem.inner_text().strip() if location_elem else location
+                            
+                            if title:
+                                jobs.append({
+                                    "titre": title,
+                                    "entreprise": company,
+                                    "lien": link,
+                                    "location": location_text,
+                                    "date": "",
+                                    "source": "Jooble"
+                                })
+                        except Exception as e:
+                            logger.debug(f"[Playwright] Jooble: error parsing card: {e}")
+                            continue
+                    
+                    if jobs:
+                        logger.info(f"[Playwright] Jooble: successfully extracted {len(jobs)} jobs from {url}")
+                        break
+                        
                 except Exception as e:
-                    logger.debug(f"[Playwright] Jooble: error parsing card: {e}")
+                    logger.warning(f"[Playwright] Jooble: failed with {url}: {e}")
                     continue
             
             browser.close()
-            logger.info(f"[Playwright] Jooble: {len(jobs)} jobs extracted")
+            logger.info(f"[Playwright] Jooble: {len(jobs)} jobs extracted total")
             return jobs
             
     except Exception as e:
