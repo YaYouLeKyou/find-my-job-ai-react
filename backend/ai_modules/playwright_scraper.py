@@ -12,6 +12,8 @@ import logging
 import time
 import json
 import urllib.parse
+import os
+import random
 from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -599,38 +601,70 @@ def scrape_jobteaser(job_title: str, location: str = "France", limit: int = 10) 
 
 
 def scrape_jooble_playwright(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
-    """Scrape Jooble using Playwright to bypass Cloudflare protection."""
+    """Scrape Jooble using Playwright to bypass Cloudflare protection with proxy rotation."""
     if not PLAYWRIGHT_AVAILABLE:
         return []
     
     jobs = []
+    
+    # Get proxy configuration from environment
+    proxy_url = os.getenv("PROXY_URL", "").strip()
+    proxy_list_str = os.getenv("PROXY_LIST", "").strip()
+    proxy_list = [p.strip() for p in proxy_list_str.split(",") if p.strip()] if proxy_list_str else []
+    
+    # Use PROXY_URL if set, otherwise pick random from PROXY_LIST
+    selected_proxy = None
+    if proxy_url:
+        selected_proxy = proxy_url
+        logger.info(f"[Playwright] Jooble: using proxy from PROXY_URL")
+    elif proxy_list:
+        selected_proxy = random.choice(proxy_list)
+        logger.info(f"[Playwright] Jooble: using rotated proxy from PROXY_LIST ({len(proxy_list)} available)")
+    
     try:
         with sync_playwright() as p:
             # Launch browser with stealth settings
+            launch_args = [
+                "--no-sandbox", 
+                "--disable-setuid-sandbox",
+                "--disable-blink-features=AutomationControlled",
+                "--disable-web-security",
+                "--disable-features=IsolateOrigins,site-per-process",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--window-size=1920,1080",
+            ]
+            
+            # Add proxy if configured
+            if selected_proxy:
+                launch_args.append(f"--proxy-server={selected_proxy}")
+            
             browser = p.chromium.launch(
                 headless=True, 
-                args=[
-                    "--no-sandbox", 
-                    "--disable-setuid-sandbox",
-                    "--disable-blink-features=AutomationControlled",
-                    "--disable-web-security",
-                    "--disable-features=IsolateOrigins,site-per-process",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                    "--window-size=1920,1080",
-                ]
+                args=launch_args
             )
             
             # Create context with realistic settings
-            context = browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                viewport={"width": 1920, "height": 1080},
-                locale="fr-FR",
-                timezone_id="Europe/Paris",
-                java_script_enabled=True,
-                accept_downloads=False,
-                bypass_csp=True,
-            )
+            context_args = {
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                "viewport": {"width": 1920, "height": 1080},
+                "locale": "fr-FR",
+                "timezone_id": "Europe/Paris",
+                "java_script_enabled": True,
+                "accept_downloads": False,
+                "bypass_csp": True,
+            }
+            
+            # Add proxy to context if using authenticated proxy
+            if selected_proxy and "@" in selected_proxy:
+                # Format: http://user:pass@host:port
+                context_args["proxy"] = {"server": selected_proxy.split("@")[1]}
+                auth = selected_proxy.split("@")[0].split("://")[1]
+                if ":" in auth:
+                    context_args["proxy"]["username"] = auth.split(":")[0]
+                    context_args["proxy"]["password"] = auth.split(":")[1]
+            
+            context = browser.new_context(**context_args)
             
             # Inject stealth scripts
             context.add_init_script("""
