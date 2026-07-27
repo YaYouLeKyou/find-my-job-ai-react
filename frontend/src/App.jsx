@@ -174,18 +174,24 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
           const statusInfo = sourceStatus[source] || {};
           let reason = 'source indisponible ou bloquée';
           
-          if (source === 'Adzuna') {
-            if (statusInfo.error && statusInfo.error.includes('quota')) reason = 'quota de requêtes dépassé';
-            else if (statusInfo.error && statusInfo.error.includes('clé')) reason = 'clé API invalide ou expirée';
-            else reason = 'API key ou quota insuffisant';
-          } else if (source === 'Google Jobs') {
-            reason = 'SerpApi nécessite une clé valide';
-          } else if (source === 'Jooble') {
-            reason = 'Cloudflare bloque les requêtes automatisées';
-          } else if (source === 'Glassdoor' || source === 'ZipRecruiter') {
-            reason = 'bloqué par Cloudflare/WAF 🛡️';
-          } else if (source === 'Simplyhired') {
-            reason = 'scraper web bloqué';
+          // Use the actual error message from backend if available
+          if (statusInfo.error && statusInfo.error !== 'Aucun résultat' && statusInfo.error !== 'Non exécuté') {
+            reason = statusInfo.error;
+          } else {
+            // Fallback to generic messages based on source
+            if (source === 'Adzuna') {
+              reason = 'API key ou quota insuffisant';
+            } else if (source === 'Google Jobs') {
+              reason = 'SerpApi nécessite une clé valide';
+            } else if (source === 'Jooble') {
+              reason = 'Cloudflare bloque les requêtes automatisées';
+            } else if (source === 'Glassdoor' || source === 'ZipRecruiter') {
+              reason = 'bloqué par Cloudflare/WAF 🛡️';
+            } else if (source === 'Simplyhired') {
+              reason = 'scraper web bloqué';
+            } else if (['Indeed', 'Careerbuilder', 'Monster'].includes(source)) {
+              reason = 'source indisponible ou bloquée';
+            }
           }
           
           console.log(`%c${icon} %c${source}: %c0 résultat (${reason})`, '', 'color:#c62828;font-weight:bold', 'color:#b71c1c;font-style:italic');
