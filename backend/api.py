@@ -694,7 +694,7 @@ def get_jooble_jobs(job_title: str, location: str = "France", limit: int = 10) -
     url = f"https://jooble.org/api/{jooble_api_key}"
     try:
         logger.info(f"Jooble: appel API keywords={job_title!r}, location={location!r}")
-        response = requests.post(url, json={"keywords": job_title, "location": location}, timeout=5)
+        response = requests.post(url, json={"keywords": job_title, "location": location}, timeout=10)
         logger.info(f"Jooble: HTTP {response.status_code}")
         if response.status_code != 200:
             logger.error(f"Jooble: erreur HTTP {response.status_code}: {response.text[:200]}")
