@@ -1325,15 +1325,19 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
     if enhanced_needed:
         source_registry['enhanced'] = lambda q, l, n: search_all_free_sources(q, l, n, enhanced_needed)
     
-    # Add French sources (only if not already added via Playwright)
+    # Add French sources with Playwright (prefer Playwright over basic scrapers)
     if "Welcome to the Jungle" in req.selected_sources and "Welcome to the Jungle" not in source_registry:
         source_registry['Welcome to the Jungle'] = scrape_welcometothejungle
+        logger.info("   Using Playwright for Welcome to the Jungle")
     if "HelloWork" in req.selected_sources and "HelloWork" not in source_registry:
         source_registry['HelloWork'] = scrape_hellowork
-    if "APEC" in req.selected_sources:
+        logger.info("   Using Playwright for HelloWork")
+    if "APEC" in req.selected_sources and "APEC" not in source_registry:
         source_registry['APEC'] = scrape_apec
-    if "JobTeaser" in req.selected_sources:
+        logger.info("   Using Playwright for APEC")
+    if "JobTeaser" in req.selected_sources and "JobTeaser" not in source_registry:
         source_registry['JobTeaser'] = scrape_jobteaser
+        logger.info("   Using Playwright for JobTeaser")
     
     # Add freelance sources
     if req.is_freelance:
