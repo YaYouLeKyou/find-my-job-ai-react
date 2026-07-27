@@ -167,11 +167,25 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
         } else {
           failedSources.push(source);
           const icon = blockerIcons[source] || '❌';
+          
+          // Get detailed error from source_status if available
+          const statusInfo = sourceCounts[source] || {};
           let reason = 'source indisponible ou bloquée';
-          if (source === 'Glassdoor' || source === 'ZipRecruiter') reason = 'bloqué par Cloudflare/WAF 🛡️';
-          else if (source === 'Adzuna') reason = 'API key ou quota insuffisant';
-          else if (source === 'Google Jobs') reason = 'SerpApi nécessite une clé valide';
-          else if (source === 'Simplyhired') reason = 'scraper web bloqué';
+          
+          if (source === 'Adzuna') {
+            if (statusInfo.error && statusInfo.error.includes('quota')) reason = 'quota de requêtes dépassé';
+            else if (statusInfo.error && statusInfo.error.includes('clé')) reason = 'clé API invalide ou expirée';
+            else reason = 'API key ou quota insuffisant';
+          } else if (source === 'Google Jobs') {
+            reason = 'SerpApi nécessite une clé valide';
+          } else if (source === 'Jooble') {
+            reason = 'Cloudflare bloque les requêtes automatisées';
+          } else if (source === 'Glassdoor' || source === 'ZipRecruiter') {
+            reason = 'bloqué par Cloudflare/WAF 🛡️';
+          } else if (source === 'Simplyhired') {
+            reason = 'scraper web bloqué';
+          }
+          
           console.log(`%c${icon} %c${source}: %c0 résultat (${reason})`, '', 'color:#c62828;font-weight:bold', 'color:#b71c1c;font-style:italic');
         }
         console.log('');
