@@ -530,18 +530,18 @@ def scrape_france_travail_jobs(job_title: str, limit: int = 10) -> List[dict]:
 def get_france_travail_token() -> Optional[str]:
     if not ft_client_id or not ft_client_secret:
         return None
-    auth_url = "https://entreprise.pole-emploi.fr/connexion/oauth2/access_token"
-    params = {"realm": "/partenaire"}
+    auth_url = "https://authentification-partenaire.francetravail.io/connexion/oauth2/access_token?realm=%2Fpartenaire"
     data = {
         "grant_type": "client_credentials",
         "client_id": ft_client_id,
         "client_secret": ft_client_secret,
-        "scope": "api_offresdemploiv2"
+        "scope": "api_offresdemploiv2 o2dsoffre"
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     try:
-        response = requests.post(auth_url, params=params, data=data, headers=headers, timeout=10)
+        response = requests.post(auth_url, data=data, headers=headers, timeout=10)
         if response.status_code != 200:
+            logger.error(f"France Travail auth failed: HTTP {response.status_code} - {response.text[:200]}")
             return None
         return response.json().get("access_token")
     except Exception as e:
@@ -552,7 +552,7 @@ def get_france_travail_jobs_api(job_title: str, limit: int = 10) -> List[dict]:
     token = get_france_travail_token()
     if not token:
         return []
-    search_url = "https://api.pole-emploi.io/partenaire/offresdemploi/v2/offres/search"
+    search_url = "https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search"
     headers = {"Authorization": f"Bearer {token}"}
     params = {
         "motsCles": job_title,
@@ -567,7 +567,7 @@ def get_france_travail_jobs_api(job_title: str, limit: int = 10) -> List[dict]:
         return [{
             "titre": res.get("intitule"),
             "entreprise": res.get("entreprise", {}).get("nom", "Confidentiel"),
-            "lien": f"https://candidat.pole-emploi.fr/offres/recherche/detail/{res.get('id')}",
+            "lien": f"https://candidat.francetravail.fr/offres/recherche/detail/{res.get('id')}",
             "source": "France Travail"
         } for res in results]
     except Exception as e:

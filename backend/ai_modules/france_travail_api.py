@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 class FranceTravailAPI:
     """Client for France Travail (Pole Emploi) official API."""
     
-    BASE_URL = "https://api.pole-emploi.io/partenaire/offresdemploi/v2"
-    AUTH_URL = "https://entreprise.pole-emploi.fr/connexion/oauth2/access_token"
+    BASE_URL = "https://api.francetravail.io/partenaire/offresdemploi/v2"
+    AUTH_URL = "https://authentification-partenaire.francetravail.io/connexion/oauth2/access_token?realm=%2Fpartenaire"
     
     def __init__(self, client_id: str, client_secret: str):
         """
@@ -45,6 +45,8 @@ class FranceTravailAPI:
         
         try:
             logger.info("🔑 Requesting France Travail access token...")
+            logger.info(f"   Client ID: {self.client_id[:10]}...")
+            logger.info(f"   Auth URL: {self.AUTH_URL}")
             
             response = requests.post(
                 self.AUTH_URL,
@@ -52,29 +54,42 @@ class FranceTravailAPI:
                     "grant_type": "client_credentials",
                     "client_id": self.client_id,
                     "client_secret": self.client_secret,
-                    "scope": "api_offresdemploiv2"
+                    "scope": "api_offresdemploiv2 o2dsoffre"
                 },
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
-                timeout=5
+                timeout=10
             )
+            
+            logger.info(f"   Auth response status: {response.status_code}")
             
             if response.status_code != 200:
                 logger.error(f"❌ France Travail auth failed: HTTP {response.status_code}")
+                logger.error(f"   Response: {response.text[:500]}")
+                if response.status_code == 400:
+                    logger.error("   ⚠️  INVALID CREDENTIALS: The client_id or client_secret is incorrect")
+                    logger.error("   ⚠️  Please verify your France Travail API credentials at:")
+                    logger.error("   ⚠️  https://www.pole-emploi.fr/partenaires/devenir-partenaire")
                 return None
             
             token_data = response.json()
             self._access_token = token_data.get("access_token")
+            
+            if not self._access_token:
+                logger.error(f"❌ No access token in response: {token_data}")
+                return None
             
             # Calculate expiry (subtract 60 seconds for safety margin)
             expires_in = token_data.get("expires_in", 3600)
             from datetime import timedelta
             self._token_expiry = datetime.now() + timedelta(seconds=expires_in - 60)
             
-            logger.info("✅ France Travail access token obtained")
+            logger.info(f"✅ France Travail access token obtained (expires in {expires_in}s)")
             return self._access_token
             
         except Exception as e:
             logger.error(f"❌ France Travail auth error: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
     
     def search_jobs(
@@ -117,9 +132,12 @@ class FranceTravailAPI:
                 "range": f"0-{limit-1}",
             }
             
-            # Add location filter
-            if location and location.lower() not in ["france", "global"]:
+            # Add location filter - always send a location parameter
+            if location and location.lower() not in ["france", "global", "remote"]:
                 params["lieu"] = location
+            else:
+                # For country-wide or remote searches, use "France" as default
+                params["lieu"] = "France"
             
             # Add contract type filter
             if contract_type:
@@ -128,6 +146,9 @@ class FranceTravailAPI:
             # Add remote filter
             if remote_only:
                 params["telework"] = "true"
+            
+            logger.info(f"   Full params: {params}")
+            logger.info(f"   API URL: {self.BASE_URL}/offres/search")
             
             # Make API request
             headers = {
@@ -139,21 +160,30 @@ class FranceTravailAPI:
                 f"{self.BASE_URL}/offres/search",
                 params=params,
                 headers=headers,
-                timeout=5
+                timeout=10
             )
+            
+            logger.info(f"   Search response status: {response.status_code}")
             
             if response.status_code == 204:
                 logger.info("⚠️ France Travail: No content (204)")
                 return []
             
-            if response.status_code != 200:
+            # France Travail API returns 206 (Partial Content) when using range parameter for pagination
+            # Both 200 and 206 are valid success responses
+            if response.status_code not in (200, 206):
                 logger.error(f"❌ France Travail API error: HTTP {response.status_code}")
+                logger.error(f"   Response: {response.text[:500]}")
                 return []
             
             data = response.json()
             results = data.get("resultats", [])
             
             logger.info(f"✅ France Travail: {len(results)} results")
+            
+            if len(results) == 0:
+                logger.warning(f"⚠️ France Travail returned 0 results for query='{query}', location='{location}'")
+                logger.warning(f"   This might be normal if no jobs match, or the API might need different parameters")
             
             # Parse results
             for item in results:
@@ -169,6 +199,8 @@ class FranceTravailAPI:
             
         except Exception as e:
             logger.error(f"❌ France Travail search error: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return []
     
     def _parse_job(self, item: dict) -> Optional[dict]:
