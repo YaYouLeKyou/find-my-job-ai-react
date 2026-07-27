@@ -52,7 +52,7 @@ except ImportError as e:
 
 # Import Playwright scrapers (for JS-rendered sites that block requests-based scraping)
 try:
-from ai_modules.playwright_scraper import (
+    from ai_modules.playwright_scraper import (
         scrape_indeed_playwright,
         scrape_monster_playwright,
         scrape_careerbuilder_playwright,
@@ -564,14 +564,14 @@ def get_france_travail_jobs_api(job_title: str, limit: int = 10) -> List[dict]:
     headers = {"Authorization": f"Bearer {token}"}
     
     # Try multiple pages to get more results
-    for page in range(0, min(limit, 50), 10):  # Pages 0, 10, 20, 30, 40
+    for page in range(0, min(limit, 20), 10):  # Pages 0, 10 only
         params = {
             "motsCles": job_title,
             "range": f"{page}-{page+9}"
         }
         try:
             logger.info(f"France Travail API: range={page}-{page+9}")
-            response = requests.get(search_url, headers=headers, params=params, timeout=15)
+            response = requests.get(search_url, headers=headers, params=params, timeout=10)
             logger.info(f"France Travail API: HTTP {response.status_code}")
             
             if response.status_code == 204:
@@ -659,8 +659,8 @@ def get_adzuna_jobs(job_title: str, location: str = "France", limit: int = 10) -
         return []
     
     all_results = []
-    # Try multiple pages to get more results
-    for page in range(1, 4):  # Pages 1, 2, 3
+    # Try 2 pages max for speed
+    for page in range(1, 3):  # Pages 1, 2
         url = f"https://api.adzuna.com/v1/api/jobs/fr/search/{page}"
         params = {
             "app_id": adzuna_app_id,
@@ -673,7 +673,7 @@ def get_adzuna_jobs(job_title: str, location: str = "France", limit: int = 10) -
         }
         try:
             logger.info(f"Adzuna: page {page} - what={job_title!r}, where={location!r}")
-            response = requests.get(url, params=params, timeout=15)
+            response = requests.get(url, params=params, timeout=10)
             logger.info(f"Adzuna: page {page} - HTTP {response.status_code}")
             
             if response.status_code == 401:
@@ -729,14 +729,12 @@ def get_serpapi_jobs(job_title: str, location: str = "France", limit: int = 10) 
         return []
     
     all_results = []
-    # Try multiple queries to get more results
+    # Try only 1 query for speed
     queries = [
         f"{job_title} {location}",
-        f"{job_title} emploi {location}",
-        f"{job_title} job {location}",
     ]
     
-    for query in queries[:2]:  # Try first 2 queries to avoid too many API calls
+    for query in queries[:1]:  # Try only 1 query for speed
         url = "https://serpapi.com/search"
         clean_location = location.split(',')[0].strip() if location else "France"
         params = {
@@ -749,7 +747,7 @@ def get_serpapi_jobs(job_title: str, location: str = "France", limit: int = 10) 
         }
         try:
             logger.info(f"SerpApi: query={query!r}")
-            response = requests.get(url, params=params, timeout=15)
+            response = requests.get(url, params=params, timeout=10)
             logger.info(f"SerpApi: HTTP {response.status_code}")
             
             if response.status_code == 401:
