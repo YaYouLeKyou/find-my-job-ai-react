@@ -598,6 +598,69 @@ def scrape_jobteaser(job_title: str, location: str = "France", limit: int = 10) 
     return jobs[:limit]
 
 
+def scrape_jooble_playwright(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
+    """Scrape Jooble using Playwright to bypass Cloudflare protection."""
+    if not PLAYWRIGHT_AVAILABLE:
+        return []
+    
+    jobs = []
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-setuid-sandbox"])
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                viewport={"width": 1920, "height": 1080},
+                locale="fr-FR"
+            )
+            page = context.new_page()
+            
+            # Navigate to Jooble search page
+            search_url = f"https://fr.jooble.org/jobs?keywords={urllib.parse.quote(job_title)}&location={urllib.parse.quote(location)}"
+            logger.info(f"[Playwright] Jooble: navigating to {search_url}")
+            
+            page.goto(search_url, wait_until="domcontentloaded", timeout=15000)
+            page.wait_for_timeout(3000)  # Wait for JS to load
+            
+            # Extract job listings
+            job_cards = page.query_selector_all('[data-test="job-card"], .job-card, article[class*="job"]')
+            logger.info(f"[Playwright] Jooble: found {len(job_cards)} job cards")
+            
+            for card in job_cards[:limit]:
+                try:
+                    title_elem = card.query_selector('h2, h3, [class*="title"]')
+                    company_elem = card.query_selector('[class*="company"], [class*="employer"]')
+                    link_elem = card.query_selector('a[href*="/job/"], a[href*="/offre/"]')
+                    location_elem = card.query_selector('[class*="location"], [class*="region"]')
+                    
+                    title = title_elem.inner_text().strip() if title_elem else ""
+                    company = company_elem.inner_text().strip() if company_elem else "N/C"
+                    link = link_elem.get_attribute("href") if link_elem else ""
+                    if link and not link.startswith("http"):
+                        link = "https://fr.jooble.org" + link
+                    location_text = location_elem.inner_text().strip() if location_elem else location
+                    
+                    if title:
+                        jobs.append({
+                            "titre": title,
+                            "entreprise": company,
+                            "lien": link,
+                            "location": location_text,
+                            "date": "",
+                            "source": "Jooble"
+                        })
+                except Exception as e:
+                    logger.debug(f"[Playwright] Jooble: error parsing card: {e}")
+                    continue
+            
+            browser.close()
+            logger.info(f"[Playwright] Jooble: {len(jobs)} jobs extracted")
+            return jobs
+            
+    except Exception as e:
+        logger.error(f"[Playwright] Jooble error: {e}")
+        return jobs
+
+
 # ─── Convenience: Run all Playwright scrapers for a given query ────────────────
 
 def scrape_all_playwright(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
@@ -617,6 +680,7 @@ def scrape_all_playwright(job_title: str, location: str = "France", limit: int =
         ("HelloWork", scrape_hellowork),
         ("APEC", scrape_apec),
         ("JobTeaser", scrape_jobteaser),
+        ("Jooble", scrape_jooble_playwright),
     ]
 
     for name, scraper_fn in scrapers:

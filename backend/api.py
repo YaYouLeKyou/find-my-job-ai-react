@@ -62,6 +62,7 @@ try:
         scrape_hellowork,
         scrape_apec,
         scrape_jobteaser,
+        scrape_jooble_playwright,
         scrape_all_playwright,
         PLAYWRIGHT_AVAILABLE,
     )
@@ -80,6 +81,7 @@ except ImportError as e:
     scrape_hellowork = _noop
     scrape_apec = _noop
     scrape_jobteaser = _noop
+    scrape_jooble_playwright = _noop
     scrape_all_playwright = _noop
 
 # Redis cache setup
@@ -696,9 +698,20 @@ def get_jooble_jobs(job_title: str, location: str = "France", limit: int = 10) -
         logger.info(f"Jooble: appel API keywords={job_title!r}, location={location!r}")
         response = requests.post(url, json={"keywords": job_title, "location": location}, timeout=10)
         logger.info(f"Jooble: HTTP {response.status_code}")
-        if response.status_code != 200:
+        
+        if response.status_code == 401:
+            logger.error("Jooble: clé API invalide ou expirée (401 Unauthorized)")
+            return []
+        elif response.status_code == 403:
+            logger.error("Jooble: accès refusé - vérifiez votre clé API ou les permissions (403 Forbidden)")
+            return []
+        elif response.status_code == 429:
+            logger.error("Jooble: quota de requêtes dépassé (429 Too Many Requests)")
+            return []
+        elif response.status_code != 200:
             logger.error(f"Jooble: erreur HTTP {response.status_code}: {response.text[:200]}")
             return []
+        
         data = response.json()
         results = data.get("jobs", [])
         logger.info(f"Jooble: {len(results)} résultats bruts")
@@ -1186,6 +1199,12 @@ def api_search_jobs(request: Request, req: JobSearchRequest):
             logger.info("   Using Playwright for Monster")
         else:
             source_registry['Monster'] = scrape_monster
+    if "Jooble" in req.selected_sources:
+        if PLAYWRIGHT_AVAILABLE:
+            source_registry['Jooble'] = scrape_jooble_playwright
+            logger.info("   Using Playwright for Jooble")
+        else:
+            source_registry['Jooble'] = get_jooble_jobs
     
     # Add enhanced scrapers (France Travail RSS, Welcome to the Jungle, etc.)
     enhanced_sources = ["Indeed", "LinkedIn", "Simplyhired", "Careerbuilder", 
