@@ -37,8 +37,8 @@ export default function SearchProgressBar({ isSearching, totalSources, sourcesCo
 
         // Update phase description based on progress
         if (pct < 10) setPhase('🔍 Préparation de la recherche...');
-        else if (pct < 25) setPhase(`📡 Interrogation des sources (${sourcesCompleted || 0}/${totalSources})...`);
-        else if (pct < 50) setPhase(`⚙️ Analyse des résultats (${sourcesCompleted || 0}/${totalSources})...`);
+        else if (pct < 25) setPhase('📡 Interrogation des sources...');
+        else if (pct < 50) setPhase('⚙️ Analyse des résultats...');
         else if (pct < 75) setPhase('🧠 Classement par pertinence IA...');
         else if (pct < 95) setPhase('📊 Finalisation des résultats...');
         else setPhase('✅ Presque terminé...');
