@@ -163,10 +163,10 @@ export default function SearchProgressBar({ isSearching, totalSources, sourcesCo
         </div>
       </div>
 
-      {/* Bottom: percentage + sources */}
+      {/* Bottom: percentage only */}
       <div style={{
         display: 'flex',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
         alignItems: 'center',
         marginTop: '8px',
       }}>
@@ -179,32 +179,6 @@ export default function SearchProgressBar({ isSearching, totalSources, sourcesCo
         }}>
           {progress}%
         </span>
-        {totalSources > 0 && (
-          <div style={{
-            display: 'flex',
-            gap: '4px',
-            flexWrap: 'wrap',
-          }}>
-            {/* Source dots */}
-            {[...Array(totalSources)].map((_, i) => (
-              <div key={i} style={{
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                background: i < (sourcesCompleted || 0) ? '#10b981' : '#334155',
-                transition: 'background 0.3s ease',
-                boxShadow: i < (sourcesCompleted || 0) ? '0 0 6px rgba(16,185,129,0.5)' : 'none',
-              }} />
-            ))}
-            <span style={{
-              color: '#64748b',
-              fontSize: '11px',
-              marginLeft: '4px',
-            }}>
-              {sourcesCompleted || 0}/{totalSources}
-            </span>
-          </div>
-        )}
       </div>
 
       {/* CSS Keyframes injected once */}

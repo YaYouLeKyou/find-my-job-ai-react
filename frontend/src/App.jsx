@@ -33,10 +33,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   const [remote, setRemote] = useState(false);
   const [globalSearch, setGlobalSearch] = useState(false);
   const [selectedSources, setSelectedSources] = useState([
-    "LinkedIn", "Indeed", "France Travail", "Google Jobs", "Adzuna",
-    "Jooble", "Glassdoor", "ZipRecruiter", "Simplyhired", "Careerbuilder", "Monster",
-    "Reed", "StepStone", "Xing", "Dice", "Seek",
-    "RégionsJob", "LesJeudis", "Talent.io"
+    "LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Jooble"
   ]);
   const [excludedSources, setExcludedSources] = useState([]);
   const [dismissKeyPrompt, setDismissKeyPrompt] = useState(false);
