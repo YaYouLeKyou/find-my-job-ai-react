@@ -1487,16 +1487,20 @@ async def api_search_jobs_stream(request: Request, req: JobSearchRequest):
 
             logger.info(f"SSE: completed, {len(all_results)} jobs collected. Running AI scoring pipeline...")
 
-            # ─── AI SCORING PIPELINE WITH MD5 CACHE ─────────────────────
+            # ─── AI SCORING PIPELINE WITH MD5 CACHE (TOP 25, PARALLEL BATCHES OF 5) ──
             scored_results = all_results
             if all_results and req.cv_data:
                 try:
+                    TOP_N = 25
+                    BATCH_SIZE = 5
+                    top_jobs = all_results[:TOP_N]
+
                     # Compute MD5 hashes for each job and check cache
                     cache_hits = 0
                     uncached_jobs = []
                     uncached_hashes = []
 
-                    for job in all_results:
+                    for job in top_jobs:
                         job_key = json.dumps({
                             "title": job.get("title", "") or job.get("titre", ""),
                             "company": job.get("company", "") or job.get("entreprise", ""),
@@ -1519,32 +1523,48 @@ async def api_search_jobs_stream(request: Request, req: JobSearchRequest):
                         uncached_jobs.append(job)
                         uncached_hashes.append((job, job_hash, cache_key))
 
-                    logger.info(f"SSE: AI scoring — {cache_hits} cache hits, {len(uncached_jobs)} uncached jobs")
+                    logger.info(f"SSE: AI scoring — {cache_hits} cache hits, {len(uncached_jobs)} uncached jobs (top {TOP_N} of {len(all_results)})")
 
                     if uncached_jobs:
-                        # Run batch scoring in a thread to avoid blocking the event loop
-                        scored_batch = await asyncio.to_thread(
-                            rank_jobs_with_ai,
-                            req.cv_data,
-                            uncached_jobs,
-                            {"contrat": req.contract, "remote": req.remote},
-                            req.ranking_engine,
-                            req.custom_gemini_key,
-                        )
+                        # Split into batches of BATCH_SIZE
+                        batches = [
+                            uncached_jobs[i:i + BATCH_SIZE]
+                            for i in range(0, len(uncached_jobs), BATCH_SIZE)
+                        ]
+                        batch_hashes = [
+                            uncached_hashes[i:i + BATCH_SIZE]
+                            for i in range(0, len(uncached_hashes), BATCH_SIZE)
+                        ]
 
-                        # Store scores in Redis cache and attach to results
-                        for i, scored_job in enumerate(scored_batch):
-                            match_score = scored_job.get("match_score", 0)
-                            _, job_hash, cache_key = uncached_hashes[i] if i < len(uncached_hashes) else (None, None, None)
-                            if job_hash and REDIS_AVAILABLE and redis_client:
-                                try:
-                                    redis_client.setex(cache_key, 86400, str(match_score))
-                                except Exception as e:
-                                    logger.warning(f"SSE: Redis cache write error for {cache_key}: {e}")
+                        # Score each batch in a thread, run all batches in parallel
+                        async def score_batch(batch_jobs):
+                            return await asyncio.to_thread(
+                                rank_jobs_with_ai,
+                                req.cv_data,
+                                batch_jobs,
+                                {"contrat": req.contract, "remote": req.remote},
+                                req.ranking_engine,
+                                req.custom_gemini_key,
+                            )
 
-                        # Merge scored jobs back into all_results
+                        batch_tasks = [score_batch(batch) for batch in batches]
+                        scored_batches = await asyncio.gather(*batch_tasks)
+
+                        # Store scores in Redis cache and collect all scored jobs
+                        all_scored = []
+                        for batch_idx, scored_batch in enumerate(scored_batches):
+                            for i, scored_job in enumerate(scored_batch):
+                                _, job_hash, cache_key = batch_hashes[batch_idx][i]
+                                if job_hash and REDIS_AVAILABLE and redis_client:
+                                    try:
+                                        redis_client.setex(cache_key, 86400, str(scored_job.get("match_score", 0)))
+                                    except Exception as e:
+                                        logger.warning(f"SSE: Redis cache write error for {cache_key}: {e}")
+                            all_scored.extend(scored_batch)
+
+                        # Merge scored jobs back into top_jobs
                         scored_map = {}
-                        for scored_job in scored_batch:
+                        for scored_job in all_scored:
                             key = json.dumps({
                                 "title": scored_job.get("title", "") or scored_job.get("titre", ""),
                                 "company": scored_job.get("company", "") or scored_job.get("entreprise", ""),
@@ -1552,7 +1572,7 @@ async def api_search_jobs_stream(request: Request, req: JobSearchRequest):
                             }, sort_keys=True)
                             scored_map[hashlib.md5(key.encode()).hexdigest()] = scored_job
 
-                        for job in all_results:
+                        for job in top_jobs:
                             job_key = json.dumps({
                                 "title": job.get("title", "") or job.get("titre", ""),
                                 "company": job.get("company", "") or job.get("entreprise", ""),
@@ -1566,11 +1586,10 @@ async def api_search_jobs_stream(request: Request, req: JobSearchRequest):
                                 job["score_cached"] = False
 
                     scored_results = all_results
-                    logger.info(f"SSE: AI scoring pipeline completed")
+                    logger.info(f"SSE: AI scoring pipeline completed for top {TOP_N} jobs")
 
                 except Exception as scoring_err:
                     logger.exception("SSE: AI scoring pipeline failed")
-                    # Continue without scoring — return unscored results
 
             yield f"data: {json.dumps({'type': 'SCORES_UPDATED', 'jobs': scored_results, 'progress': 100})}\n\n"
             yield f"data: {json.dumps({'type': 'COMPLETED', 'jobs': scored_results, 'source_status': source_results, 'progress': 100})}\n\n"
