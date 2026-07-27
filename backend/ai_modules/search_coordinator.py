@@ -60,6 +60,7 @@ class SearchFallbackEngine:
     def simplify_job_title(title: str) -> str:
         """Simplify job title by removing qualifiers."""
         # Remove common qualifiers
+        import re
         simplifications = [
             (r'\b(senior|junior|confirmé|débutant|expérimenté)\b', ''),
             (r'\b(h/f|f/h|hf|fh)\b', ''),
@@ -69,7 +70,7 @@ class SearchFallbackEngine:
         
         simplified = title.lower().strip()
         for pattern, replacement in simplifications:
-            simplified = __import__('re').sub(pattern, replacement, simplified, flags=__import__('re').IGNORECASE)
+            simplified = re.sub(pattern, replacement, simplified, flags=re.IGNORECASE)
         
         # Take first 2-3 meaningful words
         words = simplified.split()
@@ -77,6 +78,48 @@ class SearchFallbackEngine:
             simplified = ' '.join(words[:3])
         
         return simplified.strip()
+    
+    @staticmethod
+    def split_long_query(title: str) -> List[str]:
+        """
+        Split a long job query into shorter independent searches.
+        Example: "Ingénieur en Intelligence Artificielle et Développeur Full-Stack"
+          -> ["Ingénieur Intelligence Artificielle", "Développeur Full-Stack"]
+        """
+        import re
+        separators = [r'\bet\b', r'\b&\b', r'\b/\b', r'\b-\b', r'\bchevronné\b', r'\b||\b']
+        
+        # Only split if query is long (>=5 words)
+        words = title.strip().split()
+        if len(words) < 5:
+            return [title]
+        
+        # Try to split on common separators (et, &, /, -)
+        for sep in separators:
+            parts = re.split(sep, title, flags=re.IGNORECASE)
+            if len(parts) >= 2:
+                # Clean each part
+                cleaned = []
+                for part in parts:
+                    part = part.strip().strip('-').strip()
+                    # Remove stop words at start/end
+                    part = re.sub(r'^(un\s|une\s|des\s|les?\s|en\s)', '', part, flags=re.IGNORECASE)
+                    part = part.strip()
+                    if part and len(part.split()) >= 2:
+                        cleaned.append(part)
+                if len(cleaned) >= 2:
+                    logger.info(f"   Split long query '{title}' -> {cleaned}")
+                    return cleaned[:3]  # Max 3 sub-queries
+        
+        # If no separator found, extract core keywords
+        stop_words = {'en', 'de', 'du', 'des', 'et', 'un', 'une', 'le', 'la', 'les', 'au', 'aux', 'pour'}
+        core = [w for w in words if w.lower() not in stop_words]
+        if len(core) >= 4:
+            # Return first 2 meaningful groups
+            mid = len(core) // 2
+            return [' '.join(core[:mid]), ' '.join(core[mid:])]
+        
+        return [title]
     
     @staticmethod
     def expand_keywords(title: str) -> List[str]:

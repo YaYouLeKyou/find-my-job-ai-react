@@ -101,7 +101,7 @@ except Exception as e:
 # Initialize Search Coordinator
 search_coordinator = SearchCoordinator(
     redis_client=redis_client,
-    timeout_per_source=5,
+    timeout_per_source=10,  # 10s for Playwright scrapers (was 5s)
     cache_ttl=86400,  # 24 hours
     enable_fallback=True,
     max_fallback_attempts=3
