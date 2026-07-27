@@ -104,13 +104,13 @@ except Exception as e:
     redis_client = None
     logger.warning(f"⚠️ Redis not available: {e}. Caching disabled.")
 
-# Initialize Search Coordinator
+# Initialize Search Coordinator with optimized settings
 search_coordinator = SearchCoordinator(
     redis_client=redis_client,
-    timeout_per_source=10,  # 10s for Playwright scrapers (was 5s)
+    timeout_per_source=8,  # 8s timeout (balanced between speed and results)
     cache_ttl=86400,  # 24 hours
     enable_fallback=True,
-    max_fallback_attempts=3
+    max_fallback_attempts=2  # Reduced from 3 to 2
 )
 logger.info("✅ Search Coordinator initialized with fallback and caching")
 

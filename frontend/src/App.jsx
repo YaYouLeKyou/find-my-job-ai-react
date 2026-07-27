@@ -34,7 +34,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   const [globalSearch, setGlobalSearch] = useState(false);
   const [selectedSources, setSelectedSources] = useState([
     "LinkedIn", "France Travail", "Google Jobs", "Adzuna",
-    "Indeed", "Glassdoor", "ZipRecruiter", "Simplyhired", "Careerbuilder", "Monster",
+    "Indeed", "Simplyhired", "Careerbuilder", "Monster",
     "Welcome to the Jungle", "HelloWork", "APEC", "JobTeaser",
     "Emploi Public", "RégionsJob", "ChooseYourBoss", "LesJeudis"
   ]);
