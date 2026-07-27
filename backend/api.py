@@ -633,18 +633,25 @@ def get_adzuna_jobs(job_title: str, location: str = "France", limit: int = 10) -
         logger.info(f"Adzuna: appel API what={job_title!r}, where={location!r}")
         response = requests.get(url, params=params, timeout=15)
         logger.info(f"Adzuna: HTTP {response.status_code}")
+        
+        # Detailed error detection
         if response.status_code == 401:
-            logger.error("❌ Adzuna: clé API invalide ou expirée (401 Unauthorized)")
+            error_msg = "clé API invalide ou expirée (401 Unauthorized)"
+            logger.error(f"❌ Adzuna: {error_msg}")
             return []
         elif response.status_code == 403:
-            logger.error("❌ Adzuna: accès refusé - vérifiez vos clés API (403 Forbidden)")
+            error_msg = "accès refusé - vérifiez vos clés API (403 Forbidden)"
+            logger.error(f"❌ Adzuna: {error_msg}")
             return []
         elif response.status_code == 429:
-            logger.error("❌ Adzuna: quota de requêtes dépassé (429 Too Many Requests)")
+            error_msg = "quota de requêtes dépassé (429 Too Many Requests)"
+            logger.error(f"❌ Adzuna: {error_msg}")
             return []
         elif response.status_code != 200:
-            logger.error(f"❌ Adzuna: erreur HTTP {response.status_code}: {response.text[:200]}")
+            error_msg = f"erreur HTTP {response.status_code}: {response.text[:200]}"
+            logger.error(f"❌ Adzuna: {error_msg}")
             return []
+        
         data = response.json()
         results = data.get("results", [])
         logger.info(f"✅ Adzuna: {len(results)} résultats bruts")
@@ -657,7 +664,8 @@ def get_adzuna_jobs(job_title: str, location: str = "France", limit: int = 10) -
             "source": "Adzuna"
         } for res in results]
     except Exception as e:
-        logger.error(f"❌ Adzuna API error: {e}")
+        error_msg = f"API error: {e}"
+        logger.error(f"❌ Adzuna: {error_msg}")
         return []
 
 def get_serpapi_jobs(job_title: str, location: str = "France", limit: int = 10) -> List[dict]:
