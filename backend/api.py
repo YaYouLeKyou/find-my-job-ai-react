@@ -631,7 +631,7 @@ def get_adzuna_jobs(job_title: str, location: str = "France", limit: int = 10) -
     }
     try:
         logger.info(f"Adzuna: appel API what={job_title!r}, where={location!r}")
-        response = requests.get(url, params=params, timeout=5)
+        response = requests.get(url, params=params, timeout=15)
         logger.info(f"Adzuna: HTTP {response.status_code}")
         if response.status_code != 200:
             logger.error(f"Adzuna: erreur HTTP {response.status_code}: {response.text[:200]}")
@@ -667,7 +667,7 @@ def get_serpapi_jobs(job_title: str, location: str = "France", limit: int = 10) 
     }
     try:
         logger.info(f"SerpApi: appel API q={job_title!r}, location={clean_location!r}")
-        response = requests.get(url, params=params, timeout=5)
+        response = requests.get(url, params=params, timeout=15)
         logger.info(f"SerpApi: HTTP {response.status_code}")
         if response.status_code != 200:
             logger.error(f"SerpApi: erreur HTTP {response.status_code}: {response.text[:200]}")
