@@ -27,7 +27,7 @@ from app.services.scorer import score_jobs
 from app.services.aggregator import SearchAggregator, normalize_jobs_for_frontend
 
 # Import scrapers
-from app.scrapers.api_sources import get_france_travail_source, get_adzuna_source, get_google_jobs_source, get_jooble_source, get_apify_source
+from app.scrapers.api_sources import get_france_travail_source, get_france_travail_rss_source, get_adzuna_source, get_google_jobs_source, get_jooble_source, get_apify_source
 from app.scrapers.web_sources import (
     scrape_indeed,
     scrape_linkedin,
@@ -124,10 +124,26 @@ def build_source_registry(selected_sources: list, cv_data: Optional[dict] = None
     # API sources
     if "France Travail" in selected_sources:
         ft_source = get_france_travail_source()
-        if ft_source:
-            source_registry['France Travail'] = lambda q, l, n: asyncio.run(
-                ft_source.search_jobs(q, l, n)
-            )
+        ft_rss_source = get_france_travail_rss_source()
+
+        def _search_france_travail_with_fallback(q: str, l: str, n: int):
+            api_jobs = []
+            if ft_source:
+                try:
+                    api_jobs = asyncio.run(ft_source.search_jobs(q, l, n))
+                    if api_jobs:
+                        logger.info(f"[SSE] France Travail API returned {len(api_jobs)} jobs")
+                        return api_jobs
+                except Exception as e:
+                    logger.warning(f"[SSE] France Travail API failed, falling back to RSS: {e}")
+            if ft_rss_source:
+                try:
+                    return asyncio.run(ft_rss_source(q, l, n))
+                except Exception as e:
+                    logger.error(f"[SSE] France Travail RSS fallback failed: {e}")
+            return api_jobs
+
+        source_registry['France Travail'] = _search_france_travail_with_fallback
     
     if "Adzuna" in selected_sources:
         adzuna_source = get_adzuna_source()
@@ -288,6 +304,9 @@ async def _stream_jobs(
                 logger.info(
                     f"[SSE] source={source_name} status={status} jobs={jobs_count} duration={getattr(result, 'duration', None)} error={getattr(result, 'error', None)}"
                 )
+                # Log details for debugging
+                if result.jobs and jobs_count > 0:
+                    logger.info(f"[SSE] source={source_name} sample_job={result.jobs[0].get('titre', 'N/A')}")
                 yield f"data: {json.dumps({'type': 'PROGRESS', 'progress': 100, 'source': source_name, 'status': status, 'jobs': result.jobs})}\n\n"
                 emit_count += 1
 
@@ -326,12 +345,12 @@ async def _stream_jobs(
 # ─── AI Models Status ─────────────────────────────────────────────────────────
 
 @app.get("/api/ai/status")
-async def ai_status():
+async def ai_status(custom_gemini_key: Optional[str] = Query(None)):
     """Check real connectivity of AI models using the same provider calls as the app."""
     logger.info("[AI_STATUS] Starting AI models connectivity check...")
 
     groq_key = (settings.GROQ_API_KEY or "").strip()
-    gemini_key = (settings.GEMINI_API_KEY or "").strip()
+    gemini_key = (custom_gemini_key or settings.GEMINI_API_KEY or "").strip()
     ollama_url = (settings.OLLAMA_URL or "").strip()
 
     logger.info(f"[AI_STATUS] GROQ key present: {bool(groq_key)}")

@@ -4,10 +4,15 @@ Loads and validates environment variables
 """
 
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv(override=True)
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
+_DOTENV_PATH = _BACKEND_DIR / ".env"
+if _DOTENV_PATH.exists():
+    load_dotenv(_DOTENV_PATH, override=True)
+else:
+    load_dotenv(override=True)
 
 
 class Settings:

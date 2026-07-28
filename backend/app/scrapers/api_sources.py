@@ -7,11 +7,25 @@ Adzuna API with async httpx
 import logging
 import os
 import re
+import urllib.parse
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
+
+from app.config import settings
+
+def _mask(value: Optional[str]) -> str:
+    if not value:
+        return "<empty>"
+    if len(value) <= 8:
+        return "***"
+    return f"{value[:6]}...{value[-4:]}"
+
+
+logger = logging.getLogger(__name__)
+
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +51,7 @@ class FranceTravailSource:
         self.client_secret = client_secret
         self._access_token = None
         self._token_expiry = None
+        self._scope = "api_offresdemploiv2"
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     async def _get_access_token(self) -> Optional[str]:
@@ -53,16 +68,24 @@ class FranceTravailSource:
         try:
             logger.info("🔑 Requesting France Travail access token...")
 
+            payload = {
+                "grant_type": "client_credentials",
+                "scope": self._scope,
+            }
+
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "application/json",
+                "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+            }
+
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     self.AUTH_URL,
-                    data={
-                        "grant_type": "client_credentials",
-                        "client_id": self.client_id,
-                        "client_secret": self.client_secret,
-                        "scope": "api_offresdemploiv2 o2dsoffre"
-                    },
-                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    data=payload,
+                    headers=headers,
+                    auth=(self.client_id, self.client_secret),
                     timeout=10.0
                 )
 
@@ -80,7 +103,6 @@ class FranceTravailSource:
                     logger.error(f"❌ No access token in response: {token_data}")
                     return None
 
-                # Calculate expiry (subtract 60 seconds for safety margin)
                 expires_in = token_data.get("expires_in", 3600)
                 self._token_expiry = datetime.now() + timedelta(seconds=expires_in - 60)
 
@@ -190,7 +212,9 @@ class FranceTravailSource:
 
             headers = {
                 "Authorization": f"Bearer {token}",
-                "Accept": "application/json"
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             }
 
             # Fetch pages in parallel for speed
@@ -373,12 +397,22 @@ class AdzunaSource:
 
         try:
             logger.info(f"🔍 Searching Adzuna API: query='{query}', location='{location}', country='{country}', limit={limit}")
+            masked_app_id = _mask(self.app_id)
+            masked_app_key = _mask(self.app_key)
+            logger.info(f"   app_id={masked_app_id}")
+            logger.info(f"   app_key={masked_app_key}")
+            logger.info(f"   BASE_URL={self.BASE_URL}")
+            logger.info(f"   country={country}, url={self.BASE_URL}/{country}/search/1")
 
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(
                     f"{self.BASE_URL}/{country}/search/1",
                     params=params,
                 )
+
+                logger.info(f"   Adzuna response status: {response.status_code}")
+                logger.info(f"   Adzuna response headers: {dict(response.headers)}")
+                logger.info(f"   Adzuna response body[:300]: {response.text[:300]}")
 
                 # Handle quota / rate limiting gracefully
                 if response.status_code in (429, 403):
@@ -387,6 +421,7 @@ class AdzunaSource:
 
                 if response.status_code != 200:
                     logger.error(f"❌ Adzuna API error: HTTP {response.status_code}")
+                    logger.error(f"   Response: {response.text[:500]}")
                     return []
 
                 data = response.json()
@@ -403,7 +438,36 @@ class AdzunaSource:
                         logger.debug(f"Error parsing Adzuna job: {e}")
                         continue
 
-                return jobs
+                if jobs:
+                    return jobs
+
+            # Si aucun résultat avec la localisation précise, on tente un élargissement
+            if country == "fr" and location and "," in location:
+                fallback_location = location.split(",")[0].strip()
+                if fallback_location and fallback_location.lower() not in ["france", "global", "remote", ""]:
+                    fallback_params = dict(params)
+                    fallback_params["where"] = fallback_location
+                    logger.info(f"🔁 Adzuna fallback location={fallback_location}")
+                    async with httpx.AsyncClient(timeout=10.0) as client:
+                        fallback_response = await client.get(
+                            f"{self.BASE_URL}/{country}/search/1",
+                            params=fallback_params,
+                        )
+                    if fallback_response.status_code == 200:
+                        fallback_data = fallback_response.json()
+                        fallback_results = fallback_data.get("results", [])
+                        logger.info(f"✅ Adzuna fallback: {len(fallback_results)} results received")
+                        for item in fallback_results[:limit]:
+                            try:
+                                job = self._parse_job(item)
+                                if job:
+                                    jobs.append(job)
+                            except Exception as e:
+                                logger.debug(f"Error parsing Adzuna fallback job: {e}")
+                                continue
+                        return jobs[:limit]
+
+            return jobs
 
         except httpx.TimeoutException:
             logger.warning("⚠️ Adzuna API timeout - returning empty list")
@@ -501,8 +565,8 @@ def get_france_travail_source(client_id: Optional[str] = None, client_secret: Op
     if _france_travail_source:
         return _france_travail_source
 
-    client_id = client_id or os.getenv("FRANCE_TRAVAIL_CLIENT_ID", "") or ""
-    client_secret = client_secret or os.getenv("FRANCE_TRAVAIL_CLIENT_SECRET", "") or ""
+    client_id = client_id or settings.FRANCE_TRAVAIL_CLIENT_ID or ""
+    client_secret = client_secret or settings.FRANCE_TRAVAIL_CLIENT_SECRET or ""
 
     if not client_id or not client_secret:
         logger.warning("⚠️ France Travail credentials not configured")
@@ -528,8 +592,8 @@ def get_adzuna_source(app_id: Optional[str] = None, app_key: Optional[str] = Non
     if _adzuna_source:
         return _adzuna_source
 
-    app_id = app_id or os.getenv("ADZUNA_APP_ID", "") or ""
-    app_key = app_key or os.getenv("ADZUNA_APP_KEY", "") or ""
+    app_id = app_id or settings.ADZUNA_APP_ID or ""
+    app_key = app_key or settings.ADZUNA_APP_KEY or ""
 
     if not app_id or not app_key:
         logger.warning("⚠️ Adzuna credentials not configured")
@@ -555,17 +619,30 @@ class GoogleJobsSource:
         contract_type: str = "",
         remote_only: bool = False
     ) -> List[dict]:
+        normalized_location = location or "France"
+        if "," in normalized_location:
+            normalized_location = normalized_location.split(",")[0].strip()
+        if not normalized_location:
+            normalized_location = "France"
+
         params = {
             "engine": "google_jobs",
             "q": query,
-            "location": location,
+            "location": f"{normalized_location}, Île-de-France, France" if normalized_location.lower() in ["paris", "didenheim"] else normalized_location,
+            "google_domain": "google.fr",
+            "gl": "fr",
             "hl": "fr",
             "api_key": self.api_key,
         }
         try:
-            logger.info(f"[API:GoogleJobs] start query={query!r} location={location!r} limit={limit}")
+            logger.info(f"[API:GoogleJobs] start query={query!r} location={normalized_location!r} limit={limit}")
+            masked_key = _mask(self.api_key)
+            logger.info(f"   serpapi_key={masked_key}")
+            logger.info(f"   BASE_URL={self.BASE_URL}")
             async with httpx.AsyncClient(timeout=15.0) as client:
                 response = await client.get(self.BASE_URL, params=params)
+            logger.info(f"   Google Jobs response status: {response.status_code}")
+            logger.info(f"   Google Jobs response body[:300]: {response.text[:300]}")
             if response.status_code != 200:
                 logger.error(f"[API:GoogleJobs] HTTP {response.status_code}: {response.text[:200]}")
                 return []
@@ -577,7 +654,7 @@ class GoogleJobsSource:
                     "titre": item.get("title", ""),
                     "entreprise": item.get("company_name", "N/C"),
                     "lien": item.get("related_links", [{}])[0].get("link") if item.get("related_links") else "#",
-                    "location": item.get("location", location),
+                    "location": item.get("location", normalized_location),
                     "date": item.get("detected_extensions", {}).get("posted_at", ""),
                     "source": "Google Jobs",
                     "description": item.get("description", ""),
@@ -596,7 +673,7 @@ def get_google_jobs_source(api_key: Optional[str] = None) -> Optional[GoogleJobs
     global _google_jobs_source
     if _google_jobs_source:
         return _google_jobs_source
-    api_key = api_key or os.getenv("SERPAPI_KEY", "") or ""
+    api_key = api_key or settings.SERPAPI_KEY or ""
     if not api_key:
         logger.warning("⚠️ SerpApi key not configured")
         return None
@@ -620,11 +697,17 @@ class JoobleSource:
     ) -> List[dict]:
         try:
             logger.info(f"[API:Jooble] start query={query!r} location={location!r} limit={limit}")
+            masked_key = _mask(self.api_key)
+            logger.info(f"   api_key={masked_key}")
+            logger.info(f"   BASE_URL={self.BASE_URL}")
+            logger.info(f"   request_url={self.BASE_URL}/{masked_key}")
             async with httpx.AsyncClient(timeout=15.0) as client:
                 response = await client.post(
                     f"{self.BASE_URL}/{self.api_key}",
                     json={"keywords": query, "location": location},
                 )
+            logger.info(f"   Jooble response status: {response.status_code}")
+            logger.info(f"   Jooble response body[:300]: {response.text[:300]}")
             if response.status_code != 200:
                 logger.error(f"[API:Jooble] HTTP {response.status_code}: {response.text[:200]}")
                 return []
@@ -664,12 +747,17 @@ class ApifySource:
     ) -> List[dict]:
         try:
             logger.info(f"[API:Apify] start query={query!r} location={location!r} limit={limit}")
+            masked_key = _mask(self.api_key)
+            logger.info(f"   api_key={masked_key}")
+            logger.info(f"   BASE_URL={self.BASE_URL}")
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
                     self.BASE_URL,
                     params={"token": self.api_key},
                     json={"searchKeywords": query, "location": location, "maxItems": limit},
                 )
+            logger.info(f"   Apify response status: {response.status_code}")
+            logger.info(f"   Apify response body[:300]: {response.text[:300]}")
             if response.status_code != 200:
                 logger.error(f"[API:Apify] HTTP {response.status_code}: {response.text[:200]}")
                 return []
@@ -701,7 +789,7 @@ def get_jooble_source(api_key: Optional[str] = None) -> Optional[JoobleSource]:
     global _jooble_source
     if _jooble_source:
         return _jooble_source
-    api_key = api_key or os.getenv("JOOBLE_API_KEY", "") or ""
+    api_key = api_key or settings.JOOBLE_API_KEY or ""
     if not api_key:
         logger.warning("⚠️ Jooble API key not configured")
         return None
@@ -713,9 +801,108 @@ def get_apify_source(api_key: Optional[str] = None) -> Optional[ApifySource]:
     global _apify_source
     if _apify_source:
         return _apify_source
-    api_key = api_key or os.getenv("APIFY_API_KEY", "") or ""
+    api_key = api_key or settings.APIFY_API_KEY or ""
     if not api_key:
         logger.warning("⚠️ Apify API key not configured")
         return None
     _apify_source = ApifySource(api_key)
     return _apify_source
+
+
+logger = logging.getLogger(__name__)
+
+
+RSS_FEED_URL = "https://candidat.francetravail.fr/emplois/recherche/rss"
+
+
+def _normalize_rss_date(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    try:
+        return datetime.fromisoformat(value.replace('Z', '+00:00')).strftime('%Y-%m-%d')
+    except Exception:
+        return value[:10]
+
+
+def parse_rss_items(xml_text: str, query: str, location: str, limit: int = 50) -> List[dict]:
+    from xml.etree import ElementTree as ET
+    try:
+        root = ET.fromstring(xml_text.encode('utf-8') if isinstance(xml_text, str) else xml_text)
+    except Exception as e:
+        logger.error(f"❌ France Travail RSS parse error: {e}")
+        return []
+
+    items = []
+    for item in root.iter('item'):
+        title = (item.findtext('title') or '').strip()
+        link = (item.findtext('link') or '').strip()
+        pub_date = _normalize_rss_date(item.findtext('pubDate') or item.findtext('{http://www.w3.org/2005/Atom}updated'))
+        description = (item.findtext('description') or '').strip()
+        items.append({
+            'titre': title or query,
+            'entreprise': 'France Travail',
+            'lien': link,
+            'location': location,
+            'date': pub_date,
+            'source': 'France Travail',
+            'description': description[:2000],
+            'contrat': '',
+            'competences': [],
+        })
+        if len(items) >= limit:
+            break
+    return items
+
+
+@retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=5))
+async def scrape_france_travail_rss(job_title: str, location: str = "France", limit: int = 100) -> List[dict]:
+    logger.info(f"[RSS:FranceTravail] start query={job_title!r} location={location!r} limit={limit}")
+    params = {
+        'motsCles': job_title,
+        'lieu': location or 'France',
+    }
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/rss+xml, application/xml, text/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+    }
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            response = await client.get(RSS_FEED_URL, params=params, headers=headers)
+            logger.info(f"[RSS:FranceTravail] status={response.status_code}")
+            if response.status_code != 200:
+                logger.error(f"[RSS:FranceTravail] HTTP {response.status_code}: {response.text[:200]}")
+                return []
+            # Try to get more results by making multiple requests with different parameters
+            results = parse_rss_items(response.text, job_title, location, limit=limit)
+
+            # If we need more results, try with broader location
+            if len(results) < limit and "," in location:
+                broader_location = location.split(",")[0].strip()
+                if broader_location:
+                    params_broader = {
+                        'motsCles': job_title,
+                        'lieu': broader_location,
+                    }
+                    response_broader = await client.get(RSS_FEED_URL, params=params_broader, headers=headers)
+                    if response_broader.status_code == 200:
+                        broader_results = parse_rss_items(response_broader.text, job_title, broader_location, limit=limit)
+                        # Combine results, removing duplicates
+                        combined_results = []
+                        seen_titles = set()
+                        for job in results + broader_results:
+                            title = job.get('titre', '').strip().lower()
+                            if title and title not in seen_titles:
+                                seen_titles.add(title)
+                                combined_results.append(job)
+                        results = combined_results[:limit]
+
+            logger.info(f"[RSS:FranceTravail] done jobs={len(results)}")
+            return results
+    except Exception as e:
+        logger.error(f"[RSS:FranceTravail] error: {e}")
+        return []
+
+
+def get_france_travail_rss_source() -> Optional[callable]:
+    return scrape_france_travail_rss

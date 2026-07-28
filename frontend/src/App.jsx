@@ -93,6 +93,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [errorJobs, setErrorJobs] = useState("");
   const [ollamaOnline, setOllamaOnline] = useState(false);
+  const [geminiOnline, setGeminiOnline] = useState(false);
   const [searchTime, setSearchTime] = useState(null);
   const [visibleCount, setVisibleCount] = useState(20);
   const [searchHistory, setSearchHistory] = useState([]);
@@ -112,14 +113,13 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
       .then(data => { setOllamaOnline(data.ollama_online); })
       .catch(err => console.error("Backend not running or unreachable:", err));
 
-    // Non-blocking geolocation: run in background, don't block UI
     const geoTimer = setTimeout(() => {
       const controller = new AbortController();
       const geoTimeout = setTimeout(() => controller.abort(), 3000);
       fetch("https://ipapi.co/json/", { signal: controller.signal })
         .then(res => res.ok ? res.json() : Promise.reject())
         .then(data => { if (data.city && data.country_name) setLocation(`${data.city}, ${data.country_name}`); })
-        .catch(err => { console.debug("Geolocation skipped:", err); })
+        .catch(err => console.debug("Geolocation skipped:", err))
         .finally(() => clearTimeout(geoTimeout));
     }, 500);
 
@@ -134,6 +134,25 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
 
     return () => clearTimeout(geoTimer);
   }, []);
+
+  // Auto-switch to Gemini when key is entered and online
+  useEffect(() => {
+    if (!customGeminiKey || !customGeminiKey.trim()) return;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    fetch(`${API_BASE}/api/ai/status?custom_gemini_key=${encodeURIComponent(customGeminiKey.trim())}`, { signal: controller.signal })
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then(data => {
+        const online = !!data.gemini?.online;
+        setGeminiOnline(online);
+        if (online) {
+          setRankingEngine("Gemini 3.5");
+          setAnalysisEngine("Gemini 3.5");
+        }
+      })
+      .catch(err => console.debug("[Gemini] status preflight failed:", err))
+      .finally(() => clearTimeout(timeout));
+  }, [customGeminiKey]);
 
   // Cleanup SSE on unmount
   useEffect(() => {
@@ -250,9 +269,13 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
 
           if (data.type === 'PROGRESS') {
             // Update source counts as sources complete
-            if (data.source && data.jobs) {
-              accumulatedSourceCounts[data.source] = data.jobs.length;
+            if (data.source) {
+              accumulatedSourceCounts[data.source] = data.jobs ? data.jobs.length : 0;
               setSourceCounts({ ...accumulatedSourceCounts });
+              console.log(`[SSE] Source ${data.source}: ${accumulatedSourceCounts[data.source]} offres (status=${data.status})`);
+            }
+            if (data.jobs && data.jobs.length > 0) {
+              console.log(`[SSE] ${data.source} reçu: ${data.jobs.length} offres`, data.jobs.slice(0, 2));
             }
           }
 

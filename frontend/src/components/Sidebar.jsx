@@ -38,10 +38,38 @@ export default function Sidebar({
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [activeTab, setActiveTab] = useState('settings');
 
-  const handleSaveKey = () => {
+  const fetchStatus = async () => {
+    try {
+      const keyParam = customGeminiKey?.trim() ? `?custom_gemini_key=${encodeURIComponent(customGeminiKey.trim())}` : '';
+      const response = await fetch(`${API_BASE}/api/ai/status${keyParam}`);
+      const text = await response.text();
+      console.log('[DEBUG] AI status response:', response.status, text.substring(0, 300));
+      if (response.ok && text.trim().startsWith('{')) {
+        const data = JSON.parse(text);
+        setModelStatus({
+          groq: !!data.groq?.online,
+          gemini: !!data.gemini?.online,
+          xai: false
+        });
+        setModelDetails({
+          groq: data.groq || {},
+          gemini: data.gemini || {}
+        });
+      } else {
+        console.error('[DEBUG] AI status returned non-JSON:', text);
+      }
+    } catch (error) {
+      console.error("Failed to fetch AI status:", error);
+    } finally {
+      setLoadingStatus(false);
+    }
+  };
+
+  const handleSaveKey = async () => {
     if (customGeminiKey && customGeminiKey.trim()) {
       localStorage.setItem('gemini_api_key', customGeminiKey.trim());
       setSaved(true);
+      await fetchStatus(); // Revalider le statut Gemini immédiatement
       setTimeout(() => setSaved(false), 2500);
     }
   };
@@ -56,34 +84,8 @@ export default function Sidebar({
 
   // Fetch model status from AI status endpoint
   useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const response = await fetch(`${API_BASE}/api/ai/status`);
-        const text = await response.text();
-        console.log('[DEBUG] AI status response:', response.status, text.substring(0, 300));
-        if (response.ok && text.trim().startsWith('{')) {
-          const data = JSON.parse(text);
-          setModelStatus({
-            groq: !!data.groq?.online,
-            gemini: !!data.gemini?.online,
-            xai: false
-          });
-          setModelDetails({
-            groq: data.groq || {},
-            gemini: data.gemini || {}
-          });
-        } else {
-          console.error('[DEBUG] AI status returned non-JSON:', text);
-        }
-      } catch (error) {
-        console.error("Failed to fetch AI status:", error);
-      } finally {
-        setLoadingStatus(false);
-      }
-    };
-
     fetchStatus();
-  }, []);
+  }, [customGeminiKey]);
 
   // Close mobile sidebar on window resize above breakpoint
   React.useEffect(() => {
