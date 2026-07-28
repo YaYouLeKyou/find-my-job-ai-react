@@ -7,7 +7,6 @@ Adzuna API with async httpx
 import logging
 import os
 import re
-import urllib.parse
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 
