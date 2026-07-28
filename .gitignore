@@ -11,3 +11,9 @@ frontend/.env
 AMELIORATIONS.md
 AMELIORATIONS_SUPPLEMENTAIRES.md
 AGENTS_SPECIALISES.md
+backend.log
+backend_error.log
+audit_app.py
+audit_jobfilters.py
+fix_enhanced_scrapers.py
+fix_scrapers.py
