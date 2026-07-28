@@ -29,8 +29,11 @@ export default function Sidebar({
   const [modelStatus, setModelStatus] = useState({
     groq: false,
     gemini: false,
-    xai: false,
-    ollama: ollamaOnline
+    xai: false
+  });
+  const [modelDetails, setModelDetails] = useState({
+    groq: {},
+    gemini: {}
   });
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [activeTab, setActiveTab] = useState('settings');
@@ -51,26 +54,29 @@ export default function Sidebar({
     }
   }, []);
 
-  // Fetch model status from diagnostic endpoint
+  // Fetch model status from AI status endpoint
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/diagnostic`);
+        const response = await fetch(`${API_BASE}/api/ai/status`);
         const text = await response.text();
-        console.log('[DEBUG] Diagnostic response:', response.status, text.substring(0, 200));
+        console.log('[DEBUG] AI status response:', response.status, text.substring(0, 300));
         if (response.ok && text.trim().startsWith('{')) {
           const data = JSON.parse(text);
           setModelStatus({
-            groq: data.groq_key_configured || false,
-            gemini: data.gemini_key_configured || false,
-            xai: data.xai_key_configured || false,
-            ollama: data.ollama_configured || false
+            groq: !!data.groq?.online,
+            gemini: !!data.gemini?.online,
+            xai: false
+          });
+          setModelDetails({
+            groq: data.groq || {},
+            gemini: data.gemini || {}
           });
         } else {
-          console.error('[DEBUG] Diagnostic returned non-JSON:', text);
+          console.error('[DEBUG] AI status returned non-JSON:', text);
         }
       } catch (error) {
-        console.error("Failed to fetch diagnostic:", error);
+        console.error("Failed to fetch AI status:", error);
       } finally {
         setLoadingStatus(false);
       }
@@ -97,9 +103,13 @@ export default function Sidebar({
       <AlertCircle size={14} style={{ color: 'var(--error-color)' }} />;
   };
 
-  const getStatusText = (isAvailable) => {
+  const getStatusText = (isAvailable, modelKey) => {
     if (loadingStatus) return 'Vérification...';
-    return isAvailable ? 'Disponible' : 'Non configuré';
+    if (!isAvailable) return 'Non configuré';
+    const details = modelDetails[modelKey] || {};
+    if (details.online) return 'En ligne';
+    if (details.configured && details.error) return 'Hors ligne';
+    return 'Disponible';
   };
 
   const closeMobile = () => setMobileOpen(false);
@@ -370,7 +380,7 @@ export default function Sidebar({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {getStatusIcon(modelStatus.groq)}
                       <span style={{ color: modelStatus.groq ? '#2e7d32' : '#c62828', fontSize: '0.8rem', fontWeight: '700' }}>
-                        {getStatusText(modelStatus.groq)}
+                        {getStatusText(modelStatus.groq, 'groq')}
                       </span>
                     </div>
                   </div>
@@ -379,19 +389,7 @@ export default function Sidebar({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {getStatusIcon(modelStatus.gemini)}
                       <span style={{ color: modelStatus.gemini ? '#2e7d32' : '#c62828', fontSize: '0.8rem', fontWeight: '700' }}>
-                        {getStatusText(modelStatus.gemini)}
-                      </span>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)' }}>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: '600' }}>Ollama (Local)</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {modelStatus.ollama ? 
-                        <Wifi size={16} style={{ color: '#2e7d32' }} /> : 
-                        <WifiOff size={16} style={{ color: '#c62828' }} />
-                      }
-                      <span style={{ color: modelStatus.ollama ? '#2e7d32' : '#c62828', fontSize: '0.8rem', fontWeight: '700' }}>
-                        {modelStatus.ollama ? 'En ligne' : 'Hors ligne'}
+                        {getStatusText(modelStatus.gemini, 'gemini')}
                       </span>
                     </div>
                   </div>

@@ -7,7 +7,19 @@ from typing import Optional, List, Dict, Any
 
 import requests
 from groq import Groq
-import google.generativeai as genai
+
+try:
+    from google import genai
+    from google.genai import types
+    GOOGLE_NEW_SDK = True
+except Exception:
+    GOOGLE_NEW_SDK = False
+
+try:
+    import google.generativeai as legacy_genai
+    GOOGLE_LEGACY_SDK = True
+except Exception:
+    GOOGLE_LEGACY_SDK = False
 
 logger = logging.getLogger(__name__)
 
@@ -88,20 +100,88 @@ def call_ai_provider(
         if "Gemini" in selected_model:
             if not active_gemini_key:
                 raise Exception("Clé API Gemini manquante.")
-            genai.configure(api_key=active_gemini_key)
-            model_id = "models/gemini-2.0-flash" if "3.5" in selected_model else "models/gemini-1.5-flash"
+            model_id = "gemini-2.0-flash" if "3.5" in selected_model else "gemini-1.5-flash"
             logger.info(f"Appel Gemini AI : {model_id}")
-            model = genai.GenerativeModel(model_id)
-            generation_config = {"response_mime_type": "application/json", "temperature": 0.1} if is_json else {"temperature": 0.7}
-            safety_settings = [
-                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-            ]
-            response = model.generate_content(prompt, generation_config=generation_config, safety_settings=safety_settings)
 
-            if response.candidates and response.candidates[0].finish_reason != 1:
+            if GOOGLE_NEW_SDK:
+                sdk = "google.genai"
+                client = genai.Client(api_key=active_gemini_key)
+                config = (
+                    types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.1,
+                        safety_settings=[
+                            types.SafetySetting(
+                                category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                                threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                            ),
+                            types.SafetySetting(
+                                category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                                threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                            ),
+                            types.SafetySetting(
+                                category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                                threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                            ),
+                            types.SafetySetting(
+                                category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                                threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                            ),
+                        ],
+                    )
+                    if is_json
+                    else types.GenerateContentConfig(
+                        temperature=0.7,
+                        safety_settings=[
+                            types.SafetySetting(
+                                category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                                threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                            ),
+                            types.SafetySetting(
+                                category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                                threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                            ),
+                            types.SafetySetting(
+                                category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                                threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                            ),
+                            types.SafetySetting(
+                                category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                                threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                            ),
+                        ],
+                    )
+                )
+                response = client.models.generate_content(
+                    model=model_id,
+                    contents=prompt,
+                    config=config,
+                )
+            elif GOOGLE_LEGACY_SDK:
+                sdk = "google.generativeai"
+                legacy_genai.configure(api_key=active_gemini_key)
+                model = legacy_genai.GenerativeModel(f"models/{model_id}")
+                generation_config = (
+                    {"response_mime_type": "application/json", "temperature": 0.1}
+                    if is_json
+                    else {"temperature": 0.7}
+                )
+                safety_settings = [
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+                ]
+                response = model.generate_content(
+                    prompt,
+                    generation_config=generation_config,
+                    safety_settings=safety_settings,
+                )
+            else:
+                raise Exception("Aucun SDK Google Generative AI disponible.")
+
+            logger.info(f"[Gemini] Appel réel OK (sdk={sdk})")
+            if hasattr(response, "candidates") and response.candidates and response.candidates[0].finish_reason not in (None, 1):
                 reason = response.candidates[0].finish_reason
                 logger.warning(f"Gemini finish_reason inhabituel : {reason}")
                 if reason == 3:
@@ -110,7 +190,7 @@ def call_ai_provider(
             try:
                 text = response.text
             except (ValueError, AttributeError):
-                if response.candidates and len(response.candidates[0].content.parts) > 0:
+                if hasattr(response, "candidates") and response.candidates and len(response.candidates[0].content.parts) > 0:
                     text = response.candidates[0].content.parts[0].text
                 else:
                     raise Exception("Gemini a refusé de générer du texte pour ce contenu (Filtre de sécurité).")

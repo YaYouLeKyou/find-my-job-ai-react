@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import CvUploader from './components/CvUploader';
 import CvProfile from './components/CvProfile';
@@ -27,22 +27,54 @@ function hashCode(str) {
   return Math.abs(hash).toString(36);
 }
 
+// ─── Client-side sorting helper ──────────────────────────────────────────────
+// Sorts the jobs array in-place based on the active sortOption.
+// Uses properties supplied by the Python backend: pertinence_ai, posted_date, distance_score.
+function sortJobs(jobs, sortOption) {
+  if (!jobs || jobs.length === 0) return jobs;
+
+  const sorted = [...jobs];
+
+  if (sortOption === "Pertinence (IA)" || sortOption === "Relevance (AI)" || sortOption === "Relevancia (AI)" || sortOption === "Relevanz (KI)" || sortOption === "الأكثر ملاءمة (ذكاء اصطناعي)" || sortOption === "関連性 (AI)" || sortOption === "相关性 (AI)") {
+    // Sort descending by pertinence_ai
+    sorted.sort((a, b) => {
+      const sa = parseFloat(a.pertinence_ai) || 0;
+      const sb = parseFloat(b.pertinence_ai) || 0;
+      return sb - sa;
+    });
+  } else if (sortOption === "Plus récentes" || sortOption === "Most recent" || sortOption === "Más recientes" || sortOption === "Neueste" || sortOption === "الأحدث" || sortOption === "最新順" || sortOption === "最新发布") {
+    // Sort descending by posted_date
+    sorted.sort((a, b) => {
+      const da = a.posted_date || a.date || "";
+      const db = b.posted_date || b.date || "";
+      return String(db).localeCompare(String(da));
+    });
+  } else if (sortOption === "Plus proches" || sortOption === "Closest" || sortOption === "Más cercanos" || sortOption === "Am nächsten" || sortOption === "الأقرب" || sortOption === "近い順" || sortOption === "距离最近") {
+    // Sort descending by distance_score
+    sorted.sort((a, b) => {
+      const sa = parseFloat(a.distance_score) || 0;
+      const sb = parseFloat(b.distance_score) || 0;
+      return sb - sa;
+    });
+  }
+
+  return sorted;
+}
+
 // ─── FindMyJobAI Inner App ───────────────────────────────────────────────────
 function FindMyJobApp({ onBackToHub, lang, setLang }) {
   // Global States
-  // lang and setLang are now controlled by parent (App.jsx) for instant global updates
   const [analysisEngine, setAnalysisEngine] = useState("Groq / Llama 3.3");
   const [rankingEngine, setRankingEngine] = useState("Groq / Llama 3.3");
   const [customGeminiKey, setCustomGeminiKey] = useState("");
   const [cvData, setCvData] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState("Paris, France");
-  const [numAds, setNumAds] = useState(75);
-  const [maxMode, setMaxMode] = useState(false);
+  const [numAds, setNumAds] = useState(10);
 
   useEffect(() => {
     setSelectedSources([
-      "LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Remotive", "RemoteOK", "enhanced", "jobspy"
+      "LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Enhanced", "JobSpy"
     ]);
   }, []);
   const [sortOption, setSortOption] = useState("Pertinence (IA)");
@@ -50,7 +82,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   const [remote, setRemote] = useState(false);
   const [globalSearch, setGlobalSearch] = useState(false);
   const [selectedSources, setSelectedSources] = useState([
-    "LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Remotive", "RemoteOK", "enhanced", "jobspy"
+    "LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Enhanced", "JobSpy"
   ]);
   const [excludedSources, setExcludedSources] = useState([]);
   const [dismissKeyPrompt, setDismissKeyPrompt] = useState(false);
@@ -66,6 +98,9 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   const [searchHistory, setSearchHistory] = useState([]);
   const [savedJobs, setSavedJobs] = useState([]);
   const [toast, setToast] = useState(null);
+
+  // SSE connection ref for cleanup
+  const eventSourceRef = useRef(null);
 
   const currentLangCode = LANGS[lang].code;
   const S = STRINGS[currentLangCode];
@@ -100,6 +135,16 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
     return () => clearTimeout(geoTimer);
   }, []);
 
+  // Cleanup SSE on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, []);
+
   const handleCvAnalysisSuccess = (data) => {
     setCvData(data);
     if (data.metier) setSearchQuery(data.metier);
@@ -115,7 +160,8 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const handleSearchJobs = async (customQuery) => {
+  // ─── SSE-based search handler ──────────────────────────────────────────────
+  const handleSearchJobs = (customQuery) => {
     const activeQuery = customQuery || searchQuery;
     if (!activeQuery) return;
 
@@ -127,8 +173,14 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
     setExcludedSources([]);
     setVisibleCount(20);
 
-    const effectiveNumAds = maxMode ? 100 : numAds;
-    const effectiveSortOption = maxMode ? "Plus récentes" : sortOption;
+    // Close any existing SSE connection before starting a new one
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+
+    const effectiveNumAds = numAds;
+    const effectiveSortOption = sortOption;
 
     // Build cache key from search params
     const cacheKey = `job_cache_${hashCode(JSON.stringify({
@@ -149,7 +201,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
           const cached = JSON.parse(cachedRaw);
           const cacheAge = Date.now() - (cached.ts || 0);
           if (cacheAge < 30 * 60 * 1000) {
-            const results = cached.results || [];
+            const results = sortJobs(cached.results || [], effectiveSortOption);
             const sourceCounts = cached.source_counts || {};
             setJobs(results);
             setSourceCounts(sourceCounts);
@@ -164,101 +216,152 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
         }
       }
 
-      const response = await fetch(`${API_BASE}/api/search-jobs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: activeQuery,
-          location: globalSearch ? "" : location,
-          num_ads: effectiveNumAds,
-          contract: contract,
-          remote: remote,
-          global_search: globalSearch,
-          selected_sources: selectedSources,
-          sort_option: effectiveSortOption,
-          ranking_engine: rankingEngine,
-          custom_gemini_key: customGeminiKey || null,
-          lang_code: currentLangCode,
-          lang_label: LANGS[lang].label,
-          cv_data: cvData
-        })
+      // ─── Connect to SSE stream endpoint ───────────────────────────────────
+      const params = new URLSearchParams({
+        query: activeQuery,
+        location: globalSearch ? "" : location,
+        num_ads: String(effectiveNumAds),
+        contract: contract,
+        remote: String(remote),
+        global_search: String(globalSearch),
+        selected_sources: selectedSources.join(","),
+        sort_option: effectiveSortOption,
+        ranking_engine: rankingEngine,
+        custom_gemini_key: customGeminiKey || "",
+        lang_code: currentLangCode,
+        lang_label: LANGS[lang].label,
+        cv_data: cvData ? JSON.stringify(cvData) : ""
       });
 
-      if (!response.ok) throw new Error("Erreur de communication avec le serveur d'offres.");
+      const streamUrl = `${API_BASE}/api/search-jobs-stream?${params.toString()}`;
+      const es = new EventSource(streamUrl);
+      eventSourceRef.current = es;
 
-      const data = await response.json();
-      const results = data.results || [];
-      const sourceStatus = data.source_status || {};
-      
-      // Build sourceCounts from source_status for UI consistency
-      const sourceCounts = {};
-      Object.entries(sourceStatus).forEach(([source, status]) => {
-        if (status && status.count !== undefined) {
-          sourceCounts[source] = status.count;
-        }
-      });
-      
-      // ─── RAPPORT CONSOLE SIMPLIFIÉ ─────────────────────────────────
-      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      const activeSources = Object.entries(sourceStatus)
-        .filter(([, status]) => status && status.count > 0)
-        .map(([name]) => name);
-      
-      const bySource = {};
-      results.forEach(job => {
-        const src = job.source || 'Inconnue';
-        if (!bySource[src]) bySource[src] = [];
-        bySource[src].push(job);
-      });
-      
-      console.log('%c═══════════════════════════════════════════════════════', 'font-weight:bold;color:#7c4dff');
-      console.log('%c  📊 RAPPORT DE SCAN MULTI-SOURCES', 'font-weight:bold;font-size:14px;color:#7c4dff');
-      console.log('%c═══════════════════════════════════════════════════════', 'font-weight:bold;color:#7c4dff');
-      console.log(`%c🔍 Requête: "${activeQuery}"`, 'color:#333;font-weight:bold');
-      console.log(`%c⏱️  Temps total: ${duration}s | 📦 Total: ${results.length} offres`, 'color:#555');
-      console.log('%c───────────────────────────────────────────────────────', 'color:#999');
-      
-      if (activeSources.length === 0) {
-        console.log('%c⚠️ Aucune source active n\'a retourné de résultats.', 'color:#ff6f00');
-      } else {
-        activeSources.forEach(source => {
-          const jobs = (bySource[source] || []).slice(0, 3);
-          const count = (bySource[source] || []).length;
-          console.log(`%c✅ %c${source}: %c${count} résultat${count > 1 ? 's' : ''}`, 'font-weight:bold', 'color:#2e7d32;font-weight:bold', 'color:#1b5e20;font-weight:bold');
-          if (jobs.length > 0) {
-            console.log(`%c   ┌─ ${jobs.map((j,i) => `${i+1}. ${j.title || 'N/A'} @ ${j.company || 'N/A'}`).join('\n   │  ')}`, 'color:#2e7d32');
-            if (count > 3) console.log(`%c   └─ ... et ${count - 3} autre${count - 3 > 1 ? 's' : ''}`, 'color:#2e7d32;font-style:italic');
-            else console.log(`%c   └─ ✓`, 'color:#2e7d32');
+      let accumulatedJobs = [];
+      let accumulatedSourceCounts = {};
+
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.type === 'STARTED') {
+            console.log(`[SSE] Search started: ${data.query} (${data.total_sources} sources)`);
           }
-        });
-      }
-      
-      console.log('%c═══════════════════════════════════════════════════════', 'font-weight:bold;color:#7c4dff');
-      
-      setJobs(results);
-      setSourceCounts(sourceCounts);
 
-      const endTime = Date.now();
-      const searchDuration = ((endTime - startTime) / 1000).toFixed(2);
-      setSearchTime(searchDuration);
+          if (data.type === 'PROGRESS') {
+            // Update source counts as sources complete
+            if (data.source && data.jobs) {
+              accumulatedSourceCounts[data.source] = data.jobs.length;
+              setSourceCounts({ ...accumulatedSourceCounts });
+            }
+          }
 
-      // Cache results in localStorage (30 min TTL)
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify({ results, source_counts: sourceCounts, ts: Date.now() }));
-      } catch (e) {
-        // Storage full or private mode — ignore
-      }
+          if (data.type === 'SOURCE_RESULT') {
+            // Append jobs from this source to the accumulated list
+            if (data.jobs && data.jobs.length > 0) {
+              accumulatedJobs = [...accumulatedJobs, ...data.jobs];
+              // Apply client-side sorting
+              const sorted = sortJobs(accumulatedJobs, effectiveSortOption);
+              setJobs(sorted);
+            }
+            if (data.source) {
+              accumulatedSourceCounts[data.source] = data.jobs ? data.jobs.length : 0;
+              setSourceCounts({ ...accumulatedSourceCounts });
+            }
+          }
 
-      const newHistory = [{ query: activeQuery, time: new Date().toISOString(), count: data.results?.length || 0 }, ...searchHistory.filter(h => h.query !== activeQuery)].slice(0, 10);
-      setSearchHistory(newHistory);
-      localStorage.setItem('searchHistory', JSON.stringify(newHistory));
+          if (data.type === 'SCORES_UPDATED') {
+            // Backend has updated AI scores; re-sort with updated pertinence_ai
+            if (data.jobs && data.jobs.length > 0) {
+              accumulatedJobs = data.jobs;
+              const sorted = sortJobs(accumulatedJobs, effectiveSortOption);
+              setJobs(sorted);
+            }
+          }
 
-      showToast(`✅ ${data.results?.length || 0} offres trouvées en ${searchDuration}s`, 'success');
+          if (data.type === 'COMPLETED') {
+            // Final results from the stream
+            if (data.jobs && data.jobs.length > 0) {
+              accumulatedJobs = data.jobs;
+              const sorted = sortJobs(accumulatedJobs, effectiveSortOption);
+              setJobs(sorted);
+            }
+
+            // Build sourceCounts from source_status if available
+            if (data.source_status) {
+              const counts = {};
+              Object.entries(data.source_status).forEach(([source, status]) => {
+                if (status && status.count !== undefined) {
+                  counts[source] = status.count;
+                }
+              });
+              setSourceCounts(counts);
+            }
+
+            const searchDuration = ((Date.now() - startTime) / 1000).toFixed(2);
+            setSearchTime(searchDuration);
+
+            // Cache results in localStorage (30 min TTL)
+            try {
+              localStorage.setItem(cacheKey, JSON.stringify({
+                results: accumulatedJobs,
+                source_counts: accumulatedSourceCounts,
+                ts: Date.now()
+              }));
+            } catch (e) {
+              // Storage full or private mode — ignore
+            }
+
+            // Update search history
+            const newHistory = [{
+              query: activeQuery,
+              time: new Date().toISOString(),
+              count: accumulatedJobs.length
+            }, ...searchHistory.filter(h => h.query !== activeQuery)].slice(0, 10);
+            setSearchHistory(newHistory);
+            localStorage.setItem('searchHistory', JSON.stringify(newHistory));
+
+            showToast(`✅ ${accumulatedJobs.length} offres trouvées en ${searchDuration}s`, 'success');
+
+            // ─── CRUCIAL: Close the SSE connection on COMPLETED ──────────────
+            es.close();
+            eventSourceRef.current = null;
+            setLoadingJobs(false);
+          }
+
+          if (data.type === 'ERROR') {
+            console.error("[SSE] Stream error:", data.message);
+            setErrorJobs(data.message || "Erreur de connexion au flux de recherche.");
+            showToast(`❌ Erreur: ${data.message || "Erreur de connexion"}`, 'error');
+
+            // ─── CRUCIAL: Close the SSE connection on ERROR ─────────────────
+            es.close();
+            eventSourceRef.current = null;
+            setLoadingJobs(false);
+          }
+        } catch (e) {
+          console.error("[SSE] Failed to parse event:", e);
+        }
+      };
+
+      es.onerror = (err) => {
+        console.error("[SSE] Connection error:", err);
+        // Only treat as error if we haven't received COMPLETED yet
+        if (eventSourceRef.current === es) {
+          setErrorJobs("Erreur de connexion au serveur de recherche. Veuillez réessayer.");
+          showToast("❌ Erreur de connexion au flux SSE", 'error');
+
+          // ─── CRUCIAL: Close the SSE connection on error ───────────────────
+          es.close();
+          eventSourceRef.current = null;
+          setLoadingJobs(false);
+        }
+      };
+
     } catch (err) {
       console.error(err);
       setErrorJobs(err.message);
       showToast(`❌ Erreur: ${err.message}`, 'error');
-    } finally {
       setLoadingJobs(false);
     }
   };
@@ -432,7 +535,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
         ]
       }
     };
-    
+
     const globalLinks = {
       "Remote OK": `https://remoteok.com/remote-${qSlug}-jobs`,
       "Indeed Global": `https://www.indeed.com/jobs?q=${q}`,
@@ -441,16 +544,16 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
       "France Travail (API)": `https://candidat.pole-emploi.fr/offres/recherche?motsCles=${q}&offresPartenaires=true`,
       "Adzuna (API)": `https://www.adzuna.fr/emploi?q=${q}`,
     };
-    
+
     const langCategories = categories[langCode] || {};
     const allLinks = [];
-    
+
     Object.entries(langCategories).forEach(([category, links]) => {
       allLinks.push({ category, links });
     });
-    
+
     allLinks.push({ category: "Global", links: Object.entries(globalLinks) });
-    
+
     return allLinks;
   };
 
@@ -474,7 +577,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   return (
     <div className="app-container">
       {/* SEO Meta Tags */}
-      <SEO 
+      <SEO
         title="Find My Job AI - Intelligent Job Search Assistant"
         description="Find your dream job with AI-powered CV analysis, multi-source job search, and personalized job matching. Free career assistant tool."
         keywords="job search, AI, CV analysis, career, employment, FindMyJobAI, job matching, France"
@@ -609,20 +712,6 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
                   <button className="btn btn-primary" onClick={() => handleSearchJobs()} disabled={loadingJobs}>
                     {loadingJobs ? <Loader2 size={18} className="spin" style={{ animation: 'spin 1s linear infinite' }} /> : S.search}
                   </button>
-                  <button 
-                    className={`btn ${maxMode ? 'btn-primary' : 'btn-secondary'}`} 
-                    onClick={() => setMaxMode(!maxMode)} 
-                    disabled={loadingJobs}
-                    title="Mode Max: 100 annonces par source, tri par date"
-                    style={{ 
-                      marginLeft: '8px',
-                      fontSize: '0.85rem',
-                      fontWeight: maxMode ? '700' : '500',
-                      background: maxMode ? 'linear-gradient(135deg, #ff6b6b, #ee5a24)' : ''
-                    }}
-                  >
-                    🚀 {maxMode ? 'MAX ON' : 'Mode Max'}
-                  </button>
                 </div>
             </div>
           </div>
@@ -677,9 +766,9 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
         )}
 
         {/* Search Progress Bar */}
-        <SearchProgressBar 
-          isSearching={loadingJobs} 
-          totalSources={selectedSources.length} 
+        <SearchProgressBar
+          isSearching={loadingJobs}
+          totalSources={selectedSources.length}
           sourcesCompleted={Object.keys(sourceCounts).length}
         />
 

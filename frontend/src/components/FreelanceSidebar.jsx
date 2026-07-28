@@ -29,6 +29,7 @@ export default function FreelanceSidebar({
   const [saved, setSaved] = useState(!!customGeminiKey);
   const [collapsed, setCollapsed] = useState(false);
   const [modelStatus, setModelStatus] = useState({ groq: false, gemini: false, ollama: ollamaOnline });
+  const [modelDetails, setModelDetails] = useState({ groq: {}, gemini: {}, ollama: {} });
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [activeTab, setActiveTab] = useState('settings');
 
@@ -53,17 +54,26 @@ export default function FreelanceSidebar({
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/diagnostic`);
-        if (response.ok) {
-          const data = await response.json();
+        const response = await fetch(`${API_BASE}/api/ai/status`);
+        const text = await response.text();
+        console.log('[DEBUG] AI status response:', response.status, text.substring(0, 300));
+        if (response.ok && text.trim().startsWith('{')) {
+          const data = JSON.parse(text);
           setModelStatus({
-            groq: data.groq_key_configured || false,
-            gemini: data.gemini_key_configured || false,
-            ollama: data.ollama_configured || false
+            groq: !!data.groq?.online,
+            gemini: !!data.gemini?.online,
+            ollama: !!data.ollama?.online
           });
+          setModelDetails({
+            groq: data.groq || {},
+            gemini: data.gemini || {},
+            ollama: data.ollama || {}
+          });
+        } else {
+          console.error('[DEBUG] AI status returned non-JSON:', text);
         }
       } catch (error) {
-        console.error("Failed to fetch diagnostic:", error);
+        console.error("Failed to fetch AI status:", error);
       } finally {
         setLoadingStatus(false);
       }
@@ -78,9 +88,13 @@ export default function FreelanceSidebar({
       <AlertCircle size={14} style={{ color: 'var(--error-color)' }} />;
   };
 
-  const getStatusText = (isAvailable) => {
+  const getStatusText = (isAvailable, modelKey) => {
     if (loadingStatus) return 'Vérification...';
-    return isAvailable ? 'Disponible' : 'Non configuré';
+    if (!isAvailable) return 'Non configuré';
+    const details = modelDetails[modelKey] || {};
+    if (details.online) return 'En ligne';
+    if (details.configured && details.error) return 'Hors ligne';
+    return 'Disponible';
   };
 
   const tabs = [
@@ -260,7 +274,7 @@ export default function FreelanceSidebar({
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         {getStatusIcon(modelStatus[m.key])}
                         <span style={{ color: modelStatus[m.key] ? '#2e7d32' : '#c62828', fontSize: '0.75rem', fontWeight: '700' }}>
-                          {getStatusText(modelStatus[m.key])}
+                          {getStatusText(modelStatus[m.key], m.key)}
                         </span>
                       </div>
                     </div>
@@ -270,7 +284,7 @@ export default function FreelanceSidebar({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {modelStatus.ollama ? <Wifi size={14} style={{ color: '#2e7d32' }} /> : <WifiOff size={14} style={{ color: '#c62828' }} />}
                       <span style={{ color: modelStatus.ollama ? '#2e7d32' : '#c62828', fontSize: '0.75rem', fontWeight: '700' }}>
-                        {modelStatus.ollama ? 'En ligne' : 'Hors ligne'}
+                        {getStatusText(modelStatus.ollama, 'ollama')}
                       </span>
                     </div>
                   </div>

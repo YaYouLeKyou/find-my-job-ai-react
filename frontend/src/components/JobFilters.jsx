@@ -23,7 +23,7 @@ export default function JobFilters({
   const S = STRINGS[LANGS[lang].code];
 
   const allAvailableSources = [
-    "LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Remotive", "RemoteOK", "enhanced", "jobspy"
+    "LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Enhanced", "JobSpy"
   ];
 
   const handleSourceChange = (source) => {
@@ -53,8 +53,8 @@ export default function JobFilters({
             </div>
             <input
               type="range"
-              min="5"
-              max="100"
+              min="10"
+              max="50"
               step="5"
               value={numAds}
               onChange={(e) => setNumAds(parseInt(e.target.value))}

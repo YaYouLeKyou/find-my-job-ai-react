@@ -48,6 +48,10 @@ export default function CvUploader({
     formData.append("lang_label", LANGS[lang].label);
 
     try {
+      console.log("[CV_ANALYSIS] Uploading file:", file.name, "type:", file.type, "size:", file.size);
+      console.log("[CV_ANALYSIS] selected_model:", analysisEngine);
+      console.log("[CV_ANALYSIS] custom_gemini_key present:", !!customGeminiKey);
+      
       const response = await fetch(`${API_BASE}/api/analyze-cv`, {
         method: "POST",
         body: formData,
@@ -56,39 +60,41 @@ export default function CvUploader({
       const contentType = response.headers.get("content-type");
       const responseText = await response.text();
       
-      console.log("Response status:", response.status);
-      console.log("Response content-type:", contentType);
-      console.log("Response text (first 200 chars):", responseText.substring(0, 200));
+      console.log("[CV_ANALYSIS] Response status:", response.status);
+      console.log("[CV_ANALYSIS] Response content-type:", contentType);
+      console.log("[CV_ANALYSIS] Response text (first 300 chars):", responseText.substring(0, 300));
       
       if (!response.ok) {
         let errorMessage = `Erreur HTTP ${response.status}`;
         if (contentType && contentType.includes("application/json")) {
           try {
             const errorData = JSON.parse(responseText);
-            errorMessage = errorData.detail || errorMessage;
+            errorMessage = errorData.detail || errorData.error || errorMessage;
           } catch (e) {
-            console.error("Erreur lors du parsing de la réponse d'erreur:", e);
+            console.error("[CV_ANALYSIS] Erreur lors du parsing de la réponse d'erreur:", e);
           }
         } else if (responseText.includes("<!doctype") || responseText.includes("<html")) {
           errorMessage = "Le backend n'est pas accessible. Vérifiez que le serveur est démarré sur " + API_BASE;
         }
         
-        // Add more context for 400 errors
         if (response.status === 400) {
           errorMessage += "\n\nCauses possibles :\n- Le fichier n'est pas un PDF\n- Le fichier est vide\n- Le PDF ne contient pas de texte extractible\n- Le texte extrait est trop court (< 50 caractères)";
         }
         
+        console.error("[CV_ANALYSIS] Upload failed:", errorMessage);
         throw new Error(errorMessage);
       }
 
       if (!contentType || !contentType.includes("application/json")) {
+        console.error("[CV_ANALYSIS] Invalid response type:", contentType);
         throw new Error("Le serveur a retourné une réponse invalide. Vérifiez que le backend est bien configuré.");
       }
 
       const data = JSON.parse(responseText);
+      console.log("[CV_ANALYSIS] Success:", data);
       onAnalysisSuccess(data);
     } catch (err) {
-      console.error("Erreur lors de l'upload:", err);
+      console.error("[CV_ANALYSIS] Unexpected error:", err);
       setError(err.message);
     } finally {
       setLoading(false);
