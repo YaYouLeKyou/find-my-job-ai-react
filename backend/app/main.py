@@ -77,6 +77,7 @@ else:
 
 # CORS middleware
 ALLOWED_ORIGINS = settings.ALLOWED_ORIGINS.split(",")
+logger.info(f"[CORS] Configured allowed origins: {ALLOWED_ORIGINS}")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
