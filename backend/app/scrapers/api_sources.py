@@ -22,12 +22,7 @@ def _mask(value: Optional[str]) -> str:
         return "***"
     return f"{value[:6]}...{value[-4:]}"
 
-
 logger = logging.getLogger(__name__)
-
-
-logger = logging.getLogger(__name__)
-
 
 class FranceTravailSource:
     """
@@ -332,7 +327,6 @@ class FranceTravailSource:
             logger.debug(f"Error parsing France Travail job: {e}")
             return None
 
-
 class AdzunaSource:
     """
     Adzuna API Client
@@ -542,11 +536,9 @@ class AdzunaSource:
             logger.debug(f"Error parsing Adzuna job: {e}")
             return None
 
-
 # Singleton instances
 _france_travail_source = None
 _adzuna_source = None
-
 
 def get_france_travail_source(client_id: Optional[str] = None, client_secret: Optional[str] = None) -> Optional[FranceTravailSource]:
     """
@@ -574,7 +566,6 @@ def get_france_travail_source(client_id: Optional[str] = None, client_secret: Op
     _france_travail_source = FranceTravailSource(client_id, client_secret)
     return _france_travail_source
 
-
 def get_adzuna_source(app_id: Optional[str] = None, app_key: Optional[str] = None) -> Optional[AdzunaSource]:
     """
     Get or create Adzuna API source singleton.
@@ -600,7 +591,6 @@ def get_adzuna_source(app_id: Optional[str] = None, app_key: Optional[str] = Non
 
     _adzuna_source = AdzunaSource(app_id, app_key)
     return _adzuna_source
-
 
 class GoogleJobsSource:
     """Google Jobs via SerpApi."""
@@ -664,9 +654,7 @@ class GoogleJobsSource:
             logger.error(f"[API:GoogleJobs] error: {e}")
             return []
 
-
 _google_jobs_source = None
-
 
 def get_google_jobs_source(api_key: Optional[str] = None) -> Optional[GoogleJobsSource]:
     global _google_jobs_source
@@ -678,7 +666,6 @@ def get_google_jobs_source(api_key: Optional[str] = None) -> Optional[GoogleJobs
         return None
     _google_jobs_source = GoogleJobsSource(api_key)
     return _google_jobs_source
-
 
 class JoobleSource:
     BASE_URL = "https://jooble.org/api"
@@ -729,7 +716,6 @@ class JoobleSource:
             logger.error(f"[API:Jooble] error: {e}")
             return []
 
-
 class ApifySource:
     BASE_URL = "https://api.apify.com/v2/acts/apify~linkedin-jobs-scraper/run-sync-get-dataset-items"
 
@@ -779,10 +765,8 @@ class ApifySource:
             logger.error(f"[API:Apify] error: {e}")
             return []
 
-
 _jooble_source = None
 _apify_source = None
-
 
 def get_jooble_source(api_key: Optional[str] = None) -> Optional[JoobleSource]:
     global _jooble_source
@@ -795,7 +779,6 @@ def get_jooble_source(api_key: Optional[str] = None) -> Optional[JoobleSource]:
     _jooble_source = JoobleSource(api_key)
     return _jooble_source
 
-
 def get_apify_source(api_key: Optional[str] = None) -> Optional[ApifySource]:
     global _apify_source
     if _apify_source:
@@ -807,12 +790,10 @@ def get_apify_source(api_key: Optional[str] = None) -> Optional[ApifySource]:
     _apify_source = ApifySource(api_key)
     return _apify_source
 
-
-logger = logging.getLogger(__name__)
-
+# RSS Functions - separate logger for RSS module
+rss_logger = logging.getLogger(__name__ + ".rss")
 
 RSS_FEED_URL = "https://candidat.francetravail.fr/emplois/recherche/rss"
-
 
 def _normalize_rss_date(value: Optional[str]) -> str:
     if not value:
@@ -822,13 +803,12 @@ def _normalize_rss_date(value: Optional[str]) -> str:
     except Exception:
         return value[:10]
 
-
 def parse_rss_items(xml_text: str, query: str, location: str, limit: int = 50) -> List[dict]:
     from xml.etree import ElementTree as ET
     try:
         root = ET.fromstring(xml_text.encode('utf-8') if isinstance(xml_text, str) else xml_text)
     except Exception as e:
-        logger.error(f"❌ France Travail RSS parse error: {e}")
+        rss_logger.error(f"❌ France Travail RSS parse error: {e}")
         return []
 
     items = []
@@ -852,10 +832,9 @@ def parse_rss_items(xml_text: str, query: str, location: str, limit: int = 50) -
             break
     return items
 
-
 @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=5))
 async def scrape_france_travail_rss(job_title: str, location: str = "France", limit: int = 100) -> List[dict]:
-    logger.info(f"[RSS:FranceTravail] start query={job_title!r} location={location!r} limit={limit}")
+    rss_logger.info(f"[RSS:FranceTravail] start query={job_title!r} location={location!r} limit={limit}")
     params = {
         'motsCles': job_title,
         'lieu': location or 'France',
@@ -868,9 +847,9 @@ async def scrape_france_travail_rss(job_title: str, location: str = "France", li
     try:
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
             response = await client.get(RSS_FEED_URL, params=params, headers=headers)
-            logger.info(f"[RSS:FranceTravail] status={response.status_code}")
+            rss_logger.info(f"[RSS:FranceTravail] status={response.status_code}")
             if response.status_code != 200:
-                logger.error(f"[RSS:FranceTravail] HTTP {response.status_code}: {response.text[:200]}")
+                rss_logger.error(f"[RSS:FranceTravail] HTTP {response.status_code}: {response.text[:200]}")
                 return []
             # Try to get more results by making multiple requests with different parameters
             results = parse_rss_items(response.text, job_title, location, limit=limit)
@@ -896,12 +875,11 @@ async def scrape_france_travail_rss(job_title: str, location: str = "France", li
                                 combined_results.append(job)
                         results = combined_results[:limit]
 
-            logger.info(f"[RSS:FranceTravail] done jobs={len(results)}")
+            rss_logger.info(f"[RSS:FranceTravail] done jobs={len(results)}")
             return results
     except Exception as e:
-        logger.error(f"[RSS:FranceTravail] error: {e}")
+        rss_logger.error(f"[RSS:FranceTravail] error: {e}")
         return []
-
 
 def get_france_travail_rss_source() -> Optional[callable]:
     return scrape_france_travail_rss
