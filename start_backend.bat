@@ -1,4 +1,4 @@
 @echo off
 cd /d "D:\ai find a job"
-set PYTHONPATH=%CD%
-python backend/api.py
+set PYTHONPATH=%CD%;%CD%\backend
+python backend/app/main.py

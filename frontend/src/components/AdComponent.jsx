@@ -5,15 +5,36 @@ const AdComponent = ({ format = 'auto', style = {} }) => {
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
+    // Check if AdSense is already loaded or if this ad is already processed
+    if (adLoaded || hasError) return;
+
     // Wait for AdSense to load
     const checkAdSense = setInterval(() => {
       if (window.adsbygoogle) {
         clearInterval(checkAdSense);
         try {
-          (window.adsbygoogle = window.adsbygoogle || []).push({});
-          setAdLoaded(true);
+          // Check if this specific ad element already has an ad
+          const adElements = document.querySelectorAll('.adsbygoogle');
+          let shouldPushAd = true;
+
+          // Check if any of the ad elements are already filled
+          adElements.forEach(element => {
+            if (element.innerHTML.trim() !== '') {
+              shouldPushAd = false;
+            }
+          });
+
+          if (shouldPushAd) {
+            (window.adsbygoogle = window.adsbygoogle || []).push({});
+            setAdLoaded(true);
+          } else {
+            setAdLoaded(true); // Mark as loaded to prevent retries
+          }
         } catch (err) {
-          console.error('AdSense error:', err);
+          // Only log AdSense errors in development if they're not the expected "already has ads" error
+          if (process.env.NODE_ENV === 'development' && err.message && !err.message.includes('already have ads in them')) {
+            console.warn('AdSense warning (expected in dev):', err.message);
+          }
           setHasError(true);
         }
       }
@@ -31,7 +52,7 @@ const AdComponent = ({ format = 'auto', style = {} }) => {
       clearInterval(checkAdSense);
       clearTimeout(timer);
     };
-  }, [adLoaded]);
+  }, [adLoaded, hasError]);
 
   return (
     <div style={{

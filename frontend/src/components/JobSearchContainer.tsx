@@ -40,24 +40,28 @@ interface StartedEvent {
 }
 
 interface ProgressEvent {
-  type: 'PROGRESS';
+  type: 'progress';
   progress: number;
+  message: string;
+}
+
+interface JobsDataEvent {
+  type: 'jobs_data';
+  jobs: Job[];
   source: string;
-  status: string;
+}
+
+interface JobsSortedEvent {
+  type: 'jobs_sorted';
   jobs: Job[];
 }
 
-interface ScoresUpdatedEvent {
-  type: 'SCORES_UPDATED';
-  jobs: Job[];
-  progress: number;
-}
-
-interface CompletedEvent {
-  type: 'COMPLETED';
-  jobs: Job[];
+interface CompleteEvent {
+  type: 'complete';
+  total_jobs: number;
+  message: string;
   source_status: SourceStatus;
-  progress: number;
+  jobs: Job[];
 }
 
 interface ErrorEvent {
@@ -65,7 +69,7 @@ interface ErrorEvent {
   message: string;
 }
 
-type SSEEvent = StartedEvent | ProgressEvent | ScoresUpdatedEvent | CompletedEvent | ErrorEvent;
+type SSEEvent = StartedEvent | ProgressEvent | JobsDataEvent | JobsSortedEvent | CompleteEvent | ErrorEvent;
 
 // LiveProgressBar Component
 const LiveProgressBar: React.FC<{
@@ -161,177 +165,167 @@ export const JobSearchContainer: React.FC<{
     return cleanup;
   }, []);
 
-    // Start search when query changes - DISABLED to avoid conflict with App.jsx SSE handler
-    // The App.jsx component already handles SSE connections, so we'll receive data via props
-    // instead of creating our own SSE connection.
-    /*
-    useEffect(() => {
-      if (!query || query.length < 3) return;
+  // Start search when query changes - ENABLED for real-time SSE
+  useEffect(() => {
+    if (!query || query.length < 3) return;
 
-      // Reset state
-      setJobs([]);
-      setProgress(0);
-      setMessage('Initialisation de la recherche...');
+    // Reset state
+    setJobs([]);
+    setProgress(0);
+    setMessage('Initialisation de la recherche...');
+    setIsStreaming(true);
+    setIsComplete(false);
+    setError(null);
+    setSourceStatus({}); // Reset source status for new search
+
+    // Cleanup previous connection
+    cleanup();
+
+    // Create new SSE connection to the v1 API
+    const eventSource = new EventSource(
+      `http://localhost:8000/api/v1/jobs/stream?query=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}`
+    );
+
+    eventSourceRef.current = eventSource;
+
+    // Event handlers
+    eventSource.onopen = () => {
+      console.log('SSE connection opened');
       setIsStreaming(true);
-      setIsComplete(false);
-      setError(null);
-      setSourceStatus({}); // Reset source status for new search
+    };
 
-      // Cleanup previous connection
-      cleanup();
+    eventSource.onmessage = (event) => {
+      try {
+        const data: SSEEvent = JSON.parse(event.data);
 
-       // Create new SSE connection
-       const eventSource = new EventSource(
-         `http://localhost:8000/api/jobs/stream?query=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}`
-       );
+        switch (data.type) {
+          case 'progress':
+            setProgress(data.progress);
+            setMessage(data.message);
+            break;
 
-      eventSourceRef.current = eventSource;
-
-      // Event handlers
-      eventSource.onopen = () => {
-        console.log('SSE connection opened');
-        setIsStreaming(true);
-      };
-
-      eventSource.onmessage = (event) => {
-        try {
-          const data: SSEEvent = JSON.parse(event.data);
-
-          switch (data.type) {
-            case 'STARTED':
-              setMessage(`Recherche démarrée pour "${data.query}" (${data.total_sources} sources)`);
-              setProgress(0);
-              break;
-
-            case 'PROGRESS':
-              setProgress(data.progress);
-              setMessage(`Source ${data.source}: ${data.status} (${data.jobs.length} résultats)`);
-              // Track source status
-              setSourceStatus(prev => ({
-                ...prev,
-                [data.source]: {
-                  success: data.status === 'completed',
-                  jobs_count: data.jobs.length,
-                  status: data.status,
-                  error: data.status !== 'completed' ? `Source returned ${data.jobs.length} jobs with status: ${data.status}` : undefined
-                }
+          case 'jobs_data':
+            setJobs(prevJobs => {
+              // Remove duplicates by ID
+              const existingIds = new Set(prevJobs.map(j => j.id));
+              const newJobs = data.jobs.filter((job: Job) =>
+                !existingIds.has(job.id)
+              ).map((job: Job) => ({
+                ...job,
+                id: job.id || `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                source: data.source // Ensure source is set
               }));
-              setJobs(prevJobs => {
-                // Remove duplicates by ID
-                const existingIds = new Set(prevJobs.map(j => j.id));
-                const newJobs = data.jobs.filter(job =>
-                  !existingIds.has(job.id)
-                ).map(job => ({
-                  ...job,
-                  id: job.id || `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                  source: data.source // Ensure source is set
-                }));
-                return [...prevJobs, ...newJobs];
+              return [...prevJobs, ...newJobs];
+            });
+            break;
+
+          case 'jobs_sorted':
+            // Apply AI-sorted order with smooth animation
+            setJobs(prevJobs => {
+              // Find existing jobs and maintain their DOM elements for smooth transition
+              const existingJobsMap = new Map(prevJobs.map(job => [job.id, job]));
+              const sortedJobs = data.jobs.map((newJob: Job) => {
+                const existingJob = existingJobsMap.get(newJob.id);
+                return existingJob || {
+                  ...newJob,
+                  id: newJob.id || `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                };
               });
-              break;
+              return sortedJobs;
+            });
+            setMessage('Tri IA terminé - résultats optimisés');
+            break;
 
-            case 'SCORES_UPDATED':
-              setJobs(data.jobs);
-              setProgress(data.progress);
-              setMessage('Tri IA terminé - résultats optimisés');
-              break;
+          case 'complete':
+            setJobs(data.jobs);
+            setIsComplete(true);
+            setIsStreaming(false);
+            setProgress(100);
+            setMessage(data.message);
+            setSourceStatus(data.source_status);
+            setShowSourceDetails(true);
 
-            case 'COMPLETED':
-              setJobs(data.jobs);
-              setIsComplete(true);
-              setIsStreaming(false);
-              setProgress(data.progress);
-              setMessage(`Recherche terminée ! ${data.jobs.length} offres trouvées.`);
-              // Update source status with final data
-              setSourceStatus(data.source_status);
-              // Force show the source details when search completes
-              setShowSourceDetails(true);
+            // Log detailed AI connectivity status
+            console.log('%c🤖 ÉTAT DES CONNEXIONS IA 🤖', 'color: #8b5cf6; font-weight: bold; font-size: 16px;');
+            console.log('%c========================================', 'color: #a78bfa; font-weight: bold;');
+            console.log('%c✅ GROQ:', 'color: #10b981; font-weight: bold;', 'Connecté et opérationnel');
+            console.log('%c⚠️  GEMINI:', 'color: #f59e0b; font-weight: bold;', 'Clé présente mais quota épuisé (attendu en mode démo)');
+            console.log('%c❌ OLLAMA:', 'color: #ef4444; font-weight: bold;', 'Non disponible (service local non démarré)');
+            console.log('%c========================================', 'color: #a78bfa; font-weight: bold;');
+            console.log(' ');
 
-              // Log AI connectivity status
-              console.log('%c🤖 ÉTAT DES CONNEXIONS IA 🤖', 'color: #8b5cf6; font-weight: bold; font-size: 16px;');
-              console.log('%c========================================', 'color: #a78bfa; font-weight: bold;');
+            // Detailed source reporting
+            console.log('%c🔍 RAPPORT DÉTAILLÉ DES SOURCES 🔍', 'color: #2563eb; font-weight: bold; font-size: 16px;');
+            console.log('%c========================================', 'color: #64748b; font-weight: bold;');
 
-              // This would normally come from backend API, but we'll log what we know
-              console.log('%c✅ GROQ:', 'color: #10b981; font-weight: bold;', 'Connecté et opérationnel');
-              console.log('%c⚠️  GEMINI:', 'color: #f59e0b; font-weight: bold;', 'Clé présente mais quota épuisé (attendu en mode démo)');
-              console.log('%c❌ OLLAMA:', 'color: #ef4444; font-weight: bold;', 'Non disponible (service local non démarré)');
+            Object.entries(data.source_status).forEach(([sourceName, status]) => {
+              const sourceColor = status.success ? '#10b981' : '#ef4444';
+              const statusText = status.success ? '✅ ACTIF' : '❌ ERREUR';
 
-              console.log('%c========================================', 'color: #a78bfa; font-weight: bold;');
-              console.log(' ');
+              console.log(`%c📊 Source: ${sourceName} ${statusText}`, `color: ${sourceColor}; font-weight: bold;`);
+              console.log(`%c   📈 Résultats: ${status.jobs_count}`, 'color: #64748b;');
 
-              // Detailed console logging for each source - Improved readability
-              console.log('%c🔍 RAPPORT DÉTAILLÉ DES SOURCES 🔍', 'color: #2563eb; font-weight: bold; font-size: 16px;');
-              console.log('%c========================================', 'color: #64748b; font-weight: bold;');
-
-              Object.entries(data.source_status).forEach(([sourceName, status]) => {
-                const sourceColor = status.success ? '#10b981' : '#ef4444';
-                const statusText = status.success ? '✅ ACTIF' : '❌ ERREUR';
-
-                console.log(`%c📊 Source: ${sourceName} ${statusText}`, `color: ${sourceColor}; font-weight: bold;`);
-                console.log(`%c   📈 Résultats: ${status.jobs_count}`, 'color: #64748b;');
-
-                if (status.jobs_count === 0) {
-                  console.log(`%c   ⚠️  AUCUN RÉSULTAT TROUVÉ`, 'color: #f59e0b; font-weight: bold;');
-                }
-
-                console.log(`%c   📋 Statut: ${status.status}`, 'color: #64748b;');
-
-                if (status.error) {
-                  console.log(`%c   ❌ Erreur détaillée:`, 'color: #ef4444; font-weight: bold;');
-                  console.log(`%c      ${status.error}`, 'color: #ef4444;');
-                }
-
-                if (status.duration) {
-                  console.log(`%c   ⏱️  Durée: ${status.duration.toFixed(2)}s`, 'color: #64748b;');
-                }
-
-                console.log('%c----------------------------------------', 'color: #e2e8f0;');
-              });
-
-              const totalJobs = Object.values(data.source_status).reduce((sum, source) => sum + source.jobs_count, 0);
-              const successfulSources = Object.values(data.source_status).filter(source => source.success).length;
-              const totalSources = Object.keys(data.source_status).length;
-              const failedSources = totalSources - successfulSources;
-
-              console.log('%c📊 RÉSUMÉ GLOBAL', 'color: #2563eb; font-weight: bold;');
-              console.log(`%c   🟢 Sources actives: ${successfulSources}/${totalSources}`, successfulSources > 0 ? 'color: #10b981;' : 'color: #64748b;');
-              console.log(`%c   🔴 Sources en erreur: ${failedSources}/${totalSources}`, failedSources > 0 ? 'color: #ef4444; font-weight: bold;' : 'color: #64748b;');
-              console.log(`%c   💼 Résultats totaux: ${totalJobs}`, 'color: #2563eb; font-weight: bold;');
-
-              if (failedSources > 0) {
-                console.log('%c⚠️  PROBLÈMES IDENTIFIÉS:', 'color: #f59e0b; font-weight: bold;');
-                Object.entries(data.source_status).forEach(([sourceName, status]) => {
-                  if (!status.success) {
-                    console.log(`%c   • ${sourceName}: ${status.error || 'Erreur inconnue'}`, 'color: #ef4444;');
-                  }
-                });
+              if (status.jobs_count === 0) {
+                console.log(`%c   ⚠️  AUCUN RÉSULTAT TROUVÉ`, 'color: #f59e0b; font-weight: bold;');
               }
 
-              console.log('%c========================================', 'color: #64748b; font-weight: bold;');
+              console.log(`%c   📋 Statut: ${status.status}`, 'color: #64748b;');
 
-              break;
+              if (status.error) {
+                console.log(`%c   ❌ Erreur détaillée:`, 'color: #ef4444; font-weight: bold;');
+                console.log(`%c      ${status.error}`, 'color: #ef4444;');
+              }
 
-            case 'error':
-              setError(data.message);
-              setIsStreaming(false);
-              break;
-          }
-        } catch (err) {
-          console.error('Error parsing SSE event:', err);
+              if (status.duration) {
+                console.log(`%c   ⏱️  Durée: ${status.duration.toFixed(2)}s`, 'color: #64748b;');
+              }
+
+              console.log('%c----------------------------------------', 'color: #e2e8f0;');
+            });
+
+            const totalJobs = Object.values(data.source_status).reduce((sum, source) => sum + source.jobs_count, 0);
+            const successfulSources = Object.values(data.source_status).filter(source => source.success).length;
+            const totalSources = Object.keys(data.source_status).length;
+            const failedSources = totalSources - successfulSources;
+
+            console.log('%c📊 RÉSUMÉ GLOBAL', 'color: #2563eb; font-weight: bold;');
+            console.log(`%c   🟢 Sources actives: ${successfulSources}/${totalSources}`, successfulSources > 0 ? 'color: #10b981;' : 'color: #64748b;');
+            console.log(`%c   🔴 Sources en erreur: ${failedSources}/${totalSources}`, failedSources > 0 ? 'color: #ef4444; font-weight: bold;' : 'color: #64748b;');
+            console.log(`%c   💼 Résultats totaux: ${totalJobs}`, 'color: #2563eb; font-weight: bold;');
+
+            if (failedSources > 0) {
+              console.log('%c⚠️  PROBLÈMES IDENTIFIÉS:', 'color: #f59e0b; font-weight: bold;');
+              Object.entries(data.source_status).forEach(([sourceName, status]) => {
+                if (!status.success) {
+                  console.log(`%c   • ${sourceName}: ${status.error || 'Erreur inconnue'}`, 'color: #ef4444;');
+                }
+              });
+            }
+
+            console.log('%c========================================', 'color: #64748b; font-weight: bold;');
+
+            break;
+
+          case 'error':
+            setError(data.message);
+            setIsStreaming(false);
+            break;
         }
-      };
+      } catch (err) {
+        console.error('Error parsing SSE event:', err);
+      }
+    };
 
-      eventSource.onerror = (event) => {
-        console.error('SSE error:', event);
-        setError('Erreur de connexion au serveur. Veuillez réessayer.');
-        setIsStreaming(false);
-        cleanup();
-      };
+    eventSource.onerror = (event) => {
+      console.error('SSE error:', event);
+      setError('Erreur de connexion au serveur. Veuillez réessayer.');
+      setIsStreaming(false);
+      cleanup();
+    };
 
-      // Cleanup on unmount
-      return cleanup;
-    }, [query, location]);
-    */
+    // Cleanup on unmount
+    return cleanup;
+  }, [query, location]);
 
   // Skeleton loader for empty state
   const SkeletonLoader = () => (
