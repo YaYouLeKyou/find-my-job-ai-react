@@ -1,17 +1,16 @@
 /**
- * useStreamSearch - Hook personnalisé pour la recherche progressive avec tri IA
+ * useStreamSearch - Hook de recherche progressive avec rendu immédiat
  * 
  * Architecture:
- * 1. Accumulation brute des résultats par source
- * 2. Tri IA par paquets (chunks de 10)
- * 3. Réorganisation progressive du state
- * 4. Animations fluides sans re-render complet
+ * 1. Rendu immédiat des jobs dès réception (PROGRESS/SOURCE_RESULT)
+ * 2. Tri IA en arrière-plan par chunks de 10
+ * 3. Déduplication temps réel
+ * 4. Réorganisation fluide du state
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 const AI_CHUNK_SIZE = 10; // Nombre d'offres par paquet pour le tri IA
-const DEBOUNCE_DELAY = 300; // Délai anti-rebond pour les re-renders
 
 export function useStreamSearch(apiBase, params, onSearchComplete) {
     const [jobs, setJobs] = useState([]);
@@ -21,14 +20,15 @@ export function useStreamSearch(apiBase, params, onSearchComplete) {
     const [searchTime, setSearchTime] = useState(null);
     const [aiProcessing, setAiProcessing] = useState(false);
     const [processedCount, setProcessedCount] = useState(0);
+    const [totalReceived, setTotalReceived] = useState(0);
 
     const eventSourceRef = useRef(null);
     const accumulatedJobsRef = useRef([]);
     const accumulatedSourceCountsRef = useRef({});
     const pendingAiChunkRef = useRef([]);
     const aiProcessingRef = useRef(false);
+    const seenKeysRef = useRef(new Set());
     const abortControllerRef = useRef(null);
-    const debounceTimerRef = useRef(null);
 
     // Nettoyage à la destruction
     useEffect(() => {
@@ -39,13 +39,33 @@ export function useStreamSearch(apiBase, params, onSearchComplete) {
             if (abortControllerRef.current) {
                 abortControllerRef.current.abort();
             }
-            if (debounceTimerRef.current) {
-                clearTimeout(debounceTimerRef.current);
-            }
         };
     }, []);
 
-    // Fonction de tri IA par paquets
+    // Fonction de déduplication temps réel
+    const deduplicateJobs = useCallback((newJobs, existingJobs) => {
+        const existingKeys = new Set(
+            existingJobs.map(job => {
+                const title = (job.title || '').toLowerCase().trim();
+                const company = (job.company || '').toLowerCase().trim();
+                return `${title}|${company}`;
+            })
+        );
+
+        return newJobs.filter(job => {
+            const title = (job.title || '').toLowerCase().trim();
+            const company = (job.company || '').toLowerCase().trim();
+            const key = `${title}|${company}`;
+
+            if (existingKeys.has(key)) {
+                return false;
+            }
+            existingKeys.add(key);
+            return true;
+        });
+    }, []);
+
+    // Fonction de tri IA par paquets (NON BLOQUANTE)
     const processAiChunk = useCallback(async (chunk, rankingEngine, customGeminiKey) => {
         if (aiProcessingRef.current || chunk.length === 0) return;
 
@@ -53,12 +73,11 @@ export function useStreamSearch(apiBase, params, onSearchComplete) {
         setAiProcessing(true);
 
         try {
-            // Préparer le prompt pour le scoring IA
             const jobsToScore = chunk.map(job => ({
                 id: job.id,
                 title: job.title,
                 company: job.company,
-                description: job.description?.substring(0, 500) || '',
+                description: (job.description || '').substring(0, 500),
                 location: job.location,
             }));
 
@@ -81,7 +100,7 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
                 body: JSON.stringify({
                     prompt,
                     model: rankingEngine,
-                    provider: 'groq', // Par défaut, peut être adapté
+                    provider: 'groq',
                     isJson: true,
                     temperature: 0.3,
                     maxTokens: 2000,
@@ -93,24 +112,23 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
             const data = await response.json();
             const scores = data.text ? JSON.parse(data.text)?.scores : {};
 
-            // Appliquer les scores aux jobs
+            // Appliquer les scores aux jobs (mise à jour non-bloquante)
             setJobs(prevJobs => {
-                return prevJobs.map(job => ({
-                    ...job,
-                    pertinence_ai: scores[job.id] || job.pertinence_ai || 50,
-                    ai_scored: true,
-                })).sort((a, b) => (b.pertinence_ai || 0) - (a.pertinence_ai || 0));
+                return prevJobs.map(job => {
+                    if (scores[job.id]) {
+                        return {
+                            ...job,
+                            pertinence_ai: scores[job.id],
+                            ai_scored: true,
+                        };
+                    }
+                    return job;
+                }).sort((a, b) => (b.pertinence_ai || 0) - (a.pertinence_ai || 0));
             });
 
             setProcessedCount(prev => prev + chunk.length);
         } catch (err) {
             console.error('[AI] Chunk processing error:', err);
-            // En cas d'erreur, on garde les jobs sans score
-            setJobs(prevJobs => {
-                return prevJobs.map(job =>
-                    chunk.find(c => c.id === job.id) ? { ...job, pertinence_ai: 50, ai_scored: false } : job
-                );
-            });
         } finally {
             aiProcessingRef.current = false;
             setAiProcessing(false);
@@ -135,11 +153,13 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
         setSearchTime(null);
         setAiProcessing(false);
         setProcessedCount(0);
+        setTotalReceived(0);
 
         accumulatedJobsRef.current = [];
         accumulatedSourceCountsRef.current = {};
         pendingAiChunkRef.current = [];
         aiProcessingRef.current = false;
+        seenKeysRef.current = new Set();
 
         const startTime = Date.now();
 
@@ -147,143 +167,174 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
         const queryParams = new URLSearchParams(searchParams);
         const streamUrl = `${apiBase}/api/search-jobs-stream?${queryParams.toString()}`;
 
-        // Créer un nouvel AbortController
+        // Créer un AbortController pour annuler la requête
         abortControllerRef.current = new AbortController();
 
-        const eventSource = new EventSource(streamUrl);
-        eventSourceRef.current = eventSource;
-
-        eventSource.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-
-                // STARTED
-                if (data.type === 'STARTED') {
-                    console.log(`[Stream] Recherche démarrée: ${data.query} (${data.total_sources} sources)`);
+        // Utiliser fetch avec streaming au lieu de EventSource
+        fetch(streamUrl, {
+            signal: abortControllerRef.current.signal,
+            headers: {
+                'Accept': 'text/event-stream',
+            },
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
                 }
 
-                // PROGRESS / SOURCE_RESULT - Affichage immédiat
-                if (data.type === 'PROGRESS' || data.type === 'SOURCE_RESULT') {
-                    // Mettre à jour les compteurs de sources
-                    if (data.source && data.jobs && data.jobs.length > 0) {
-                        accumulatedSourceCountsRef.current[data.source] = data.jobs.length;
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
 
-                        // Ne montrer que les sources avec des résultats
-                        setSourceCounts({ ...accumulatedSourceCountsRef.current });
+                const readStream = () => {
+                    reader.read().then(({ done, value }) => {
+                        if (done) {
+                            return;
+                        }
 
-                        console.log(`[Stream] ${data.source}: ${data.jobs.length} offres reçues`);
-                    }
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop() || '';
 
-                    // Ajouter les jobs à la liste accumulée
-                    if (data.jobs && data.jobs.length > 0) {
-                        // Ajouter un ID unique si absent
-                        const jobsWithId = data.jobs.map((job, idx) => ({
-                            ...job,
-                            id: job.id || `${data.source}-${Date.now()}-${idx}`,
-                            source: data.source,
-                            receivedAt: Date.now(),
-                        }));
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                try {
+                                    const data = JSON.parse(line.slice(6));
 
-                        accumulatedJobsRef.current = [...accumulatedJobsRef.current, ...jobsWithId];
+                                    // STARTED
+                                    if (data.type === 'STARTED') {
+                                        console.log(`[Stream] Recherche démarrée: ${data.query} (${data.total_sources} sources)`);
+                                    }
 
-                        // Affichage immédiat (sans tri IA pour l'instant)
-                        setJobs([...accumulatedJobsRef.current]);
+                                    // PROGRESS / SOURCE_RESULT - Affichage IMMÉDIAT
+                                    if (data.type === 'PROGRESS' || data.type === 'SOURCE_RESULT') {
+                                        // Mettre à jour les compteurs de sources (même si 0 résultat)
+                                        if (data.source) {
+                                            const count = data.jobs ? data.jobs.length : 0;
+                                            accumulatedSourceCountsRef.current[data.source] = count;
+                                            setSourceCounts({ ...accumulatedSourceCountsRef.current });
+                                            console.log(`[Stream] ${data.source}: ${count} offres reçues (status=${data.status || 'unknown'})`);
+                                        }
 
-                        // Cacher le loader
-                        if (loading) {
+                                        // Ajouter les jobs à la liste accumulée
+                                        if (data.jobs && data.jobs.length > 0) {
+                                            // Ajouter un ID unique si absent
+                                            const jobsWithId = data.jobs.map((job, idx) => ({
+                                                ...job,
+                                                id: job.id || `${data.source}-${Date.now()}-${idx}`,
+                                                source: data.source,
+                                                receivedAt: Date.now(),
+                                                isAiScored: false,
+                                            }));
+
+                                            // Dédupliquer en temps réel
+                                            const deduplicatedJobs = deduplicateJobs(jobsWithId, accumulatedJobsRef.current);
+
+                                            // Accumuler
+                                            accumulatedJobsRef.current = [...accumulatedJobsRef.current, ...deduplicatedJobs];
+                                            setTotalReceived(prev => prev + deduplicatedJobs.length);
+
+                                            // AFFICHAGE IMMÉDIAT
+                                            setJobs([...accumulatedJobsRef.current]);
+
+                                            // Cacher le loader dès la première réception
+                                            setLoading(false);
+
+                                            // Ajouter au chunk IA en attente
+                                            pendingAiChunkRef.current = [...pendingAiChunkRef.current, ...deduplicatedJobs];
+
+                                            // Lancer le tri IA si on a assez de jobs (en arrière-plan, sans await)
+                                            if (pendingAiChunkRef.current.length >= AI_CHUNK_SIZE && !aiProcessingRef.current) {
+                                                const chunkToProcess = pendingAiChunkRef.current.splice(0, AI_CHUNK_SIZE);
+                                                processAiChunk(chunkToProcess, searchParams.ranking_engine, searchParams.custom_gemini_key).catch(err =>
+                                                    console.error('[AI] Background scoring error:', err)
+                                                );
+                                            }
+                                        }
+                                    }
+
+                                    // SCORES_UPDATED - Tri IA terminé pour un chunk
+                                    if (data.type === 'SCORES_UPDATED' && data.jobs) {
+                                        console.log(`[Stream] Tri IA terminé: ${data.jobs.length} offres scorées`);
+                                        setJobs(data.jobs);
+                                        setProcessedCount(data.jobs.length);
+                                    }
+
+                                    // COMPLETED - Fin de la recherche
+                                    if (data.type === 'COMPLETED') {
+                                        const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+                                        setSearchTime(duration);
+
+                                        if (data.jobs && data.jobs.length > 0) {
+                                            setJobs(data.jobs);
+                                        }
+
+                                        if (data.source_status) {
+                                            const counts = {};
+                                            Object.entries(data.source_status).forEach(([source, status]) => {
+                                                if (status && (status.count !== undefined || status.jobs_count !== undefined)) {
+                                                    counts[source] = status.count !== undefined ? status.count : status.jobs_count;
+                                                }
+                                            });
+                                            setSourceCounts(counts);
+                                        }
+
+                                        // Traiter le dernier chunk IA en attente
+                                        if (pendingAiChunkRef.current.length > 0 && !aiProcessingRef.current) {
+                                            processAiChunk(pendingAiChunkRef.current, searchParams.ranking_engine, searchParams.custom_gemini_key);
+                                            pendingAiChunkRef.current = [];
+                                        }
+
+                                        setLoading(false);
+                                        console.log(`[Stream] Recherche terminée: ${accumulatedJobsRef.current.length} offres en ${duration}s`);
+
+                                        if (onSearchComplete) {
+                                            onSearchComplete({
+                                                jobs: accumulatedJobsRef.current,
+                                                sourceCounts: accumulatedSourceCountsRef.current,
+                                                duration,
+                                            });
+                                        }
+                                    }
+
+                                    // ERROR
+                                    if (data.type === 'ERROR') {
+                                        console.error('[Stream] Erreur:', data.message);
+                                        setError(data.message || 'Erreur de connexion au flux');
+                                        setLoading(false);
+                                    }
+                                } catch (err) {
+                                    console.error('[Stream] Erreur de parsing:', err);
+                                }
+                            }
+                        }
+
+                        readStream();
+                    }).catch(err => {
+                        if (err.name !== 'AbortError') {
+                            console.error('[Stream] Erreur de lecture:', err);
+                            setError('Erreur de connexion au serveur');
                             setLoading(false);
                         }
+                    });
+                };
 
-                        // Ajouter au chunk IA en attente
-                        pendingAiChunkRef.current = [...pendingAiChunkRef.current, ...jobsWithId];
-
-                        // Lancer le tri IA si on a assez de jobs
-                        if (pendingAiChunkRef.current.length >= AI_CHUNK_SIZE && !aiProcessingRef.current) {
-                            const chunkToProcess = pendingAiChunkRef.current.splice(0, AI_CHUNK_SIZE);
-                            processAiChunk(chunkToProcess, searchParams.ranking_engine, searchParams.custom_gemini_key);
-                        }
-                    }
-                }
-
-                // SCORES_UPDATED - Tri IA terminé
-                if (data.type === 'SCORES_UPDATED' && data.jobs) {
-                    console.log(`[Stream] Tri IA terminé: ${data.jobs.length} offres scorées`);
-                    setJobs(data.jobs);
-                    setProcessedCount(data.jobs.length);
-                }
-
-                // COMPLETED - Fin de la recherche
-                if (data.type === 'COMPLETED') {
-                    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-                    setSearchTime(duration);
-
-                    if (data.jobs && data.jobs.length > 0) {
-                        setJobs(data.jobs);
-                    }
-
-                    if (data.source_status) {
-                        const counts = {};
-                        Object.entries(data.source_status).forEach(([source, status]) => {
-                            if (status && (status.count !== undefined || status.jobs_count !== undefined)) {
-                                counts[source] = status.count !== undefined ? status.count : status.jobs_count;
-                            }
-                        });
-                        setSourceCounts(counts);
-                    }
-
-                    // Traiter le dernier chunk IA en attente
-                    if (pendingAiChunkRef.current.length > 0 && !aiProcessingRef.current) {
-                        processAiChunk(pendingAiChunkRef.current, searchParams.ranking_engine, searchParams.custom_gemini_key);
-                        pendingAiChunkRef.current = [];
-                    }
-
-                    eventSource.close();
-                    eventSourceRef.current = null;
-                    setLoading(false);
-
-                    console.log(`[Stream] Recherche terminée: ${accumulatedJobsRef.current.length} offres en ${duration}s`);
-
-                    if (onSearchComplete) {
-                        onSearchComplete({
-                            jobs: accumulatedJobsRef.current,
-                            sourceCounts: accumulatedSourceCountsRef.current,
-                            duration,
-                        });
-                    }
-                }
-
-                // ERROR
-                if (data.type === 'ERROR') {
-                    console.error('[Stream] Erreur:', data.message);
-                    setError(data.message || 'Erreur de connexion au flux');
-                    eventSource.close();
-                    eventSourceRef.current = null;
+                readStream();
+            })
+            .catch(err => {
+                if (err.name !== 'AbortError') {
+                    console.error('[Stream] Erreur de connexion:', err);
+                    setError('Erreur de connexion au serveur');
                     setLoading(false);
                 }
-            } catch (err) {
-                console.error('[Stream] Erreur de parsing:', err);
-            }
-        };
-
-        eventSource.onerror = (err) => {
-            console.error('[Stream] Erreur de connexion:', err);
-            if (eventSourceRef.current === eventSource) {
-                setError('Erreur de connexion au serveur');
-                eventSource.close();
-                eventSourceRef.current = null;
-                setLoading(false);
-            }
-        };
-    }, [apiBase, processAiChunk, onSearchComplete]);
+            });
+    }, [apiBase, processAiChunk, onSearchComplete, deduplicateJobs]);
 
     // Annuler la recherche
     const cancel = useCallback(() => {
-        if (eventSourceRef.current) {
-            eventSourceRef.current.close();
-            eventSourceRef.current = null;
-        }
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
+            abortControllerRef.current = null;
         }
         setLoading(false);
         setAiProcessing(false);
@@ -297,6 +348,7 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
         searchTime,
         aiProcessing,
         processedCount,
+        totalReceived,
         search,
         cancel,
     };

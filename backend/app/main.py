@@ -291,29 +291,39 @@ async def _stream_jobs(
                 timeout_per_source=settings.SCRAPER_TIMEOUT,
             )
             logger.info(f"[SSE] searching sources={sources_list}")
-            all_jobs, source_results = await aggregator.search_parallel(
+            
+            # STREAMING: Emit results as each source completes
+            all_jobs = []
+            source_results = {}
+            emit_count = 0
+            
+            async for result in aggregator.search_parallel_streaming(
                 sources=source_registry,
                 query=query,
                 location=location,
                 limit=max(num_ads, 50),  # Ensure at least 50 results per source
-            )
-            
-            # Emit PROGRESS events for each source as they complete
-            for source_name, result in source_results.items():
+            ):
+                # Add jobs to total
                 if result.jobs:
-                    yield f"data: {json.dumps({'type': 'PROGRESS', 'source': source_name, 'jobs': result.jobs, 'status': 'completed' if result.success else 'error'})}\n\n"
-
-            emit_count = 0
-            for source_name, result in source_results.items():
+                    all_jobs.extend(result.jobs)
+                
+                # Store result for final status
+                source_results[result.source_name] = result
+                
+                # Emit PROGRESS event IMMEDIATELY for this source
                 status = "completed" if result.success else "error"
                 jobs_count = len(result.jobs) if result.jobs else 0
+                
                 logger.info(
-                    f"[SSE] source={source_name} status={status} jobs={jobs_count} duration={getattr(result, 'duration', None)} error={getattr(result, 'error', None)}"
+                    f"[SSE] source={result.source_name} status={status} jobs={jobs_count} duration={result.execution_time} error={result.error}"
                 )
+                
                 # Log details for debugging
                 if result.jobs and jobs_count > 0:
-                    logger.info(f"[SSE] source={source_name} sample_job={result.jobs[0].get('titre', 'N/A')}")
-                yield f"data: {json.dumps({'type': 'PROGRESS', 'progress': 100, 'source': source_name, 'status': status, 'jobs': result.jobs})}\n\n"
+                    logger.info(f"[SSE] source={result.source_name} sample_job={result.jobs[0].get('titre', 'N/A')}")
+                
+                # Emit event immediately
+                yield f"data: {json.dumps({'type': 'PROGRESS', 'progress': 100, 'source': result.source_name, 'status': status, 'jobs': result.jobs})}\n\n"
                 emit_count += 1
 
             logger.info(f"[SSE] collected total_jobs={len(all_jobs)} sources={emit_count}")

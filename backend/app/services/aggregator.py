@@ -1,6 +1,6 @@
 """
 Async Aggregator Service
-Orchestrates parallel job searches and generates SSE (Server-Sent Events)
+Orchestrates parallel job searches and generates SSE (Server-Sent Events) in real-time
 """
 
 import asyncio
@@ -42,13 +42,6 @@ class SearchAggregator:
     """
     
     def __init__(self, max_workers: int = 30, timeout_per_source: float = 6.0):
-        """
-        Initialize the aggregator.
-        
-        Args:
-            max_workers: Maximum number of concurrent workers
-            timeout_per_source: Timeout in seconds for each source
-        """
         self.max_workers = max_workers
         self.timeout_per_source = timeout_per_source
     
@@ -60,14 +53,8 @@ class SearchAggregator:
         limit: int
     ) -> tuple[List[dict], Dict[str, SourceResult]]:
         """
-        Search multiple sources in parallel.
+        Search multiple sources in parallel and return results as they complete.
         
-        Args:
-            sources: Dictionary of {source_name: scraper_function}
-            query: Job search query
-            location: Location
-            limit: Max results per source
-            
         Returns:
             Tuple of (all_jobs, source_results_dict)
         """
@@ -100,7 +87,7 @@ class SearchAggregator:
                         execution_time=0
                     )
             
-            # Collect results as they complete
+            # Collect results as they complete (NON-BLOQUANT)
             for future in as_completed(future_to_source):
                 source_name = future_to_source[future]
                 start_time = source_start_times.get(source_name, time.time())
@@ -145,76 +132,121 @@ class SearchAggregator:
         logger.info(f"Search complete: {len(all_jobs)} jobs from {len(source_results)} sources")
         return all_jobs, source_results
     
-    def generate_sse_events(
+    async def search_parallel_streaming(
         self,
         sources: Dict[str, Callable],
         query: str,
         location: str,
-        limit: int,
-        on_complete: Optional[Callable[[List[dict]], List[dict]]] = None
+        limit: int
     ):
+        """Search multiple sources in parallel and stream results as they complete.
+
+        Uses asyncio.to_thread + asyncio.wait_for to ensure no single source
+        can block the stream longer than timeout_per_source seconds.
         """
-        Generate SSE events for streaming job search results.
-        
-        Args:
-            sources: Dictionary of {source_name: scraper_function}
-            query: Job search query
-            location: Location
-            limit: Max results per source
-            on_complete: Optional callback to process results after all sources complete
-            
-        Yields:
-            SSE-formatted strings
-        """
-        try:
-            logger.info("SSE: event_generator started")
-            total_sources = len(sources)
-            logger.info(f"SSE: built registry with {total_sources} sources")
-            
-            # Send STARTED event
-            yield f"data: {json.dumps({'type': 'STARTED', 'query': query, 'total_sources': total_sources})}\n\n"
-            
-            if total_sources == 0:
-                logger.warning("SSE: no sources to execute")
-                yield f"data: {json.dumps({'type': 'COMPLETED', 'jobs': [], 'source_status': {}, 'progress': 100})}\n\n"
-                return
-            
-            # Run parallel search
-            loop = asyncio.get_event_loop()
-            all_results, source_results = loop.run_until_complete(
-                self.search_parallel(sources, query, location, limit)
-            )
-            
-            # Send progress for each source
-            for source_name, result in source_results.items():
-                yield f"data: {json.dumps({'type': 'PROGRESS', 'progress': 100, 'source': source_name, 'status': 'completed' if result.success else 'error', 'jobs': result.jobs})}\n\n"
-            
-            # Apply post-processing callback if provided
-            if on_complete:
-                all_results = on_complete(all_results)
-            
-            # Send SCORES_UPDATED event
-            yield f"data: {json.dumps({'type': 'SCORES_UPDATED', 'jobs': all_results, 'progress': 100})}\n\n"
-            
-            # Send COMPLETED event
-            source_status = {name: result.to_dict() for name, result in source_results.items()}
-            yield f"data: {json.dumps({'type': 'COMPLETED', 'jobs': all_results, 'source_status': source_status, 'progress': 100})}\n\n"
-            
-        except Exception as e:
-            logger.exception("SSE: global generator error")
-            yield f"data: {json.dumps({'type': 'ERROR', 'message': str(e)})}\n\n"
+        all_jobs = []
+        source_results = {}
+        source_start_times = {}
+
+        logger.info(f"Starting streaming parallel search with {len(sources)} sources")
+
+        source_tasks = {}
+        task_to_source = {}
+
+        for source_name, source_fn in sources.items():
+            try:
+                source_start_times[source_name] = time.time()
+                logger.info(f"[SOURCE: {source_name}] ⏱️ Start search for query: \"{query}\"")
+
+                async def _run_source(fn=source_fn, q=query, l=location, n=limit):
+                    try:
+                        return await asyncio.wait_for(
+                            asyncio.to_thread(fn, q, l, n),
+                            timeout=self.timeout_per_source,
+                        )
+                    except asyncio.TimeoutError:
+                        raise TimeoutError(f"Source timed out after {self.timeout_per_source}s")
+                    except Exception:
+                        raise
+
+                task = asyncio.create_task(_run_source())
+                source_tasks[source_name] = task
+                task_to_source[task] = source_name
+
+            except Exception as e:
+                logger.error(f"[SOURCE: {source_name}] Erreur de soumission: {e}")
+                result = SourceResult(
+                    source_name=source_name,
+                    jobs=[],
+                    success=False,
+                    error=f"Submission error: {str(e)}",
+                    execution_time=0,
+                )
+                source_results[source_name] = result
+                yield result
+
+        for task in asyncio.as_completed(list(source_tasks.values())):
+            source_name = task_to_source.get(task)
+            if not source_name:
+                continue
+
+            start_time = source_start_times.get(source_name, time.time())
+
+            try:
+                jobs = await task
+                duration = time.time() - start_time
+
+                result = SourceResult(
+                    source_name=source_name,
+                    jobs=jobs if jobs else [],
+                    success=True,
+                    execution_time=round(duration, 2),
+                )
+
+                source_results[source_name] = result
+                all_jobs.extend(jobs)
+
+                logger.info(
+                    f"[SOURCE: {source_name}] ✅ Success: {len(jobs)} jobs found in {duration:.2f}s"
+                )
+                yield result
+
+            except Exception as e:
+                duration = time.time() - start_time
+                error_msg = str(e)
+
+                if "timeout" in error_msg.lower():
+                    logger.error(f"[SOURCE: {source_name}] Timeout (> {self.timeout_per_source}s)")
+                elif "401" in error_msg or "403" in error_msg:
+                    logger.error(
+                        f"[SOURCE: {source_name}] Quota/Authentification: {error_msg[:100]}"
+                    )
+                else:
+                    logger.error(f"[SOURCE: {source_name}] Erreur: {error_msg[:100]}")
+
+                logger.info(
+                    f"[SOURCE: {source_name}] ❌ Error after {duration:.2f}s: {error_msg[:100]}"
+                )
+
+                result = SourceResult(
+                    source_name=source_name,
+                    jobs=[],
+                    success=False,
+                    error=error_msg[:100],
+                    execution_time=round(duration, 2),
+                )
+
+                source_results[source_name] = result
+                yield result
+
+        logger.info(
+            f"Streaming search complete: {len(all_jobs)} jobs from {len(source_results)} sources"
+        )
 
 
 def normalize_jobs_for_frontend(jobs: List[dict], search_location: str = "") -> List[dict]:
     """
     Normalize a list of jobs for the frontend.
-    
-    Args:
-        jobs: List of job dictionaries
-        search_location: Search location for distance scoring
-        
-    Returns:
-        Normalized list of jobs
     """
     normalized = []
     
