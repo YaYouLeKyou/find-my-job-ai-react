@@ -41,7 +41,7 @@ class SearchAggregator:
     Uses ThreadPoolExecutor for concurrent execution with timeout.
     """
     
-    def __init__(self, max_workers: int = 30, timeout_per_source: float = 20.0):
+    def __init__(self, max_workers: int = 30, timeout_per_source: float = 90.0):
         self.max_workers = max_workers
         self.timeout_per_source = timeout_per_source
     
@@ -141,9 +141,8 @@ class SearchAggregator:
     ):
         """Search multiple sources in parallel and stream results as they complete.
 
-        Each source runs in its own `asyncio.to_thread` task wrapped with
-        `asyncio.wait_for(...)` so a single slow source cannot block the stream.
-        Results are emitted the moment a source finishes, times out, or errors.
+        Uses ThreadPoolExecutor + as_completed so results are emitted as soon as
+        each source returns, without waiting for the whole batch.
         """
         all_jobs: List[dict] = []
         source_results: Dict[str, SourceResult] = {}
@@ -153,47 +152,39 @@ class SearchAggregator:
             f"Starting streaming parallel search with {len(sources)} sources"
         )
 
-        task_to_source: Dict[asyncio.Task, str] = {}
+        with ThreadPoolExecutor(max_workers=min(self.max_workers, max(len(sources), 8))) as executor:
+            future_to_source: Dict[Any, str] = {}
 
-        for source_name, source_fn in sources.items():
-            try:
-                source_start_times[source_name] = time.time()
-                logger.info(
-                    f"[SOURCE: {source_name}] start search for query: \"{query}\""
-                )
-
-                task = asyncio.create_task(
-                    asyncio.wait_for(
-                        asyncio.to_thread(source_fn, query, location, limit),
-                        timeout=self.timeout_per_source,
+            for source_name, source_fn in sources.items():
+                try:
+                    source_start_times[source_name] = time.time()
+                    logger.info(
+                        f"[SOURCE: {source_name}] start search for query: \"{query}\""
                     )
-                )
-                task_to_source[task] = source_name
 
-            except Exception as e:
-                logger.error(f"[SOURCE: {source_name}] submission error: {e}")
-                result = SourceResult(
-                    source_name=source_name,
-                    jobs=[],
-                    success=False,
-                    error=f"Submission error: {str(e)}",
-                    execution_time=0,
-                )
-                source_results[source_name] = result
-                yield result
+                    future = executor.submit(
+                        source_fn, query, location, limit
+                    )
+                    future_to_source[future] = source_name
 
-        while task_to_source:
-            done, _pending = await asyncio.wait(
-                list(task_to_source.keys()),
-                return_when=asyncio.FIRST_COMPLETED,
-            )
+                except Exception as e:
+                    logger.error(f"[SOURCE: {source_name}] submission error: {e}")
+                    result = SourceResult(
+                        source_name=source_name,
+                        jobs=[],
+                        success=False,
+                        error=f"Submission error: {str(e)}",
+                        execution_time=0,
+                    )
+                    source_results[source_name] = result
+                    yield result
 
-            for task in done:
-                source_name = task_to_source.pop(task)
+            for future in as_completed(future_to_source):
+                source_name = future_to_source[future]
                 start_time = source_start_times.get(source_name, time.time())
 
                 try:
-                    jobs = await task
+                    jobs = future.result(timeout=self.timeout_per_source)
                     duration = time.time() - start_time
 
                     result = SourceResult(
@@ -215,7 +206,6 @@ class SearchAggregator:
                     logger.error(
                         f"[SOURCE: {source_name}] timeout after {duration:.2f}s"
                     )
-
                     result = SourceResult(
                         source_name=source_name,
                         jobs=[],

@@ -60,7 +60,7 @@ def generate_job_search_stream(query: str, location: str = "France", limit: int 
                 source_registry['Adzuna'] = adzuna_source.search_jobs
 
             # Execute partner APIs
-            aggregator = SearchAggregator(max_workers=2, timeout_per_source=5.0)
+            aggregator = SearchAggregator(max_workers=2, timeout_per_source=60.0)
             partner_jobs, partner_results = await aggregator.search_parallel(
                 source_registry, query, location, limit
             )

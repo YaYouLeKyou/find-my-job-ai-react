@@ -48,14 +48,20 @@ export function useStreamSearch(apiBase, params, onSearchComplete) {
             existingJobs.map(job => {
                 const title = (job.title || '').toLowerCase().trim();
                 const company = (job.company || '').toLowerCase().trim();
-                return `${title}|${company}`;
+                const link = (job.link || '').toLowerCase().trim();
+                return `${title}|${company}|${link}`;
             })
         );
 
         return newJobs.filter(job => {
             const title = (job.title || '').toLowerCase().trim();
             const company = (job.company || '').toLowerCase().trim();
-            const key = `${title}|${company}`;
+            const link = (job.link || '').toLowerCase().trim();
+            const key = `${title}|${company}|${link}`;
+
+            if (!title && !company && !link) {
+                return true;
+            }
 
             if (existingKeys.has(key)) {
                 return false;
@@ -63,6 +69,17 @@ export function useStreamSearch(apiBase, params, onSearchComplete) {
             existingKeys.add(key);
             return true;
         });
+    }, []);
+
+    const mergeJobsById = useCallback((base, incoming) => {
+        const map = new Map();
+        for (const job of base) {
+            map.set(job.id, job);
+        }
+        for (const job of incoming) {
+            map.set(job.id, job);
+        }
+        return Array.from(map.values());
     }, []);
 
     // Fonction de tri IA par paquets (NON BLOQUANTE)
@@ -256,7 +273,10 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
                                     // SCORES_UPDATED - Tri IA terminé pour un chunk
                                     if (data.type === 'SCORES_UPDATED' && data.jobs) {
                                         console.log(`[Stream] Tri IA terminé: ${data.jobs.length} offres scorées`);
-                                        setJobs(data.jobs);
+                                        const scoredById = new Map(data.jobs.map(job => [job.id, job]));
+                                        const merged = accumulatedJobsRef.current.map(job => scoredById.get(job.id) || job);
+                                        accumulatedJobsRef.current = merged;
+                                        setJobs(merged);
                                         setProcessedCount(data.jobs.length);
                                     }
 

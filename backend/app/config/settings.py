@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     ALLOWED_ORIGINS: str = "http://localhost,http://localhost:5173,http://localhost:3000"
     SCRAPER_MAX_WORKERS: int = 30
-    SCRAPER_TIMEOUT: float = 6.0
+    SCRAPER_TIMEOUT: float = 90.0
 
     # AI Providers
     GROQ_API_KEY: Optional[str] = None

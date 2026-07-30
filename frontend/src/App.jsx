@@ -53,7 +53,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   const [cvData, setCvData] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState("Paris, France");
-  const [numAds, setNumAds] = useState(50);
+  const [numAds, setNumAds] = useState(10);
   const [sortOption, setSortOption] = useState("Pertinence (IA)");
   const [contract, setContract] = useState("CDI");
   const [remote, setRemote] = useState(false);

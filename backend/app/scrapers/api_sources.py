@@ -8,8 +8,10 @@ Intégration des stratégies de contournement (bypass_strategies) pour maximiser
 import logging
 import os
 import re
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
+from urllib.parse import quote
 
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -37,52 +39,34 @@ logger = logging.getLogger(__name__)
 
 class FranceTravailSource:
     """
-    France Travail Official API v2 Client
-    Uses async httpx for concurrent page fetching
+    France Travail API v2 Client avec Fallback RSS automatique en cas de scope insuffisant.
     """
 
     BASE_URL = "https://api.francetravail.io/partenaire/offresdemploi/v2"
     AUTH_URL = "https://authentification-partenaire.francetravail.io/connexion/oauth2/access_token?realm=%2Fpartenaire"
+    RSS_BASE_URL = "https://candidat.francetravail.fr/offres/recherche/rss"
 
     def __init__(self, client_id: str, client_secret: str):
-        """
-        Initialize France Travail API client.
-
-        Args:
-            client_id: OAuth2 client ID
-            client_secret: OAuth2 client secret
-        """
         self.client_id = client_id
         self.client_secret = client_secret
         self._access_token = None
         self._token_expiry = None
-        self._scope = "api_offresdemploiv2"
+        self._scope = "api_offresdemploiv2 o2dsoffre"
+        self.has_permission_error = False
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     async def _get_access_token(self) -> Optional[str]:
-        """
-        Get OAuth2 access token with retry logic.
-
-        Returns:
-            Access token or None if authentication fails
-        """
-        # Return cached token if still valid
         if self._access_token and self._token_expiry and datetime.now() < self._token_expiry:
             return self._access_token
 
         try:
-            logger.info("🔑 Requesting France Travail access token...")
-
             payload = {
                 "grant_type": "client_credentials",
                 "scope": self._scope,
             }
-
             headers = {
                 "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 "Accept": "application/json",
-                "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
             }
 
             async with httpx.AsyncClient() as client:
@@ -94,63 +78,83 @@ class FranceTravailSource:
                     timeout=10.0
                 )
 
-                logger.info(f"   Auth response status: {response.status_code}")
-
                 if response.status_code != 200:
                     logger.error(f"❌ France Travail auth failed: HTTP {response.status_code}")
-                    logger.error(f"   Response: {response.text[:500]}")
                     return None
 
                 token_data = response.json()
                 self._access_token = token_data.get("access_token")
 
-                if not self._access_token:
-                    logger.error(f"❌ No access token in response: {token_data}")
-                    return None
-
                 expires_in = token_data.get("expires_in", 3600)
                 self._token_expiry = datetime.now() + timedelta(seconds=expires_in - 60)
-
-                logger.info(f"✅ France Travail access token obtained (expires in {expires_in}s)")
                 return self._access_token
 
         except Exception as e:
             logger.error(f"❌ France Travail auth error: {e}")
             return None
 
-    @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=5))
-    async def _fetch_page(self, params: dict, headers: dict) -> Optional[dict]:
+    async def _fetch_rss_fallback(self, query: str, location: str, limit: int) -> List[dict]:
         """
-        Fetch a single page of results.
-
-        Args:
-            params: Query parameters
-            headers: Request headers
-
-        Returns:
-            JSON response data or None
+        Fallback RSS : Récupère les offres via le flux RSS public de France Travail sans authentification.
         """
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{self.BASE_URL}/offres/search",
-                params=params,
-                headers=headers,
-                timeout=10.0
-            )
+        logger.info(f"🔄 [France Travail Fallback] Exécution de la recherche via le flux RSS public pour '{query}'...")
+        try:
+            params = f"motsCles={quote(query)}"
+            clean_loc = optimize_location_for_api(location, "France Travail")
+            if clean_loc and clean_loc.lower() not in ["france", "global", "remote", ""]:
+                params += f"&lieu={quote(clean_loc)}"
 
-            logger.info(f"   Search response status: {response.status_code}")
+            rss_url = f"{self.RSS_BASE_URL}?{params}"
 
-            if response.status_code == 204:
-                logger.info("⚠️ France Travail: No content (204)")
-                return None
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
 
-            # France Travail API returns 206 (Partial Content) when using range parameter
-            if response.status_code not in (200, 206):
-                logger.error(f"❌ France Travail API error: HTTP {response.status_code}")
-                logger.error(f"   Response: {response.text[:500]}")
-                return None
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(rss_url, headers=headers)
 
-            return response.json()
+            if response.status_code != 200:
+                logger.warning(f"⚠️ France Travail RSS fallback failed with status HTTP {response.status_code}")
+                return []
+
+            root = ET.fromstring(response.content)
+            jobs = []
+
+            for item in root.findall(".//item")[:limit]:
+                title = item.findtext("title", "")
+                link = item.findtext("link", "#")
+                description = item.findtext("description", "")
+                pub_date = item.findtext("pubDate", "")
+
+                formatted_date = ""
+                if pub_date:
+                    try:
+                        date_obj = datetime.strptime(pub_date[:25], "%a, %d %b %Y %H:%M:%S")
+                        formatted_date = date_obj.strftime("%Y-%m-%d")
+                    except Exception:
+                        formatted_date = pub_date[:10]
+
+                entreprise = "Non précisé"
+                location_text = location
+
+                jobs.append({
+                    "titre": title,
+                    "entreprise": entreprise,
+                    "lien": link,
+                    "location": location_text,
+                    "date": formatted_date,
+                    "source": "France Travail (RSS)",
+                    "description": re.sub(r'<[^>]+>', '', description)[:2000],
+                    "contrat": "",
+                    "competences": [],
+                })
+
+            logger.info(f"✅ [France Travail RSS] {len(jobs)} offres récupérées via RSS")
+            return jobs
+
+        except Exception as e:
+            logger.error(f"❌ France Travail RSS fallback error: {e}")
+            return []
 
     async def search_jobs(
         self,
@@ -160,189 +164,80 @@ class FranceTravailSource:
         contract_type: str = "",
         remote_only: bool = False
     ) -> List[dict]:
-        """
-        Search for jobs using France Travail API with parallel page fetching.
-        Intègre les stratégies de contournement : query relaxation, retry backoff, optimisation des paramètres.
-
-        Args:
-            query: Job search query
-            location: Location (city, region, or "France")
-            limit: Maximum number of results
-            contract_type: Contract type filter (CDI, CDD, etc.)
-            remote_only: Filter for remote jobs only
-
-        Returns:
-            List of job dictionaries
-        """
-        # Get access token
-        token = await self._get_access_token()
-        if not token:
-            logger.warning("⚠️ No France Travail access token available")
-            return []
-
-        # 🔑 Stratégie 3: Optimiser la limite pour maximiser le volume
         optimal_limit = get_optimal_limit(limit, "France Travail")
 
-        # 🔄 Stratégie 1: Recherche avec relâchement automatique des requêtes
-        async def _search_single(relaxed_query: str, loc: str, lim: int) -> List[dict]:
-            """Sous-fonction de recherche pour une requête unique."""
-            try:
-                # Build search parameters avec optimisation
-                params = {
-                    "motsCles": relaxed_query,
-                    "range": f"0-{max(lim - 1, 149)}",  # Request up to 150 results
-                }
+        if self.has_permission_error:
+            return await self._fetch_rss_fallback(query, location, optimal_limit)
 
-                # 🔑 Stratégie 3: Optimiser la localisation
-                clean_location = optimize_location_for_api(loc, "France Travail")
-                if clean_location and clean_location.lower() not in ["france", "global", "remote", ""]:
-                    params["lieu"] = clean_location
-                else:
-                    params["lieu"] = "France"
+        token = await self._get_access_token()
+        if not token:
+            logger.warning("⚠️ Jeton France Travail indisponible. Bascule sur le fallback RSS.")
+            return await self._fetch_rss_fallback(query, location, optimal_limit)
 
-                # 🔑 Stratégie 3: Supprimer les filtres facultatifs trop restrictifs lors du premier appel
-                # On ne filtre pas par contrat ni télétravail pour maximiser le volume
-                # Le filtrage se fera en mémoire côté frontend
+        params = {"motsCles": query}
+        clean_location = optimize_location_for_api(location, "France Travail")
+        if clean_location and clean_location.lower() not in ["france", "global", "remote", ""]:
+            params["lieu"] = clean_location
 
-                logger.info(f"   France Travail params: {params}")
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+            "Range": f"offres 0-{min(optimal_limit - 1, 149)}"
+        }
 
-                # 🛡️ Stratégie 2: Headers avec rotation d'User-Agent
-                headers = get_rotated_headers({
-                    "Authorization": f"Bearer {token}",
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                })
-
-                # Fetch pages in parallel for speed
-                page_tasks = []
-                page_size = 50
-                for page_start in range(0, lim, page_size):
-                    page_end = min(page_start + page_size - 1, lim - 1)
-                    page_params = params.copy()
-                    page_params["range"] = f"{page_start}-{page_end}"
-                    page_tasks.append(self._fetch_page(page_params, headers))
-                    if len(page_tasks) >= 5:
-                        break
-
-                # Execute all requests in parallel
-                import asyncio
-                results = await asyncio.gather(*page_tasks, return_exceptions=True)
-
-                # Process results
-                jobs = []
-                for result in results:
-                    if isinstance(result, Exception):
-                        logger.error(f"❌ France Travail page fetch error: {result}")
-                        continue
-
-                    if not result:
-                        continue
-
-                    data = result
-                    page_results = data.get("resultats", [])
-                    logger.info(f"✅ France Travail: {len(page_results)} results from page")
-
-                    for item in page_results:
-                        try:
-                            job = self._parse_job(item)
-                            if job:
-                                jobs.append(job)
-                        except Exception as e:
-                            logger.debug(f"Error parsing France Travail job: {e}")
-                            continue
-
-                return jobs
-
-            except Exception as e:
-                logger.error(f"❌ France Travail search error: {e}")
-                return []
-
-        # 🔄 Stratégie 1 + 4: Recherche avec relâchement et retry
-        jobs = await search_with_query_relaxation(
-            search_fn=_search_single,
-            query=query,
-            location=location,
-            limit=optimal_limit,
-            source_name="France Travail",
-            max_variations=4,
-        )
-
-        # 🧹 Stratégie 5: Normalisation et déduplication
-        jobs = normalize_and_deduplicate(jobs)
-
-        logger.info(f"✅ France Travail: {len(jobs)} total jobs collected (after bypass strategies)")
-        return jobs[:limit]
-
-    def _parse_job(self, item: dict) -> Optional[dict]:
-        """
-        Parse a France Travail job posting.
-
-        Args:
-            item: Raw job data from API
-
-        Returns:
-            Standardized job dictionary or None
-        """
         try:
-            # Extract basic info
-            title = item.get("intitule", "")
-            company = item.get("entreprise", {}).get("nom", "Non précisé")
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.BASE_URL}/offres/search",
+                    params=params,
+                    headers=headers,
+                    timeout=10.0
+                )
 
-            # Build job URL
-            job_id = item.get("id", "")
-            job_url = f"https://candidat.francetravail.fr/offres/recherche/detail/{job_id}"
+            if response.status_code == 403:
+                self.has_permission_error = True
+                logger.error(
+                    "❌ [France Travail API] HTTP 403 Forbidden - SCOPE INSUFFISANT.\n"
+                    "👉 Votre application sur le portail développeur France Travail n'a pas les droits d'accès à la recherche d'offres ('o2dsoffre').\n"
+                    "🔄 Bascule automatique sur le flux RSS sans blocage de l'application."
+                )
+                return await self._fetch_rss_fallback(query, location, optimal_limit)
 
-            # Extract location
-            location_data = item.get("lieu", {})
-            location = location_data.get("libelle", "")
-            if not location:
-                location = location_data.get("commune", "")
+            if response.status_code not in (200, 206):
+                logger.warning(f"⚠️ France Travail API HTTP {response.status_code}. Tentative de fallback RSS.")
+                return await self._fetch_rss_fallback(query, location, optimal_limit)
 
-            # Extract contract type
-            contract = item.get("typeContrat", "")
-            if not contract:
-                contract = item.get("natureContrat", "")
+            data = response.json()
+            page_results = data.get("resultats", [])
 
-            # Extract description
-            description = item.get("description", "")
+            jobs = []
+            for item in page_results:
+                job = self._parse_job(item)
+                if job:
+                    jobs.append(job)
 
-            # Extract date
-            date_publication = item.get("datePublication", "")
-            if date_publication:
-                try:
-                    date_obj = datetime.fromisoformat(date_publication.replace('Z', '+00:00'))
-                    date = date_obj.strftime("%Y-%m-%d")
-                except Exception:
-                    date = date_publication[:10]
-            else:
-                date = ""
-
-            # Extract salary
-            salary_info = item.get("salaire", {})
-            salary_text = salary_info.get("libelle", "") or salary_info.get("commentaire", "")
-
-            # Extract skills
-            competences = []
-            if "competences" in item:
-                competences = [c.get("libelle", "") for c in item.get("competences", []) if c.get("libelle")]
-
-            # Build standardized job
-            job = {
-                "titre": title,
-                "entreprise": company,
-                "lien": job_url,
-                "location": location,
-                "date": date,
-                "source": "France Travail",
-                "description": description[:2000] if description else "",
-                "contrat": contract,
-                "competences": competences,
-            }
-
-            return job
+            jobs = normalize_and_deduplicate(jobs)
+            return jobs[:limit]
 
         except Exception as e:
-            logger.debug(f"Error parsing France Travail job: {e}")
+            logger.error(f"❌ France Travail API error: {e}. Lancement du fallback RSS.")
+            return await self._fetch_rss_fallback(query, location, optimal_limit)
+
+    def _parse_job(self, item: dict) -> Optional[dict]:
+        try:
+            job_id = item.get("id", "")
+            return {
+                "titre": item.get("intitule", ""),
+                "entreprise": item.get("entreprise", {}).get("nom", "Non précisé"),
+                "lien": f"https://candidat.francetravail.fr/offres/recherche/detail/{job_id}",
+                "location": item.get("lieu", {}).get("libelle", ""),
+                "date": item.get("datePublication", "")[:10],
+                "source": "France Travail",
+                "description": item.get("description", "")[:2000],
+                "contrat": item.get("typeContrat", ""),
+                "competences": [c.get("libelle", "") for c in item.get("competences", []) if c.get("libelle")],
+            }
+        except Exception:
             return None
 
 class AdzunaSource:
@@ -864,7 +759,7 @@ def get_apify_source(api_key: Optional[str] = None) -> Optional[ApifySource]:
 # RSS Functions - separate logger for RSS module
 rss_logger = logging.getLogger(__name__ + ".rss")
 
-RSS_FEED_URL = "https://candidat.francetravail.fr/emplois/recherche/rss"
+RSS_FEED_URL = "https://www.appcast.io/api/feed/rss/3292"
 
 def _normalize_rss_date(value: Optional[str]) -> str:
     if not value:
