@@ -2,6 +2,7 @@
 API-based job sources
 France Travail API v2 with async httpx (2 parallel pages)
 Adzuna API with async httpx
+Intégration des stratégies de contournement (bypass_strategies) pour maximiser les résultats.
 """
 
 import logging
@@ -14,6 +15,16 @@ import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.config import settings
+from app.scrapers.bypass_strategies import (
+    generate_relaxed_queries,
+    get_rotated_headers,
+    get_jitter_delay,
+    optimize_location_for_api,
+    get_optimal_limit,
+    execute_with_retry_backoff,
+    search_with_query_relaxation,
+    normalize_and_deduplicate,
+)
 
 def _mask(value: Optional[str]) -> str:
     if not value:
@@ -151,6 +162,7 @@ class FranceTravailSource:
     ) -> List[dict]:
         """
         Search for jobs using France Travail API with parallel page fetching.
+        Intègre les stratégies de contournement : query relaxation, retry backoff, optimisation des paramètres.
 
         Args:
             query: Job search query
@@ -168,92 +180,98 @@ class FranceTravailSource:
             logger.warning("⚠️ No France Travail access token available")
             return []
 
-        jobs = []
+        # 🔑 Stratégie 3: Optimiser la limite pour maximiser le volume
+        optimal_limit = get_optimal_limit(limit, "France Travail")
 
-        try:
-            logger.info(f"🔍 Searching France Travail API: query='{query}', location='{location}', limit={limit}")
+        # 🔄 Stratégie 1: Recherche avec relâchement automatique des requêtes
+        async def _search_single(relaxed_query: str, loc: str, lim: int) -> List[dict]:
+            """Sous-fonction de recherche pour une requête unique."""
+            try:
+                # Build search parameters avec optimisation
+                params = {
+                    "motsCles": relaxed_query,
+                    "range": f"0-{max(lim - 1, 149)}",  # Request up to 150 results
+                }
 
-            # Build search parameters
-            params = {
-                "motsCles": query,
-                "range": f"0-{max(limit - 1, 149)}",  # Request up to 150 results
-            }
+                # 🔑 Stratégie 3: Optimiser la localisation
+                clean_location = optimize_location_for_api(loc, "France Travail")
+                if clean_location and clean_location.lower() not in ["france", "global", "remote", ""]:
+                    params["lieu"] = clean_location
+                else:
+                    params["lieu"] = "France"
 
-            # Clean location
-            clean_location = ""
-            if location:
-                clean_location = re.sub(r',?\s*France\s*$', '', location, flags=re.IGNORECASE)
-                clean_location = clean_location.strip().strip(',').strip()
+                # 🔑 Stratégie 3: Supprimer les filtres facultatifs trop restrictifs lors du premier appel
+                # On ne filtre pas par contrat ni télétravail pour maximiser le volume
+                # Le filtrage se fera en mémoire côté frontend
 
-            if clean_location and clean_location.lower() not in ["france", "global", "remote", ""]:
-                params["lieu"] = clean_location
-            else:
-                params["lieu"] = "France"
+                logger.info(f"   France Travail params: {params}")
 
-            # Extract first city only
-            if params["lieu"] and "," in params["lieu"]:
-                params["lieu"] = params["lieu"].split(",")[0].strip()
-                logger.info(f"   Normalized location to: {params['lieu']}")
+                # 🛡️ Stratégie 2: Headers avec rotation d'User-Agent
+                headers = get_rotated_headers({
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                })
 
-            # Add filters
-            if contract_type:
-                params["typeContrat"] = contract_type
+                # Fetch pages in parallel for speed
+                page_tasks = []
+                page_size = 50
+                for page_start in range(0, lim, page_size):
+                    page_end = min(page_start + page_size - 1, lim - 1)
+                    page_params = params.copy()
+                    page_params["range"] = f"{page_start}-{page_end}"
+                    page_tasks.append(self._fetch_page(page_params, headers))
+                    if len(page_tasks) >= 5:
+                        break
 
-            if remote_only:
-                params["telework"] = "true"
+                # Execute all requests in parallel
+                import asyncio
+                results = await asyncio.gather(*page_tasks, return_exceptions=True)
 
-            logger.info(f"   Full params: {params}")
-
-            headers = {
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            }
-
-            # Fetch pages in parallel for speed
-            page_tasks = []
-            page_size = 50
-            for page_start in range(0, limit, page_size):
-                page_end = min(page_start + page_size - 1, limit - 1)
-                page_params = params.copy()
-                page_params["range"] = f"{page_start}-{page_end}"
-                page_tasks.append(self._fetch_page(page_params, headers))
-                if len(page_tasks) >= 5:
-                    break
-
-            # Execute all requests in parallel
-            import asyncio
-            results = await asyncio.gather(*page_tasks, return_exceptions=True)
-
-            # Process results
-            for result in results:
-                if isinstance(result, Exception):
-                    logger.error(f"❌ France Travail page fetch error: {result}")
-                    continue
-
-                if not result:
-                    continue
-
-                data = result
-                page_results = data.get("resultats", [])
-                logger.info(f"✅ France Travail: {len(page_results)} results from page")
-
-                for item in page_results:
-                    try:
-                        job = self._parse_job(item)
-                        if job:
-                            jobs.append(job)
-                    except Exception as e:
-                        logger.debug(f"Error parsing France Travail job: {e}")
+                # Process results
+                jobs = []
+                for result in results:
+                    if isinstance(result, Exception):
+                        logger.error(f"❌ France Travail page fetch error: {result}")
                         continue
 
-            logger.info(f"✅ France Travail: {len(jobs)} total jobs collected")
-            return jobs[:limit]
+                    if not result:
+                        continue
 
-        except Exception as e:
-            logger.error(f"❌ France Travail search error: {e}")
-            return []
+                    data = result
+                    page_results = data.get("resultats", [])
+                    logger.info(f"✅ France Travail: {len(page_results)} results from page")
+
+                    for item in page_results:
+                        try:
+                            job = self._parse_job(item)
+                            if job:
+                                jobs.append(job)
+                        except Exception as e:
+                            logger.debug(f"Error parsing France Travail job: {e}")
+                            continue
+
+                return jobs
+
+            except Exception as e:
+                logger.error(f"❌ France Travail search error: {e}")
+                return []
+
+        # 🔄 Stratégie 1 + 4: Recherche avec relâchement et retry
+        jobs = await search_with_query_relaxation(
+            search_fn=_search_single,
+            query=query,
+            location=location,
+            limit=optimal_limit,
+            source_name="France Travail",
+            max_variations=4,
+        )
+
+        # 🧹 Stratégie 5: Normalisation et déduplication
+        jobs = normalize_and_deduplicate(jobs)
+
+        logger.info(f"✅ France Travail: {len(jobs)} total jobs collected (after bypass strategies)")
+        return jobs[:limit]
 
     def _parse_job(self, item: dict) -> Optional[dict]:
         """
@@ -357,6 +375,7 @@ class AdzunaSource:
     ) -> List[dict]:
         """
         Search for jobs using Adzuna API.
+        Intègre les stratégies de contournement : query relaxation, retry backoff, optimisation des paramètres.
 
         Args:
             query: Job search query
@@ -368,106 +387,108 @@ class AdzunaSource:
         Returns:
             List of job dictionaries (empty list on error/quota)
         """
-        # Determine country code from location
-        country = self._resolve_country(location)
+        # 🔑 Stratégie 3: Optimiser la limite pour maximiser le volume
+        optimal_limit = get_optimal_limit(limit, "Adzuna")
 
-        params = {
-            "app_id": self.app_id,
-            "app_key": self.app_key,
-            "results_per_page": limit,
-            "what": query,
-            "content-type": "application/json",
-        }
+        # 🔄 Stratégie 1: Recherche avec relâchement automatique des requêtes
+        async def _search_single(relaxed_query: str, loc: str, lim: int) -> List[dict]:
+            """Sous-fonction de recherche pour une requête unique."""
+            try:
+                # Determine country code from location
+                country = self._resolve_country(loc)
 
-        # Add location filter if not global
-        clean_loc = location.lower().strip()
-        if clean_loc and clean_loc not in ["france", "global", "worldwide", ""]:
-            params["where"] = location
+                # 🔑 Stratégie 3: Paramètres optimisés - supprimer les filtres restrictifs
+                params = {
+                    "app_id": self.app_id,
+                    "app_key": self.app_key,
+                    "results_per_page": lim,
+                    "what": relaxed_query,
+                    "content-type": "application/json",
+                }
 
-        # Add contract type filter
-        if contract_type:
-            params["type"] = contract_type
+                # 🔑 Stratégie 3: Optimiser la localisation
+                clean_loc = optimize_location_for_api(loc, "Adzuna")
+                if clean_loc and clean_loc.lower() not in ["france", "global", "worldwide", ""]:
+                    params["where"] = clean_loc
 
-        try:
-            logger.info(f"🔍 Searching Adzuna API: query='{query}', location='{location}', country='{country}', limit={limit}")
-            masked_app_id = _mask(self.app_id)
-            masked_app_key = _mask(self.app_key)
-            logger.info(f"   app_id={masked_app_id}")
-            logger.info(f"   app_key={masked_app_key}")
-            logger.info(f"   BASE_URL={self.BASE_URL}")
-            logger.info(f"   country={country}, url={self.BASE_URL}/{country}/search/1")
+                # 🔑 Stratégie 3: Supprimer les filtres facultatifs trop restrictifs
+                # On ne filtre pas par contrat ni télétravail pour maximiser le volume
 
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
-                    f"{self.BASE_URL}/{country}/search/1",
-                    params=params,
-                )
+                logger.info(f"🔍 Adzuna API: query='{relaxed_query}', location='{loc}', country='{country}', limit={lim}")
 
-                logger.info(f"   Adzuna response status: {response.status_code}")
-                logger.info(f"   Adzuna response headers: {dict(response.headers)}")
-                logger.info(f"   Adzuna response body[:300]: {response.text[:300]}")
+                # 🛡️ Stratégie 2: Headers avec rotation d'User-Agent
+                headers = get_rotated_headers({
+                    "Accept": "application/json",
+                })
 
-                # Handle quota / rate limiting gracefully
-                if response.status_code in (429, 403):
-                    logger.warning(f"⚠️ Adzuna quota/rate limit exceeded (HTTP {response.status_code}) - returning empty list")
-                    return []
-
-                if response.status_code != 200:
-                    logger.error(f"❌ Adzuna API error: HTTP {response.status_code}")
-                    logger.error(f"   Response: {response.text[:500]}")
-                    return []
-
-                data = response.json()
-                results = data.get("results", [])
-                logger.info(f"✅ Adzuna: {len(results)} results received")
-
-                jobs = []
-                for item in results[:limit]:
-                    try:
-                        job = self._parse_job(item)
-                        if job:
-                            jobs.append(job)
-                    except Exception as e:
-                        logger.debug(f"Error parsing Adzuna job: {e}")
-                        continue
-
-                if jobs:
-                    return jobs
-
-            # Si aucun résultat avec la localisation précise, on tente un élargissement
-            if country == "fr" and location and "," in location:
-                fallback_location = location.split(",")[0].strip()
-                if fallback_location and fallback_location.lower() not in ["france", "global", "remote", ""]:
-                    fallback_params = dict(params)
-                    fallback_params["where"] = fallback_location
-                    logger.info(f"🔁 Adzuna fallback location={fallback_location}")
+                # 🔀 Stratégie 4: Retry avec backoff exponentiel
+                async def _make_request():
                     async with httpx.AsyncClient(timeout=10.0) as client:
-                        fallback_response = await client.get(
+                        response = await client.get(
                             f"{self.BASE_URL}/{country}/search/1",
-                            params=fallback_params,
+                            params=params,
+                            headers=headers,
                         )
-                    if fallback_response.status_code == 200:
-                        fallback_data = fallback_response.json()
-                        fallback_results = fallback_data.get("results", [])
-                        logger.info(f"✅ Adzuna fallback: {len(fallback_results)} results received")
-                        for item in fallback_results[:limit]:
+
+                        logger.info(f"   Adzuna response status: {response.status_code}")
+
+                        # Handle quota / rate limiting gracefully
+                        if response.status_code in (429, 403):
+                            logger.warning(f"⚠️ Adzuna quota/rate limit exceeded (HTTP {response.status_code})")
+                            return []
+
+                        if response.status_code != 200:
+                            logger.error(f"❌ Adzuna API error: HTTP {response.status_code}")
+                            return []
+
+                        data = response.json()
+                        results = data.get("results", [])
+                        logger.info(f"✅ Adzuna: {len(results)} results received")
+
+                        jobs = []
+                        for item in results[:lim]:
                             try:
                                 job = self._parse_job(item)
                                 if job:
                                     jobs.append(job)
                             except Exception as e:
-                                logger.debug(f"Error parsing Adzuna fallback job: {e}")
+                                logger.debug(f"Error parsing Adzuna job: {e}")
                                 continue
-                        return jobs[:limit]
 
-            return jobs
+                        return jobs
 
-        except httpx.TimeoutException:
-            logger.warning("⚠️ Adzuna API timeout - returning empty list")
-            return []
-        except Exception as e:
-            logger.error(f"❌ Adzuna search error: {e}")
-            return []
+                result = await execute_with_retry_backoff(
+                    coro_factory=_make_request,
+                    max_retries=3,
+                    base_delay=1.0,
+                    max_delay=8.0,
+                    source_name="Adzuna",
+                )
+
+                return result if result else []
+
+            except httpx.TimeoutException:
+                logger.warning("⚠️ Adzuna API timeout - returning empty list")
+                return []
+            except Exception as e:
+                logger.error(f"❌ Adzuna search error: {e}")
+                return []
+
+        # 🔄 Stratégie 1 + 4: Recherche avec relâchement et retry
+        jobs = await search_with_query_relaxation(
+            search_fn=_search_single,
+            query=query,
+            location=location,
+            limit=optimal_limit,
+            source_name="Adzuna",
+            max_variations=4,
+        )
+
+        # 🧹 Stratégie 5: Normalisation et déduplication
+        jobs = normalize_and_deduplicate(jobs)
+
+        logger.info(f"✅ Adzuna: {len(jobs)} total jobs collected (after bypass strategies)")
+        return jobs[:limit]
 
     def _resolve_country(self, location: str) -> str:
         """Resolve a location string to an Adzuna country code."""
@@ -593,7 +614,9 @@ def get_adzuna_source(app_id: Optional[str] = None, app_key: Optional[str] = Non
     return _adzuna_source
 
 class GoogleJobsSource:
-    """Google Jobs via SerpApi."""
+    """Google Jobs via SerpApi.
+    Intègre les stratégies de contournement : query relaxation, retry backoff, optimisation des paramètres.
+    """
 
     BASE_URL = "https://serpapi.com/search"
 
@@ -608,51 +631,99 @@ class GoogleJobsSource:
         contract_type: str = "",
         remote_only: bool = False
     ) -> List[dict]:
-        normalized_location = location or "France"
-        if "," in normalized_location:
-            normalized_location = normalized_location.split(",")[0].strip()
-        if not normalized_location:
-            normalized_location = "France"
+        """
+        Search for jobs using Google Jobs via SerpApi.
+        Intègre les stratégies de contournement pour maximiser les résultats.
+        """
+        # 🔑 Stratégie 3: Optimiser la limite pour maximiser le volume
+        optimal_limit = get_optimal_limit(limit, "Google Jobs")
 
-        params = {
-            "engine": "google_jobs",
-            "q": query,
-            "location": f"{normalized_location}, Île-de-France, France" if normalized_location.lower() in ["paris", "didenheim"] else normalized_location,
-            "google_domain": "google.fr",
-            "gl": "fr",
-            "hl": "fr",
-            "api_key": self.api_key,
-        }
-        try:
-            logger.info(f"[API:GoogleJobs] start query={query!r} location={normalized_location!r} limit={limit}")
-            masked_key = _mask(self.api_key)
-            logger.info(f"   serpapi_key={masked_key}")
-            logger.info(f"   BASE_URL={self.BASE_URL}")
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                response = await client.get(self.BASE_URL, params=params)
-            logger.info(f"   Google Jobs response status: {response.status_code}")
-            logger.info(f"   Google Jobs response body[:300]: {response.text[:300]}")
-            if response.status_code != 200:
-                logger.error(f"[API:GoogleJobs] HTTP {response.status_code}: {response.text[:200]}")
-                return []
-            data = response.json()
-            results = data.get("jobs_results", [])[:limit]
-            logger.info(f"[API:GoogleJobs] done jobs={len(results)}")
-            return [
-                {
-                    "titre": item.get("title", ""),
-                    "entreprise": item.get("company_name", "N/C"),
-                    "lien": item.get("related_links", [{}])[0].get("link") if item.get("related_links") else "#",
-                    "location": item.get("location", normalized_location),
-                    "date": item.get("detected_extensions", {}).get("posted_at", ""),
-                    "source": "Google Jobs",
-                    "description": item.get("description", ""),
+        # 🔄 Stratégie 1: Recherche avec relâchement automatique des requêtes
+        async def _search_single(relaxed_query: str, loc: str, lim: int) -> List[dict]:
+            """Sous-fonction de recherche pour une requête unique."""
+            try:
+                # 🔑 Stratégie 3: Optimiser la localisation
+                normalized_location = optimize_location_for_api(loc, "Google Jobs")
+                if not normalized_location:
+                    normalized_location = "France"
+
+                # 🔑 Stratégie 3: Paramètres optimisés - supprimer les filtres restrictifs
+                params = {
+                    "engine": "google_jobs",
+                    "q": relaxed_query,
+                    "location": f"{normalized_location}, Île-de-France, France" if normalized_location.lower() in ["paris", "didenheim"] else normalized_location,
+                    "google_domain": "google.fr",
+                    "gl": "fr",
+                    "hl": "fr",
+                    "api_key": self.api_key,
+                    # 🔑 Stratégie 3: Augmenter la taille des résultats
+                    "num": min(lim, 100),
                 }
-                for item in results
-            ]
-        except Exception as e:
-            logger.error(f"[API:GoogleJobs] error: {e}")
-            return []
+
+                logger.info(f"[API:GoogleJobs] query={relaxed_query!r} location={normalized_location!r} limit={lim}")
+
+                # 🛡️ Stratégie 2: Headers avec rotation d'User-Agent
+                headers = get_rotated_headers({
+                    "Accept": "application/json",
+                })
+
+                # 🔀 Stratégie 4: Retry avec backoff exponentiel
+                async def _make_request():
+                    async with httpx.AsyncClient(timeout=15.0) as client:
+                        response = await client.get(self.BASE_URL, params=params, headers=headers)
+
+                    logger.info(f"   Google Jobs response status: {response.status_code}")
+
+                    if response.status_code != 200:
+                        logger.error(f"[API:GoogleJobs] HTTP {response.status_code}: {response.text[:200]}")
+                        return []
+
+                    data = response.json()
+                    results = data.get("jobs_results", [])[:lim]
+                    logger.info(f"[API:GoogleJobs] done jobs={len(results)}")
+
+                    return [
+                        {
+                            "titre": item.get("title", ""),
+                            "entreprise": item.get("company_name", "N/C"),
+                            "lien": item.get("related_links", [{}])[0].get("link") if item.get("related_links") else "#",
+                            "location": item.get("location", normalized_location),
+                            "date": item.get("detected_extensions", {}).get("posted_at", ""),
+                            "source": "Google Jobs",
+                            "description": item.get("description", ""),
+                        }
+                        for item in results
+                    ]
+
+                result = await execute_with_retry_backoff(
+                    coro_factory=_make_request,
+                    max_retries=3,
+                    base_delay=2.0,
+                    max_delay=10.0,
+                    source_name="Google Jobs",
+                )
+
+                return result if result else []
+
+            except Exception as e:
+                logger.error(f"[API:GoogleJobs] error: {e}")
+                return []
+
+        # 🔄 Stratégie 1 + 4: Recherche avec relâchement et retry
+        jobs = await search_with_query_relaxation(
+            search_fn=_search_single,
+            query=query,
+            location=location,
+            limit=optimal_limit,
+            source_name="Google Jobs",
+            max_variations=3,
+        )
+
+        # 🧹 Stratégie 5: Normalisation et déduplication
+        jobs = normalize_and_deduplicate(jobs)
+
+        logger.info(f"✅ Google Jobs: {len(jobs)} total jobs collected (after bypass strategies)")
+        return jobs[:limit]
 
 _google_jobs_source = None
 

@@ -259,113 +259,113 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
       let accumulatedJobs = [];
       let accumulatedSourceCounts = {};
 
-      es.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
+        es.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
 
-          if (data.type === 'STARTED') {
-            console.log(`[SSE] Search started: ${data.query} (${data.total_sources} sources)`);
+            if (data.type === 'STARTED') {
+              console.log(`[SSE] Search started: ${data.query} (${data.total_sources} sources)`);
+            }
+
+            if (data.type === 'PROGRESS') {
+              // Update source counts as sources complete
+              if (data.source) {
+                accumulatedSourceCounts[data.source] = data.jobs ? data.jobs.length : 0;
+                setSourceCounts({ ...accumulatedSourceCounts });
+                console.log(`[SSE] Source ${data.source}: ${accumulatedSourceCounts[data.source]} offres (status=${data.status})`);
+              }
+              if (data.jobs && data.jobs.length > 0) {
+                console.log(`[SSE] ${data.source} reçu: ${data.jobs.length} offres`, data.jobs.slice(0, 2));
+              }
+            }
+
+            if (data.type === 'SOURCE_RESULT' || data.type === 'PROGRESS') {
+              // Handle both SOURCE_RESULT and PROGRESS events for source data
+              if (data.jobs && data.jobs.length > 0) {
+                accumulatedJobs = [...accumulatedJobs, ...data.jobs];
+                // Apply client-side sorting
+                const sorted = sortJobs(accumulatedJobs, effectiveSortOption);
+                setJobs(sorted);
+              }
+              if (data.source) {
+                accumulatedSourceCounts[data.source] = data.jobs ? data.jobs.length : 0;
+                setSourceCounts({ ...accumulatedSourceCounts });
+              }
+            }
+
+            if (data.type === 'SCORES_UPDATED') {
+              // Backend has updated AI scores; re-sort with updated pertinence_ai
+              if (data.jobs && data.jobs.length > 0) {
+                accumulatedJobs = data.jobs;
+                const sorted = sortJobs(accumulatedJobs, effectiveSortOption);
+                setJobs(sorted);
+              }
+            }
+
+            if (data.type === 'COMPLETED') {
+              // Final results from the stream
+              if (data.jobs && data.jobs.length > 0) {
+                accumulatedJobs = data.jobs;
+                const sorted = sortJobs(accumulatedJobs, effectiveSortOption);
+                setJobs(sorted);
+              }
+
+              // Build sourceCounts from source_status if available
+              if (data.source_status) {
+                const counts = {};
+                Object.entries(data.source_status).forEach(([source, status]) => {
+                  if (status && (status.count !== undefined || status.jobs_count !== undefined)) {
+                    counts[source] = status.count !== undefined ? status.count : status.jobs_count;
+                  }
+                });
+                setSourceCounts(counts);
+              }
+
+              const searchDuration = ((Date.now() - startTime) / 1000).toFixed(2);
+              setSearchTime(searchDuration);
+
+              // Cache results in localStorage (30 min TTL)
+              try {
+                localStorage.setItem(cacheKey, JSON.stringify({
+                  results: accumulatedJobs,
+                  source_counts: accumulatedSourceCounts,
+                  ts: Date.now()
+                }));
+              } catch (e) {
+                // Storage full or private mode — ignore
+              }
+
+              // Update search history
+              const newHistory = [{
+                query: activeQuery,
+                time: new Date().toISOString(),
+                count: accumulatedJobs.length
+              }, ...searchHistory.filter(h => h.query !== activeQuery)].slice(0, 10);
+              setSearchHistory(newHistory);
+              localStorage.setItem('searchHistory', JSON.stringify(newHistory));
+
+              showToast(`✅ ${accumulatedJobs.length} offres trouvées en ${searchDuration}s`, 'success');
+
+              // ─── CRUCIAL: Close the SSE connection on COMPLETED ──────────────
+              es.close();
+              eventSourceRef.current = null;
+              setLoadingJobs(false);
+            }
+
+            if (data.type === 'ERROR') {
+              console.error("[SSE] Stream error:", data.message);
+              setErrorJobs(data.message || "Erreur de connexion au flux de recherche.");
+              showToast(`❌ Erreur: ${data.message || "Erreur de connexion"}`, 'error');
+
+              // ─── CRUCIAL: Close the SSE connection on ERROR ─────────────────
+              es.close();
+              eventSourceRef.current = null;
+              setLoadingJobs(false);
+            }
+          } catch (e) {
+            console.error("[SSE] Failed to parse event:", e);
           }
-
-          if (data.type === 'PROGRESS') {
-            // Update source counts as sources complete
-            if (data.source) {
-              accumulatedSourceCounts[data.source] = data.jobs ? data.jobs.length : 0;
-              setSourceCounts({ ...accumulatedSourceCounts });
-              console.log(`[SSE] Source ${data.source}: ${accumulatedSourceCounts[data.source]} offres (status=${data.status})`);
-            }
-            if (data.jobs && data.jobs.length > 0) {
-              console.log(`[SSE] ${data.source} reçu: ${data.jobs.length} offres`, data.jobs.slice(0, 2));
-            }
-          }
-
-          if (data.type === 'SOURCE_RESULT') {
-            // Append jobs from this source to the accumulated list
-            if (data.jobs && data.jobs.length > 0) {
-              accumulatedJobs = [...accumulatedJobs, ...data.jobs];
-              // Apply client-side sorting
-              const sorted = sortJobs(accumulatedJobs, effectiveSortOption);
-              setJobs(sorted);
-            }
-            if (data.source) {
-              accumulatedSourceCounts[data.source] = data.jobs ? data.jobs.length : 0;
-              setSourceCounts({ ...accumulatedSourceCounts });
-            }
-          }
-
-          if (data.type === 'SCORES_UPDATED') {
-            // Backend has updated AI scores; re-sort with updated pertinence_ai
-            if (data.jobs && data.jobs.length > 0) {
-              accumulatedJobs = data.jobs;
-              const sorted = sortJobs(accumulatedJobs, effectiveSortOption);
-              setJobs(sorted);
-            }
-          }
-
-          if (data.type === 'COMPLETED') {
-            // Final results from the stream
-            if (data.jobs && data.jobs.length > 0) {
-              accumulatedJobs = data.jobs;
-              const sorted = sortJobs(accumulatedJobs, effectiveSortOption);
-              setJobs(sorted);
-            }
-
-            // Build sourceCounts from source_status if available
-            if (data.source_status) {
-              const counts = {};
-              Object.entries(data.source_status).forEach(([source, status]) => {
-                if (status && status.count !== undefined) {
-                  counts[source] = status.count;
-                }
-              });
-              setSourceCounts(counts);
-            }
-
-            const searchDuration = ((Date.now() - startTime) / 1000).toFixed(2);
-            setSearchTime(searchDuration);
-
-            // Cache results in localStorage (30 min TTL)
-            try {
-              localStorage.setItem(cacheKey, JSON.stringify({
-                results: accumulatedJobs,
-                source_counts: accumulatedSourceCounts,
-                ts: Date.now()
-              }));
-            } catch (e) {
-              // Storage full or private mode — ignore
-            }
-
-            // Update search history
-            const newHistory = [{
-              query: activeQuery,
-              time: new Date().toISOString(),
-              count: accumulatedJobs.length
-            }, ...searchHistory.filter(h => h.query !== activeQuery)].slice(0, 10);
-            setSearchHistory(newHistory);
-            localStorage.setItem('searchHistory', JSON.stringify(newHistory));
-
-            showToast(`✅ ${accumulatedJobs.length} offres trouvées en ${searchDuration}s`, 'success');
-
-            // ─── CRUCIAL: Close the SSE connection on COMPLETED ──────────────
-            es.close();
-            eventSourceRef.current = null;
-            setLoadingJobs(false);
-          }
-
-          if (data.type === 'ERROR') {
-            console.error("[SSE] Stream error:", data.message);
-            setErrorJobs(data.message || "Erreur de connexion au flux de recherche.");
-            showToast(`❌ Erreur: ${data.message || "Erreur de connexion"}`, 'error');
-
-            // ─── CRUCIAL: Close the SSE connection on ERROR ─────────────────
-            es.close();
-            eventSourceRef.current = null;
-            setLoadingJobs(false);
-          }
-        } catch (e) {
-          console.error("[SSE] Failed to parse event:", e);
-        }
-      };
+        };
 
       es.onerror = (err) => {
         console.error("[SSE] Connection error:", err);

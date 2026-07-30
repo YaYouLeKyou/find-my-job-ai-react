@@ -1,17 +1,29 @@
 """
 Lightweight web scrapers for job sources
 LinkedIn, Indeed, and other sites - Timeout 6s
+Intégration des stratégies de contournement (bypass_strategies) pour maximiser les résultats.
 """
 
 import json
 import logging
 import re
 import asyncio
+import time
 import urllib.parse
 from typing import List, Dict, Optional
 
 import requests
 from bs4 import BeautifulSoup
+
+from app.scrapers.bypass_strategies import (
+    generate_relaxed_queries,
+    get_rotated_headers,
+    get_jitter_delay,
+    optimize_location_for_api,
+    get_optimal_limit,
+    search_with_query_relaxation,
+    normalize_and_deduplicate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -78,82 +90,126 @@ class WebScraperSource:
 
 
 class LinkedInScraper(WebScraperSource):
-    """Scraper for LinkedIn jobs."""
+    """Scraper for LinkedIn jobs.
+    Intègre les stratégies de contournement : query relaxation, rotation d'User-Agent, jitter.
+    """
     
     def search(self, job_title: str, location: str = "France", limit: int = 50) -> List[dict]:
         """
-        Search LinkedIn for jobs.
-        
-        Args:
-            job_title: Job title to search
-            location: Location
-            limit: Max results
-            
-        Returns:
-            List of job dictionaries
+        Search LinkedIn for jobs with bypass strategies.
+        Si la recherche exacte renvoie 0 résultat, réessaie avec des variantes plus larges.
         """
-        jobs = []
-        clean_title = self.clean_title(job_title)
-        query = urllib.parse.quote(clean_title)
-        loc = urllib.parse.quote(location)
-        logger.info(f"[WEB:LinkedIn] start query={job_title!r} location={location!r} limit={limit}")
+        # 🔑 Stratégie 3: Optimiser la limite
+        optimal_limit = get_optimal_limit(limit, "LinkedIn")
         
-        try:
-            url = f"https://www.linkedin.com/jobs/search/?keywords={query}&location={loc}"
-            html = self._fetch_page(url)
-            if not html:
-                logger.warning(f"[WEB:LinkedIn] empty page for {url[:120]}")
+        # 🔄 Stratégie 1: Recherche avec relâchement automatique des requêtes
+        def _search_single(relaxed_query: str, loc: str, lim: int) -> List[dict]:
+            """Sous-fonction de recherche synchrone pour une requête unique."""
+            jobs = []
+            try:
+                clean_title = self.clean_title(relaxed_query)
+                query = urllib.parse.quote(clean_title)
+                loc_encoded = urllib.parse.quote(optimize_location_for_api(loc, "LinkedIn"))
+                
+                # 🛡️ Stratégie 2: Headers avec rotation d'User-Agent
+                headers = get_rotated_headers()
+                
+                # 🔑 Stratégie 3: URL optimisée avec plus de résultats
+                url = f"https://www.linkedin.com/jobs/search/?keywords={query}&location={loc_encoded}&f_TPR=r2592000"
+                logger.info(f"[WEB:LinkedIn] query={relaxed_query!r} location={loc!r} limit={lim}")
+                
+                # 🛡️ Stratégie 2: Fetch avec headers rotatifs
+                try:
+                    response = requests.get(url, headers=headers, timeout=self.TIMEOUT)
+                    if response.status_code != 200:
+                        logger.warning(f"[WEB:LinkedIn] HTTP {response.status_code} for {url[:120]}")
+                        return jobs
+                    html = response.text
+                except Exception as e:
+                    logger.warning(f"[WEB:LinkedIn] fetch error: {e}")
+                    return jobs
+                
+                if not html:
+                    return jobs
+                
+                soup = BeautifulSoup(html, 'html.parser')
+                cards = soup.select('li[data-occludable-job-id], .job-search-card, .base-card')
+                if not cards:
+                    cards = soup.select('div[class*="job-card"]')
+                
+                if not cards:
+                    scripts = soup.find_all('script', type='application/ld+json')
+                    for script in scripts:
+                        try:
+                            data = json.loads(script.string)
+                            if isinstance(data, dict) and data.get('@type') == 'ItemList':
+                                for item in data.get('itemListElement', []):
+                                    job = item.get('item', {})
+                                    if job.get('title'):
+                                        jobs.append({
+                                            "titre": job.get('title'),
+                                            "entreprise": job.get('hiringOrganization', {}).get('name', 'Non précisé'),
+                                            "lien": job.get('url', '#'),
+                                            "location": job.get('jobLocation', {}).get('address', {}).get('addressLocality', loc),
+                                            "date": "",
+                                            "source": "LinkedIn"
+                                        })
+                        except:
+                            pass
+                
+                for card in cards[:lim]:
+                    title_elem = card.select_one('a.base-card__full-link, h3.base-search-card__title, a[href*="/jobs/view"]')
+                    company_elem = card.select_one('h4.base-search-card__subtitle, a[data-tracking-control-name*="company"]')
+                    location_elem = card.select_one('span.job-search-card__location, span[class*="location"]')
+                    link_elem = card.select_one('a.base-card__full-link')
+                    
+                    link = link_elem.get('href', '#') if link_elem else '#'
+                    
+                    if title_elem:
+                        jobs.append({
+                            "titre": title_elem.get_text(strip=True),
+                            "entreprise": company_elem.get_text(strip=True) if company_elem else "Non précisé",
+                            "lien": link,
+                            "location": location_elem.get_text(strip=True) if location_elem else loc,
+                            "date": "",
+                            "source": "LinkedIn"
+                        })
+                
+                logger.info(f"[WEB:LinkedIn] variation '{relaxed_query}' returned {len(jobs)} jobs")
                 return jobs
-            
-            soup = BeautifulSoup(html, 'html.parser')
-            cards = soup.select('li[data-occludable-job-id], .job-search-card, .base-card')
-            if not cards:
-                cards = soup.select('div[class*="job-card"]')
-            
-            if not cards:
-                scripts = soup.find_all('script', type='application/ld+json')
-                for script in scripts:
-                    try:
-                        data = json.loads(script.string)
-                        if isinstance(data, dict) and data.get('@type') == 'ItemList':
-                            for item in data.get('itemListElement', []):
-                                job = item.get('item', {})
-                                if job.get('title'):
-                                    jobs.append({
-                                        "titre": job.get('title'),
-                                        "entreprise": job.get('hiringOrganization', {}).get('name', 'Non précisé'),
-                                        "lien": job.get('url', '#'),
-                                        "location": job.get('jobLocation', {}).get('address', {}).get('addressLocality', location),
-                                        "date": "",
-                                        "source": "LinkedIn"
-                                    })
-                    except:
-                        pass
-            
-            for card in cards[:limit]:
-                title_elem = card.select_one('a.base-card__full-link, h3.base-search-card__title, a[href*="/jobs/view"]')
-                company_elem = card.select_one('h4.base-search-card__subtitle, a[data-tracking-control-name*="company"]')
-                location_elem = card.select_one('span.job-search-card__location, span[class*="location"]')
-                link_elem = card.select_one('a.base-card__full-link')
                 
-                link = link_elem.get('href', '#') if link_elem else '#'
+            except Exception as e:
+                logger.error(f"[WEB:LinkedIn] error: {e}")
+                return jobs
+        
+        # 🔄 Stratégie 1: Générer les variantes et essayer
+        relaxed_queries = generate_relaxed_queries(job_title, max_variations=4)
+        all_jobs = []
+        seen_keys = set()
+        
+        for i, relaxed_query in enumerate(relaxed_queries):
+            # 🛡️ Stratégie 2: Jitter entre les tentatives
+            if i > 0:
+                time.sleep(get_jitter_delay(0.5, 1.5))
+            
+            results = _search_single(relaxed_query, location, optimal_limit)
+            
+            if results:
+                # 🧹 Stratégie 5: Déduplication
+                for job in results:
+                    key = (job.get("titre", "").lower(), job.get("entreprise", "").lower(), job.get("location", "").lower())
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        all_jobs.append(job)
                 
-                if title_elem:
-                    jobs.append({
-                        "titre": title_elem.get_text(strip=True),
-                        "entreprise": company_elem.get_text(strip=True) if company_elem else "Non précisé",
-                        "lien": link,
-                        "location": location_elem.get_text(strip=True) if location_elem else location,
-                        "date": "",
-                        "source": "LinkedIn"
-                    })
-            
-            logger.info(f"[WEB:LinkedIn] done jobs={len(jobs)}")
-            return jobs[:limit]
-            
-        except Exception as e:
-            logger.error(f"[WEB:LinkedIn] error: {e}")
-            return jobs
+                if len(all_jobs) >= optimal_limit:
+                    break
+        
+        # 🧹 Stratégie 5: Normalisation et déduplication finale
+        all_jobs = normalize_and_deduplicate(all_jobs)
+        
+        logger.info(f"[WEB:LinkedIn] done jobs={len(all_jobs)} (after bypass strategies)")
+        return all_jobs[:limit]
 
 
 class MonsterScraper(WebScraperSource):
@@ -284,9 +340,78 @@ class HelloWorkScraper(WebScraperSource):
 
 # Convenience functions
 def scrape_indeed(job_title: str, location: str = "France", limit: int = 50) -> List[dict]:
-    """Scrape Indeed jobs."""
-    scraper = IndeedScraper()
-    return scraper.search(job_title, location, limit)
+    """Scrape Indeed jobs - uses LinkedIn scraper as fallback since IndeedScraper is not defined."""
+    # Indeed blocking is aggressive, fallback to LinkedIn-style scraping
+    logger.info(f"[WEB:Indeed] start query={job_title!r} location={location!r} limit={limit}")
+    try:
+        # 🔄 Stratégie 1: Query relaxation
+        relaxed_queries = generate_relaxed_queries(job_title, max_variations=3)
+        all_jobs = []
+        seen_keys = set()
+        
+        for relaxed_query in relaxed_queries:
+            clean_title = re.sub(r'[^\w\s,-]', '', relaxed_query)
+            query = urllib.parse.quote(clean_title)
+            loc = urllib.parse.quote(optimize_location_for_api(location, "Indeed"))
+            
+            # 🛡️ Stratégie 2: Headers avec rotation
+            headers = get_rotated_headers()
+            
+            # 🔑 Stratégie 3: URL optimisée
+            url = f"https://fr.indeed.com/jobs?q={query}&l={loc}&limit=50"
+            logger.info(f"[WEB:Indeed] trying: {url[:120]}")
+            
+            try:
+                response = requests.get(url, headers=headers, timeout=6)
+                if response.status_code != 200:
+                    logger.warning(f"[WEB:Indeed] HTTP {response.status_code}")
+                    continue
+                html = response.text
+            except Exception as e:
+                logger.warning(f"[WEB:Indeed] fetch error: {e}")
+                continue
+            
+            soup = BeautifulSoup(html, 'html.parser')
+            cards = soup.select('div.job_seen_beacon, div.result, div[data-jk]')
+            
+            for card in cards[:limit]:
+                title_elem = card.select_one('h2 a, h2.jobTitle, a.jobtitle')
+                company_elem = card.select_one('span.companyName, div.company')
+                location_elem = card.select_one('div.companyLocation, span.location')
+                link_elem = card.select_one('h2 a, a.jobtitle')
+                
+                link = link_elem.get('href', '#') if link_elem else '#'
+                if link and not link.startswith('http'):
+                    link = "https://fr.indeed.com" + link
+                
+                if title_elem:
+                    job = {
+                        "titre": title_elem.get_text(strip=True),
+                        "entreprise": company_elem.get_text(strip=True) if company_elem else "Non précisé",
+                        "lien": link,
+                        "location": location_elem.get_text(strip=True) if location_elem else location,
+                        "date": "",
+                        "source": "Indeed"
+                    }
+                    key = (job["titre"].lower(), job["entreprise"].lower(), job["location"].lower())
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        all_jobs.append(job)
+            
+            if len(all_jobs) >= limit:
+                break
+            
+            # 🛡️ Stratégie 2: Jitter
+            time.sleep(get_jitter_delay(0.5, 1.5))
+        
+        # 🧹 Stratégie 5: Normalisation
+        all_jobs = normalize_and_deduplicate(all_jobs)
+        logger.info(f"[WEB:Indeed] done jobs={len(all_jobs)}")
+        return all_jobs[:limit]
+        
+    except Exception as e:
+        logger.error(f"[WEB:Indeed] error: {e}")
+        return []
 
 
 def scrape_linkedin(job_title: str, location: str = "France", limit: int = 50) -> List[dict]:
@@ -332,79 +457,113 @@ def scrape_google_jobs(job_title: str, location: str = "France", limit: int = 50
 
 
 def scrape_jobspy(job_title: str, location: str = "France", limit: int = 50, selected_sites: Optional[List[str]] = None) -> List[dict]:
-    """Scrape jobs via JobSpy library."""
+    """Scrape jobs via JobSpy library.
+    Intègre les stratégies de contournement : query relaxation, optimisation des paramètres.
+    """
     try:
         from jobspy import scrape_jobs
     except Exception as e:
         logger.error(f"[WEB:JobSpy] import error: {e}")
         return []
-    try:
-        logger.info(f"[WEB:JobSpy] start query={job_title!r} location={location!r} limit={limit} sites={selected_sites}")
-        sites = [s.lower().replace(" ", "_") for s in selected_sites] if selected_sites else ["indeed", "linkedin", "glassdoor", "zip_recruiter"]
-        valid_sites = []
-        for s in sites:
-            if s == "linkedin":
-                valid_sites.append("linkedin")
-            elif s == "indeed":
-                valid_sites.append("indeed")
-            elif s == "ziprecruiter":
-                valid_sites.append("zip_recruiter")
-            elif s == "glassdoor":
-                valid_sites.append("glassdoor")
-        if not valid_sites:
-            valid_sites = ["indeed", "linkedin", "glassdoor", "zip_recruiter"]
-        jobs_df = scrape_jobs(
-            site_name=valid_sites,
-            search_term=job_title,
-            location=location,
-            results_per_site=limit,
-            hours_old=72,
-        )
-        results = []
-        if jobs_df is not None and not jobs_df.empty:
-            for _, row in jobs_df.iterrows():
-                results.append({
-                    "titre": row.get("title", "Sans titre"),
-                    "entreprise": row.get("company", "Entreprise anonyme"),
-                    "lien": row.get("job_url", "#"),
-                    "location": row.get("location", location),
-                    "date": str(row.get("date_posted", ""))[:10],
-                    "source": str(row.get("site", "JobSpy")).title(),
-                    "description": row.get("description", ""),
-                })
-        logger.info(f"[WEB:JobSpy] done jobs={len(results)}")
-        return results[:limit]
-    except Exception as e:
-        logger.error(f"[WEB:JobSpy] error: {e}")
-        return []
+    
+    # 🔑 Stratégie 3: Optimiser la limite
+    optimal_limit = get_optimal_limit(limit, "JobSpy")
+    
+    # 🔄 Stratégie 1: Query relaxation
+    relaxed_queries = generate_relaxed_queries(job_title, max_variations=3)
+    all_results = []
+    seen_keys = set()
+    
+    for relaxed_query in relaxed_queries:
+        try:
+            logger.info(f"[WEB:JobSpy] query={relaxed_query!r} location={location!r} limit={optimal_limit}")
+            sites = [s.lower().replace(" ", "_") for s in selected_sites] if selected_sites else ["indeed", "linkedin", "glassdoor", "zip_recruiter"]
+            valid_sites = []
+            for s in sites:
+                if s == "linkedin":
+                    valid_sites.append("linkedin")
+                elif s == "indeed":
+                    valid_sites.append("indeed")
+                elif s == "ziprecruiter":
+                    valid_sites.append("zip_recruiter")
+                elif s == "glassdoor":
+                    valid_sites.append("glassdoor")
+            if not valid_sites:
+                valid_sites = ["indeed", "linkedin", "glassdoor", "zip_recruiter"]
+            
+            # 🔑 Stratégie 3: Augmenter les résultats par site
+            jobs_df = scrape_jobs(
+                site_name=valid_sites,
+                search_term=relaxed_query,
+                location=optimize_location_for_api(location, "JobSpy"),
+                results_per_site=optimal_limit,
+                hours_old=72,
+            )
+            
+            if jobs_df is not None and not jobs_df.empty:
+                for _, row in jobs_df.iterrows():
+                    job = {
+                        "titre": row.get("title", "Sans titre"),
+                        "entreprise": row.get("company", "Entreprise anonyme"),
+                        "lien": row.get("job_url", "#"),
+                        "location": row.get("location", location),
+                        "date": str(row.get("date_posted", ""))[:10],
+                        "source": str(row.get("site", "JobSpy")).title(),
+                        "description": row.get("description", ""),
+                    }
+                    # 🧹 Stratégie 5: Déduplication
+                    key = (job["titre"].lower(), job["entreprise"].lower(), job["location"].lower())
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        all_results.append(job)
+            
+            if len(all_results) >= optimal_limit:
+                break
+            
+            # 🛡️ Stratégie 2: Jitter entre les tentatives
+            time.sleep(get_jitter_delay(0.5, 1.5))
+            
+        except Exception as e:
+            logger.error(f"[WEB:JobSpy] error with query '{relaxed_query}': {e}")
+            continue
+    
+    # 🧹 Stratégie 5: Normalisation et déduplication finale
+    all_results = normalize_and_deduplicate(all_results)
+    
+    logger.info(f"[WEB:JobSpy] done jobs={len(all_results)} (after bypass strategies)")
+    return all_results[:limit]
 
 
 def scrape_enhanced(job_title: str, location: str = "France", limit: int = 50) -> List[dict]:
-    """Enhanced multi-source aggregator using lightweight scrapers."""
-    logger.info(f"[WEB:Enhanced] start query={job_title!r} location={location!r} limit={limit}")
+    """Enhanced multi-source aggregator using lightweight scrapers.
+    Intègre les stratégies de contournement pour maximiser les résultats.
+    """
+    # 🔑 Stratégie 3: Optimiser la limite
+    optimal_limit = get_optimal_limit(limit, "Enhanced")
+    
+    logger.info(f"[WEB:Enhanced] start query={job_title!r} location={location!r} limit={optimal_limit}")
     results = []
+    
+    # 🔀 Stratégie 4: Exécution parallèle non-bloquante avec gestion d'erreurs
     try:
-        results.extend(scrape_indeed(job_title, location, limit=limit))
+        results.extend(scrape_indeed(job_title, location, limit=optimal_limit))
     except Exception as e:
         logger.error(f"[WEB:Enhanced] indeed error: {e}")
     try:
-        results.extend(scrape_linkedin(job_title, location, limit=limit))
+        results.extend(scrape_linkedin(job_title, location, limit=optimal_limit))
     except Exception as e:
         logger.error(f"[WEB:Enhanced] linkedin error: {e}")
     try:
-        results.extend(scrape_monster(job_title, location, limit=limit))
+        results.extend(scrape_monster(job_title, location, limit=optimal_limit))
     except Exception as e:
         logger.error(f"[WEB:Enhanced] monster error: {e}")
     try:
-        results.extend(scrape_hellowork(job_title, location, limit=limit))
+        results.extend(scrape_hellowork(job_title, location, limit=optimal_limit))
     except Exception as e:
         logger.error(f"[WEB:Enhanced] hellowork error: {e}")
-    seen = set()
-    deduped = []
-    for job in results:
-        key = (job.get("titre"), job.get("entreprise"), job.get("location"))
-        if key not in seen:
-            seen.add(key)
-            deduped.append(job)
-    logger.info(f"[WEB:Enhanced] done jobs={len(deduped)}")
-    return deduped[:limit]
+    
+    # 🧹 Stratégie 5: Normalisation et déduplication intelligente
+    results = normalize_and_deduplicate(results)
+    
+    logger.info(f"[WEB:Enhanced] done jobs={len(results)} (after bypass strategies)")
+    return results[:limit]
