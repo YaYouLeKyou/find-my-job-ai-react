@@ -232,6 +232,29 @@ def get_scorer() -> JobScorer:
     return _job_scorer
 
 
+def _generate_match_reason(score: float, cv_data: dict, job: dict) -> str:
+    """Generate an explanatory match reason for a scored job.
+
+    Args:
+        score: The match score (0-100)
+        cv_data: CV analysis data
+        job: Job dictionary
+
+    Returns:
+        A human-readable explanation of why this score was assigned
+    """
+    if score >= 80:
+        return "Forte correspondance : vos compétences et métier correspondent étroitement à ce poste"
+    elif score >= 60:
+        return "Bonne correspondance : plusieurs compétences clés correspondent à ce poste"
+    elif score >= 40:
+        return "Correspondance modérée : certaines compétences correspondent, vérifiez les détails"
+    elif score >= 20:
+        return "Correspondance faible : peu de compétences correspondent à ce poste"
+    else:
+        return "Correspondance très faible : ce poste ne semble pas correspondre à votre profil"
+
+
 def score_jobs(cv_data: Dict, jobs: List[Dict], fast: bool = True) -> List[Dict]:
     """
     Convenience function to score jobs.
@@ -242,7 +265,7 @@ def score_jobs(cv_data: Dict, jobs: List[Dict], fast: bool = True) -> List[Dict]
         fast: If True, use batch scoring; if False, score individually with details
 
     Returns:
-        List of jobs with added 'match_score' field
+        List of jobs with added 'match_score', 'pertinence_ai', and 'match_reason' fields
     """
     scorer = get_scorer()
 
@@ -251,12 +274,17 @@ def score_jobs(cv_data: Dict, jobs: List[Dict], fast: bool = True) -> List[Dict]
         scored_jobs = scorer.score_batch(cv_data, jobs)
         # Map 'score' to 'match_score' for compatibility
         for job in scored_jobs:
-            job['match_score'] = job.pop('score')
+            score = job.pop('score')
+            job['match_score'] = score
+            job['pertinence_ai'] = score
+            job['match_reason'] = _generate_match_reason(score, cv_data, job)
         return scored_jobs
     else:
         for job in jobs:
             result = scorer.score_with_details(cv_data, job)
             job['match_score'] = result['score']
+            job['pertinence_ai'] = result['score']
+            job['match_reason'] = _generate_match_reason(result['score'], cv_data, job)
             job['score_breakdown'] = result['breakdown']
 
         return jobs

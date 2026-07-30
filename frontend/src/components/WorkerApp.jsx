@@ -24,7 +24,9 @@ export default function WorkerApp({ onBackToHub, lang }) {
   const [error, setError] = useState("");
   const [searchTime, setSearchTime] = useState(null);
   const [toast, setToast] = useState(null);
-  
+  const [customGeminiKey, setCustomGeminiKey] = useState("");
+  const [dismissKeyPrompt, setDismissKeyPrompt] = useState(false);
+
   // New features
   const [savedCandidates, setSavedCandidates] = useState([]);
   const [searchHistory, setSearchHistory] = useState([]);
@@ -73,7 +75,7 @@ export default function WorkerApp({ onBackToHub, lang }) {
     setCurrentPage(1);
 
     try {
-      const response = await fetch(`${API_BASE}/api/search-jobs`, {
+      const response = await fetch(`${API_BASE}/api/search-jobs-stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

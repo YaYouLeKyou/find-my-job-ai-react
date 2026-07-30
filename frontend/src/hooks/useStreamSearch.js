@@ -10,7 +10,22 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const AI_CHUNK_SIZE = 10; // Nombre d'offres par paquet pour le tri IA
+// Réduire la taille du chunk pour des mises à jour plus fréquentes
+const AI_CHUNK_SIZE = 5; // Réduit de 10 à 5 pour des updates plus fréquents
+
+function generateJobId(job) {
+    const title = (job.title || job.titre || job.intitule || '').toLowerCase().trim();
+    const company = (job.company || job.entreprise || job.companyName || 'N/C').toLowerCase().trim();
+    const link = (job.link || job.lien || job.job_url || job.url || '#').toLowerCase().trim();
+    const raw = `${title}|${company}|${link}`;
+    let hash = 0;
+    for (let i = 0; i < raw.length; i++) {
+        const char = raw.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash |= 0;
+    }
+    return Math.abs(hash).toString(16).padStart(12, '0').slice(0, 12);
+}
 
 export function useStreamSearch(apiBase, params, onSearchComplete) {
     const [jobs, setJobs] = useState([]);
@@ -21,6 +36,8 @@ export function useStreamSearch(apiBase, params, onSearchComplete) {
     const [aiProcessing, setAiProcessing] = useState(false);
     const [processedCount, setProcessedCount] = useState(0);
     const [totalReceived, setTotalReceived] = useState(0);
+    const [sourcesDone, setSourcesDone] = useState(0);
+    const [totalSources, setTotalSources] = useState(0);
 
     const eventSourceRef = useRef(null);
     const accumulatedJobsRef = useRef([]);
@@ -171,6 +188,8 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
         setAiProcessing(false);
         setProcessedCount(0);
         setTotalReceived(0);
+        setSourcesDone(0);
+        setTotalSources(0);
 
         accumulatedJobsRef.current = [];
         accumulatedSourceCountsRef.current = {};
@@ -223,60 +242,83 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
                                         console.log(`[Stream] Recherche démarrée: ${data.query} (${data.total_sources} sources)`);
                                     }
 
-                                    // PROGRESS / SOURCE_RESULT - Affichage IMMÉDIAT
-                                    if (data.type === 'PROGRESS' || data.type === 'SOURCE_RESULT') {
-                                        // Mettre à jour les compteurs de sources (même si 0 résultat)
-                                        if (data.source) {
-                                            const count = data.jobs ? data.jobs.length : 0;
-                                            accumulatedSourceCountsRef.current[data.source] = count;
-                                            setSourceCounts({ ...accumulatedSourceCountsRef.current });
-                                            console.log(`[Stream] ${data.source}: ${count} offres reçues (status=${data.status || 'unknown'})`);
-                                        }
+// PROGRESS / SOURCE_RESULT - Affichage IMMÉDIAT
+                                      if (data.type === 'PROGRESS' || data.type === 'SOURCE_RESULT') {
+                                          // Mettre à jour les compteurs de sources (même si 0 résultat)
+                                          if (data.source) {
+                                              const count = data.jobs ? data.jobs.length : 0;
+                                              const execTime = data.execution_time ? (data.execution_time * 1000).toFixed(1) : '?';
+                                              accumulatedSourceCountsRef.current[data.source] = count;
+                                              setSourceCounts({ ...accumulatedSourceCountsRef.current });
+                                              console.log(`[Stream] ${data.source}: ${count} offres reçues en ${execTime}ms (status=${data.status || 'unknown'})`);
+                                          }
+                                              
+                                          // Mettre à jour le suivi des sources
+                                          if (data['sources_done'] !== undefined && data['total_sources'] !== undefined) {
+                                              setSourcesDone(data['sources_done']);
+                                              setTotalSources(data['total_sources']);
+                                          }
 
-                                        // Ajouter les jobs à la liste accumulée
-                                        if (data.jobs && data.jobs.length > 0) {
-                                            // Ajouter un ID unique si absent
-                                            const jobsWithId = data.jobs.map((job, idx) => ({
-                                                ...job,
-                                                id: job.id || `${data.source}-${Date.now()}-${idx}`,
-                                                source: data.source,
-                                                receivedAt: Date.now(),
-                                                isAiScored: false,
-                                            }));
+                                          // Ajouter les jobs à la liste accumulée
+                                          if (data.jobs && data.jobs.length > 0) {
+                                              // Ajouter un ID stable basé sur title+company+link
+                                              const jobsWithId = data.jobs.map((job, idx) => ({
+                                                  ...job,
+                                                  id: job.id || generateJobId(job),
+                                                  source: data.source,
+                                                  receivedAt: Date.now(),
+                                                  isAiScored: false,
+                                              }));
 
-                                            // Dédupliquer en temps réel
-                                            const deduplicatedJobs = deduplicateJobs(jobsWithId, accumulatedJobsRef.current);
+                                              // Dédupliquer en temps réel
+                                              const deduplicatedJobs = deduplicateJobs(jobsWithId, accumulatedJobsRef.current);
 
-                                            // Accumuler
-                                            accumulatedJobsRef.current = [...accumulatedJobsRef.current, ...deduplicatedJobs];
-                                            setTotalReceived(prev => prev + deduplicatedJobs.length);
+                                              // Accumuler
+                                              accumulatedJobsRef.current = [...accumulatedJobsRef.current, ...deduplicatedJobs];
+                                              setTotalReceived(prev => prev + deduplicatedJobs.length);
 
-                                            // AFFICHAGE IMMÉDIAT
-                                            setJobs([...accumulatedJobsRef.current]);
+                                              // FORCE MISE À JOUR IMMÉDIATE DE L'UI
+                                              setJobs([...accumulatedJobsRef.current]);
 
-                                            // Cacher le loader dès la première réception
-                                            setLoading(false);
+                                              // Cacher le loader dès la première réception réelle
+                                              if (accumulatedJobsRef.current.length > 0 && loading) {
+                                                  setLoading(false);
+                                              }
 
-                                            // Ajouter au chunk IA en attente
-                                            pendingAiChunkRef.current = [...pendingAiChunkRef.current, ...deduplicatedJobs];
+                                              // Ajouter au chunk IA en attente (seulement si on a des jobs)
+                                              if (deduplicatedJobs.length > 0) {
+                                                  pendingAiChunkRef.current = [...pendingAiChunkRef.current, ...deduplicatedJobs];
+                                              }
 
-                                            // Lancer le tri IA si on a assez de jobs (en arrière-plan, sans await)
-                                            if (pendingAiChunkRef.current.length >= AI_CHUNK_SIZE && !aiProcessingRef.current) {
-                                                const chunkToProcess = pendingAiChunkRef.current.splice(0, AI_CHUNK_SIZE);
-                                                processAiChunk(chunkToProcess, searchParams.ranking_engine, searchParams.custom_gemini_key).catch(err =>
-                                                    console.error('[AI] Background scoring error:', err)
-                                                );
-                                            }
-                                        }
-                                    }
-
-                                    // SCORES_UPDATED - Tri IA terminé pour un chunk
+                                              // Lancer le tri IA si on a assez de jobs (en arrière-plan, sans await)
+                                              if (pendingAiChunkRef.current.length >= AI_CHUNK_SIZE && !aiProcessingRef.current) {
+                                                  const chunkToProcess = pendingAiChunkRef.current.splice(0, AI_CHUNK_SIZE);
+                                                  processAiChunk(chunkToProcess, searchParams.ranking_engine, searchParams.custom_gemini_key).catch(err =>
+                                                      console.error('[AI] Background scoring error:', err)
+                                                  );
+                                              }
+                                          }
+                                      }
                                     if (data.type === 'SCORES_UPDATED' && data.jobs) {
                                         console.log(`[Stream] Tri IA terminé: ${data.jobs.length} offres scorées`);
-                                        const scoredById = new Map(data.jobs.map(job => [job.id, job]));
-                                        const merged = accumulatedJobsRef.current.map(job => scoredById.get(job.id) || job);
+
+                                        const jobSignature = (job) =>
+                                            `${(job.title || '').toLowerCase().trim()}|${(job.company || '').toLowerCase().trim()}|${(job.link || '').toLowerCase().trim()}`;
+
+                                        const scoredBySignature = new Map(
+                                            data.jobs.map(job => [jobSignature(job), job])
+                                        );
+
+                                        const merged = accumulatedJobsRef.current.map(job => {
+                                            const scored = scoredBySignature.get(jobSignature(job));
+                                            return scored ? { ...job, pertinence_ai: scored.pertinence_ai, ai_scored: true } : job;
+                                        });
+
+                                        // Re-sort by AI score descending
+                                        merged.sort((a, b) => (b.pertinence_ai || 0) - (a.pertinence_ai || 0));
+
                                         accumulatedJobsRef.current = merged;
-                                        setJobs(merged);
+                                        setJobs([...merged]);
                                         setProcessedCount(data.jobs.length);
                                     }
 
@@ -287,6 +329,7 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
 
                                         if (data.jobs && data.jobs.length > 0) {
                                             setJobs(data.jobs);
+                                            accumulatedJobsRef.current = data.jobs;
                                         }
 
                                         if (data.source_status) {
@@ -306,7 +349,7 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
                                         }
 
                                         setLoading(false);
-                                        console.log(`[Stream] Recherche terminée: ${accumulatedJobsRef.current.length} offres en ${duration}s`);
+                                        console.log(`[Stream] Recherche terminée: ${data.jobs ? data.jobs.length : accumulatedJobsRef.current.length} offres en ${duration}s`);
 
                                         if (onSearchComplete) {
                                             onSearchComplete({

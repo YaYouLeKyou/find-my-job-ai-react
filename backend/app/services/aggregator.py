@@ -4,6 +4,8 @@ Orchestrates parallel job searches and generates SSE (Server-Sent Events) in rea
 """
 
 import asyncio
+import hashlib
+import inspect
 import json
 import time
 from typing import Dict, List, Optional, Any, Callable
@@ -35,10 +37,21 @@ class SourceResult:
         }
 
 
+def _generate_job_id(job: dict) -> str:
+    """Generate a stable ID for a job based on title + company + link."""
+    title = (job.get("title") or job.get("titre") or job.get("intitule") or "").lower().strip()
+    company = (job.get("company") or job.get("entreprise") or job.get("companyName") or "N/C").lower().strip()
+    link = (job.get("link") or job.get("lien") or job.get("job_url") or job.get("url") or "#").lower().strip()
+    raw = f"{title}|{company}|{link}"
+    return hashlib.md5(raw.encode()).hexdigest()[:12]
+
+
 class SearchAggregator:
     """
     Orchestrates parallel job searches from multiple sources.
-    Uses ThreadPoolExecutor for concurrent execution with timeout.
+    Uses asyncio tasks for concurrent execution with per-source timeouts.
+    Streams results progressively as each source completes.
+    Continues until all sources are exhausted.
     """
     
     def __init__(self, max_workers: int = 30, timeout_per_source: float = 90.0):
@@ -64,7 +77,6 @@ class SearchAggregator:
         
         logger.info(f"Starting parallel search with {len(sources)} sources")
         
-        # Execute all sources in parallel using ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=min(self.max_workers, max(len(sources), 8))) as executor:
             future_to_source = {}
             
@@ -73,7 +85,6 @@ class SearchAggregator:
                     source_start_times[source_name] = time.time()
                     logger.info(f"[SOURCE: {source_name}] ⏱️ Start search for query: \"{query}\"")
                     
-                    # Submit task to thread pool
                     future = executor.submit(source_fn, query, location, limit)
                     future_to_source[future] = source_name
                     
@@ -87,13 +98,11 @@ class SearchAggregator:
                         execution_time=0
                     )
             
-            # Collect results as they complete (NON-BLOQUANT)
             for future in as_completed(future_to_source):
                 source_name = future_to_source[future]
                 start_time = source_start_times.get(source_name, time.time())
                 
                 try:
-                    # Wait for result with timeout
                     jobs = future.result(timeout=self.timeout_per_source)
                     duration = time.time() - start_time
                     
@@ -111,7 +120,6 @@ class SearchAggregator:
                     duration = time.time() - start_time
                     error_msg = str(e)
                     
-                    # Categorize error
                     if "timeout" in error_msg.lower():
                         logger.error(f"[SOURCE: {source_name}] Timeout (> {self.timeout_per_source}s)")
                     elif "401" in error_msg or "403" in error_msg:
@@ -138,53 +146,78 @@ class SearchAggregator:
         query: str,
         location: str,
         limit: int,
+        target_jobs: int = 0,
+        source_timeouts: Optional[Dict[str, float]] = None,
     ):
-        """Search multiple sources in parallel and stream results as they complete.
+        """Search multiple sources in parallel and stream results progressively.
 
-        Uses ThreadPoolExecutor + as_completed so results are emitted as soon as
-        each source returns, without waiting for the whole batch.
+        Launches all sources in a single pass using asyncio.to_thread +
+        asyncio.wait(FIRST_COMPLETED) so the event loop is never blocked and
+        SSE events can be flushed progressively as each source finishes.
+
+        When target_jobs is reached, remaining tasks are cancelled and the
+        stream closes cleanly. Sources that fail or return 0 jobs are ignored
+        transparently without blocking the flow.
+
+        Args:
+            source_timeouts: Optional dict of {source_name: timeout_seconds} for
+                             per-source timeout overrides. Falls back to
+                             self.timeout_per_source when not specified.
         """
         all_jobs: List[dict] = []
         source_results: Dict[str, SourceResult] = {}
         source_start_times: Dict[str, float] = {}
+        completed_sources: set = set()
 
         logger.info(
-            f"Starting streaming parallel search with {len(sources)} sources"
+            f"Starting progressive streaming parallel search with {len(sources)} sources, target={target_jobs or limit}"
         )
 
-        with ThreadPoolExecutor(max_workers=min(self.max_workers, max(len(sources), 8))) as executor:
-            future_to_source: Dict[Any, str] = {}
+        # Launch all sources in parallel (single pass)
+        pending_tasks: Dict[asyncio.Task, str] = {}
 
-            for source_name, source_fn in sources.items():
-                try:
-                    source_start_times[source_name] = time.time()
-                    logger.info(
-                        f"[SOURCE: {source_name}] start search for query: \"{query}\""
+        for source_name, source_fn in sources.items():
+            start_time = time.time()
+            source_start_times[source_name] = start_time
+            remaining = max(1, (target_jobs - len(all_jobs)) if target_jobs > 0 else limit)
+
+            logger.info(
+                f"[SOURCE: {source_name}] start search, remaining target={remaining}"
+            )
+
+            source_timeout = (source_timeouts or {}).get(source_name, self.timeout_per_source)
+            if inspect.iscoroutinefunction(source_fn):
+                coro = source_fn(query, location, remaining)
+                task = asyncio.create_task(
+                    asyncio.wait_for(coro, timeout=source_timeout)
+                )
+            else:
+                task = asyncio.create_task(
+                    asyncio.wait_for(
+                        asyncio.to_thread(source_fn, query, location, remaining),
+                        timeout=source_timeout,
                     )
+                )
+            pending_tasks[task] = source_name
 
-                    future = executor.submit(
-                        source_fn, query, location, limit
-                    )
-                    future_to_source[future] = source_name
+        if not pending_tasks:
+            logger.info("[STREAM] No sources to search")
+            return
 
-                except Exception as e:
-                    logger.error(f"[SOURCE: {source_name}] submission error: {e}")
-                    result = SourceResult(
-                        source_name=source_name,
-                        jobs=[],
-                        success=False,
-                        error=f"Submission error: {str(e)}",
-                        execution_time=0,
-                    )
-                    source_results[source_name] = result
-                    yield result
+        # Process results as they complete
+        while pending_tasks:
+            done, pending = await asyncio.wait(
+                pending_tasks.keys(),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
 
-            for future in as_completed(future_to_source):
-                source_name = future_to_source[future]
+            for task in done:
+                source_name = pending_tasks.pop(task)
                 start_time = source_start_times.get(source_name, time.time())
+                completed_sources.add(source_name)
 
                 try:
-                    jobs = future.result(timeout=self.timeout_per_source)
+                    jobs = task.result()
                     duration = time.time() - start_time
 
                     result = SourceResult(
@@ -195,11 +228,17 @@ class SearchAggregator:
                     )
 
                     source_results[source_name] = result
-                    all_jobs.extend(jobs)
-                    logger.info(
-                        f"[SOURCE: {source_name}] success: {len(jobs)} jobs found in {duration:.2f}s"
-                    )
+
+                    if jobs:
+                        all_jobs.extend(jobs)
+                        logger.info(
+                            f"[SOURCE: {source_name}] success: {len(jobs)} jobs found in {duration:.2f}s"
+                        )
+                    else:
+                        logger.info(f"[SOURCE: {source_name}] returned 0 jobs after {duration:.2f}s")
+
                     yield result
+                    await asyncio.sleep(0)
 
                 except asyncio.TimeoutError:
                     duration = time.time() - start_time
@@ -215,6 +254,7 @@ class SearchAggregator:
                     )
                     source_results[source_name] = result
                     yield result
+                    await asyncio.sleep(0)
 
                 except Exception as e:
                     duration = time.time() - start_time
@@ -238,6 +278,18 @@ class SearchAggregator:
                     )
                     source_results[source_name] = result
                     yield result
+                    await asyncio.sleep(0)
+
+                # Check if target is reached — cancel remaining tasks
+                if target_jobs > 0 and len(all_jobs) >= target_jobs:
+                    logger.info(
+                        f"[STREAM] Target reached: {len(all_jobs)} jobs, cancelling remaining tasks"
+                    )
+                    for remaining_task in list(pending):
+                        remaining_task.cancel()
+                    if pending:
+                        await asyncio.gather(*pending, return_exceptions=True)
+                    break
 
         logger.info(
             f"Streaming search complete: {len(all_jobs)} jobs from {len(source_results)} sources"
@@ -306,6 +358,10 @@ def normalize_jobs_for_frontend(jobs: List[dict], search_location: str = "") -> 
             norm["distance_score"] = 100.0
         else:
             norm["distance_score"] = 20.0
+        
+        # Generate stable ID based on title + company + link
+        id_str = f"{norm['title']}|{norm['company']}|{norm['link']}"
+        norm["id"] = hashlib.md5(id_str.encode()).hexdigest()[:12]
         
         normalized.append(norm)
     

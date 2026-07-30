@@ -59,7 +59,7 @@ class Settings:
     RATE_LIMIT_DEFAULT: str = os.getenv("RATE_LIMIT_DEFAULT", "100/minute,10/second")
     
     # Scraping
-    SCRAPER_TIMEOUT: int = int(os.getenv("SCRAPER_TIMEOUT", "6"))
+    SCRAPER_TIMEOUT: int = int(os.getenv("SCRAPER_TIMEOUT", "30"))
     SCRAPER_MAX_WORKERS: int = int(os.getenv("SCRAPER_MAX_WORKERS", "30"))
     
     def validate(self) -> dict:

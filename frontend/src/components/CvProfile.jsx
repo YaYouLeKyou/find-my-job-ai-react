@@ -1,6 +1,16 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { LANGS, STRINGS } from '../utils/translations';
 import { User, Award, List, AlertCircle, ArrowUpRight, Shuffle, Lightbulb } from 'lucide-react';
+
+function hashCode(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36);
+}
 
 export default function CvProfile({
   lang,
@@ -10,6 +20,18 @@ export default function CvProfile({
   if (!cvData) return null;
 
   const S = STRINGS[LANGS[lang].code];
+
+  useEffect(() => {
+    if (cvData && cvData.is_fallback) {
+      const keyBase = `fallback_data_${hashCode(cvData.nom_complet || 'default')}`;
+      if (cvData.suggestions_amelioration && cvData.suggestions_amelioration.length > 0) {
+        localStorage.setItem(keyBase + '_advice', JSON.stringify(cvData.suggestions_amelioration));
+      }
+      if (cvData.recommandations_metiers && cvData.recommandations_metiers.length > 0) {
+        localStorage.setItem(keyBase + '_evolution', JSON.stringify(cvData.recommandations_metiers));
+      }
+    }
+  }, [cvData]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -65,7 +87,7 @@ export default function CvProfile({
               </div>
             )}
 
-            {cvData.suggestions_amelioration && cvData.suggestions_amelioration.length > 0 && (
+            {!cvData.is_fallback && cvData.suggestions_amelioration && cvData.suggestions_amelioration.length > 0 && (
               <div style={{ marginTop: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
                 <h4 style={{ fontSize: '0.9rem', fontWeight: '700', marginBottom: '8px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <AlertCircle size={14} />

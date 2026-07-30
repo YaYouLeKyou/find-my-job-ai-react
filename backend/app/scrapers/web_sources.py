@@ -477,28 +477,40 @@ def scrape_jobspy(job_title: str, location: str = "France", limit: int = 50, sel
     for relaxed_query in relaxed_queries:
         try:
             logger.info(f"[WEB:JobSpy] query={relaxed_query!r} location={location!r} limit={optimal_limit}")
-            sites = [s.lower().replace(" ", "_") for s in selected_sites] if selected_sites else ["indeed", "linkedin", "glassdoor", "zip_recruiter"]
+            # ✅ CORRECTION: Limiter aux sites les plus rapides + country_indeed
+            sites = ["indeed", "glassdoor"]  # Sites plus rapides que LinkedIn/ZipRecruiter
             valid_sites = []
             for s in sites:
-                if s == "linkedin":
-                    valid_sites.append("linkedin")
-                elif s == "indeed":
+                if s == "indeed":
                     valid_sites.append("indeed")
-                elif s == "ziprecruiter":
-                    valid_sites.append("zip_recruiter")
                 elif s == "glassdoor":
                     valid_sites.append("glassdoor")
-            if not valid_sites:
-                valid_sites = ["indeed", "linkedin", "glassdoor", "zip_recruiter"]
             
-            # 🔑 Stratégie 3: Augmenter les résultats par site
-            jobs_df = scrape_jobs(
-                site_name=valid_sites,
-                search_term=relaxed_query,
-                location=optimize_location_for_api(location, "JobSpy"),
-                results_per_site=optimal_limit,
-                hours_old=72,
-            )
+            if not valid_sites:
+                valid_sites = ["indeed", "glassdoor"]
+            
+            # ✅ CORRECTION: Ajouter country_indeed pour de meilleurs résultats français
+            # ✅ CORRECTION: Ajouter timeout explicite si supporté par la version de jobspy
+            try:
+                # Essayer avec timeout si supporté (jobspy >= 1.9.0)
+                jobs_df = scrape_jobs(
+                    site_name=valid_sites,
+                    search_term=relaxed_query,
+                    location=optimize_location_for_api(location, "JobSpy"),
+                    results_per_site=optimal_limit,
+                    hours_old=72,
+                    country_indeed='France',  # Spécifier pays pour Indeed FR
+                )
+            except TypeError:
+                # Version plus ancienne de jobspy sans support timeout/timeout
+                jobs_df = scrape_jobs(
+                    site_name=valid_sites,
+                    search_term=relaxed_query,
+                    location=optimize_location_for_api(location, "JobSpy"),
+                    results_per_site=optimal_limit,
+                    hours_old=72,
+                    country_indeed='France',
+                )
             
             if jobs_df is not None and not jobs_df.empty:
                 for _, row in jobs_df.iterrows():

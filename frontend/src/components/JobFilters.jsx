@@ -53,8 +53,8 @@ export default function JobFilters({
             </div>
             <input
               type="range"
-              min="10"
-              max="50"
+              min="5"
+              max="100"
               step="5"
               value={numAds}
               onChange={(e) => setNumAds(parseInt(e.target.value))}

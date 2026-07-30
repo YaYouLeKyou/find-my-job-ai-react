@@ -90,8 +90,21 @@ app.add_middleware(
 # ─── Helper Functions ────────────────────────────────────────────────────────
 
 def get_source_timeout(source: str) -> float:
-    """Return timeout in seconds based on source type."""
-    return 6.0
+    """Return timeout in seconds based on source type.
+
+    Sources that involve multiple API calls, retries with exponential backoff,
+    query relaxation variations, or sequential sub-scrapers need longer timeouts.
+    """
+    # Sources with retry/backoff + query relaxation need more time
+    extended_timeout_sources = {
+        "Adzuna": 30.0,        # 4 query variations × 3 retries with 1s/2s/4s backoff
+        "Google Jobs": 30.0,   # 3 query variations × 3 retries with 2s/4s/8s backoff
+        "JobSpy": 30.0,        # jobspy library scraping multiple sites with 3 variations
+        "Enhanced": 10.0,     # ⏱️ Timeout strict : 10s max
+        "Jooble": 20.0,        # API call with potential retries
+        "Apify": 30.0,         # Apify LinkedIn scraper can be slow
+    }
+    return extended_timeout_sources.get(source, 15.0)
 
 
 def log_source_diagnostic(source: str, status: str, detail: str = ""):
@@ -112,26 +125,26 @@ def log_source_diagnostic(source: str, status: str, detail: str = ""):
 def build_source_registry(selected_sources: list, cv_data: Optional[dict] = None) -> dict:
     """
     Build a registry of sources to search.
-    
+
     Args:
         selected_sources: List of source names
         cv_data: Optional CV data for AI scoring
-        
+
     Returns:
         Dictionary of {source_name: callable}
     """
     source_registry = {}
-    
+
     # API sources
     if "France Travail" in selected_sources:
         ft_source = get_france_travail_source()
         ft_rss_source = get_france_travail_rss_source()
 
-        def _search_france_travail_with_fallback(q: str, l: str, n: int):
+        async def _search_france_travail_with_fallback(q: str, l: str, n: int):
             api_jobs = []
             if ft_source:
                 try:
-                    api_jobs = asyncio.run(ft_source.search_jobs(q, l, n))
+                    api_jobs = await ft_source.search_jobs(q, l, n)
                     if api_jobs:
                         logger.info(f"[SSE] France Travail API returned {len(api_jobs)} jobs")
                         return api_jobs
@@ -139,56 +152,93 @@ def build_source_registry(selected_sources: list, cv_data: Optional[dict] = None
                     logger.warning(f"[SSE] France Travail API failed, falling back to RSS: {e}")
             if ft_rss_source:
                 try:
-                    return asyncio.run(ft_rss_source(q, l, n))
+                    result = await ft_rss_source.search_jobs(q, l, n)
+                    if result:
+                        logger.info(f"[SSE] France Travail RSS returned {len(result)} jobs")
+                        return result
                 except Exception as e:
                     logger.error(f"[SSE] France Travail RSS fallback failed: {e}")
             return api_jobs
 
         source_registry['France Travail'] = _search_france_travail_with_fallback
-    
+
     if "Adzuna" in selected_sources:
         adzuna_source = get_adzuna_source()
         if adzuna_source:
-            source_registry['Adzuna'] = lambda q, l, n: asyncio.run(
-                adzuna_source.search_jobs(q, l, n)
-            )
-    
+            async def _adzuna_search(q: str, l: str, n: int):
+                try:
+                    logger.info(f"[SSE] Adzuna search start query={q!r} location={l!r} limit={n}")
+                    result = await asyncio.to_thread(adzuna_source.search_jobs, q, l, n)
+                    logger.info(f"[SSE] Adzuna returned {len(result)} jobs")
+                    return result
+                except Exception as e:
+                    logger.error(f"[SSE] Adzuna search error: {e}", exc_info=True)
+                    return []
+            source_registry['Adzuna'] = _adzuna_search
+
     # Web scrapers
     if "LinkedIn" in selected_sources:
         source_registry['LinkedIn'] = scrape_linkedin
-    
+
     if "Indeed" in selected_sources:
         source_registry['Indeed'] = scrape_indeed
-    
+
     if "Monster" in selected_sources:
         source_registry['Monster'] = scrape_monster
-    
+
     if "HelloWork" in selected_sources:
         source_registry['HelloWork'] = scrape_hellowork
-    
+
     if "Google Jobs" in selected_sources:
-        source_registry['Google Jobs'] = lambda q, l, n: scrape_google_jobs(q, l, n, settings.SERPAPI_KEY)
-    
+        async def _google_jobs_search(q: str, l: str, n: int):
+            try:
+                logger.info(f"[SSE] Google Jobs search start query={q!r} location={l!r} limit={n}")
+                result = scrape_google_jobs(q, l, n, settings.SERPAPI_KEY)
+                logger.info(f"[SSE] Google Jobs returned {len(result)} jobs")
+                return result
+            except Exception as e:
+                logger.error(f"[SSE] Google Jobs search error: {e}", exc_info=True)
+                return []
+        source_registry['Google Jobs'] = _google_jobs_search
+
     if "JobSpy" in selected_sources:
-        source_registry['JobSpy'] = lambda q, l, n: scrape_jobspy(q, l, n)
-    
+        async def _jobspy_search(q: str, l: str, n: int):
+            try:
+                logger.info(f"[SSE] JobSpy search start query={q!r} location={l!r} limit={n}")
+                result = scrape_jobspy(q, l, n)
+                logger.info(f"[SSE] JobSpy returned {len(result)} jobs")
+                return result
+            except Exception as e:
+                logger.error(f"[SSE] JobSpy search error: {e}", exc_info=True)
+                return []
+        source_registry['JobSpy'] = _jobspy_search
+
     if "Enhanced" in selected_sources:
-        source_registry['Enhanced'] = lambda q, l, n: scrape_enhanced(q, l, n)
-    
+        async def _enhanced_search(q: str, l: str, n: int):
+            try:
+                logger.info(f"[SSE] Enhanced search start query={q!r} location={l!r} limit={n}")
+                result = await asyncio.to_thread(scrape_enhanced, q, l, n)
+                logger.info(f"[SSE] Enhanced returned {len(result)} jobs")
+                return result
+            except Exception as e:
+                logger.error(f"[SSE] Enhanced search error: {e}", exc_info=True)
+                return []
+        source_registry['Enhanced'] = _enhanced_search
+
     if "Jooble" in selected_sources:
         jooble_source = get_jooble_source()
         if jooble_source:
-            source_registry['Jooble'] = lambda q, l, n: asyncio.run(
-                jooble_source.search_jobs(q, l, n)
-            )
-    
+            async def _jooble_search(q, l, n):
+                return await asyncio.to_thread(jooble_source.search_jobs, q, l, n)
+            source_registry['Jooble'] = _jooble_search
+
     if "Apify" in selected_sources:
         apify_source = get_apify_source()
         if apify_source:
-            source_registry['Apify'] = lambda q, l, n: asyncio.run(
-                apify_source.search_jobs(q, l, n)
-            )
-    
+            async def _apify_search(q, l, n):
+                return await asyncio.to_thread(apify_source.search_jobs, q, l, n)
+            source_registry['Apify'] = _apify_search
+
     return source_registry
 
 
@@ -199,7 +249,7 @@ async def api_jobs_stream(
     request: Request,
     query: str = Query(...),
     location: str = Query("Paris, France"),
-    num_ads: int = Query(100),
+    num_ads: int = Query(10),
     contract: str = Query("CDI"),
     remote: bool = Query(False),
     selected_sources: str = Query(""),
@@ -226,7 +276,7 @@ async def legacy_api_search_jobs_stream(
     request: Request,
     query: str = Query(...),
     location: str = Query("Paris, France"),
-    num_ads: int = Query(100),
+    num_ads: int = Query(10),
     contract: str = Query("CDI"),
     remote: bool = Query(False),
     selected_sources: str = Query(""),
@@ -240,6 +290,43 @@ async def legacy_api_search_jobs_stream(
 ):
     """Compatibility route for the legacy frontend."""
     logger.info(f"[COMPAT] /api/search-jobs-stream called, forwarding to /api/jobs/stream")
+    return await _stream_jobs(
+        query=query,
+        location=location,
+        num_ads=num_ads,
+        contract=contract,
+        remote=remote,
+        selected_sources=selected_sources,
+        ranking_engine=ranking_engine,
+        custom_gemini_key=custom_gemini_key,
+        cv_data=cv_data,
+    )
+
+
+@app.post("/api/search-jobs")
+async def post_search_jobs(request: Request):
+    """POST endpoint for job search (used by FreelanceMissionApp and WorkerApp)."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    query = body.get("query", "")
+    location = body.get("location", "France")
+    num_ads = body.get("num_ads", 10)
+    contract = body.get("contract", "CDI")
+    remote = body.get("remote", False)
+    selected_sources = body.get("selected_sources", "")
+    ranking_engine = body.get("ranking_engine", "Groq / Llama 3.3")
+    custom_gemini_key = body.get("custom_gemini_key")
+    cv_data = body.get("cv_data")
+    if isinstance(selected_sources, list):
+        selected_sources = ",".join(selected_sources)
+    if selected_sources == "":
+        if contract == "Freelance":
+            selected_sources = "Indeed,LinkedIn,Monster,Google Jobs,JobSpy"
+        else:
+            selected_sources = "LinkedIn,Indeed,France Travail,Apec,Monster"
+    logger.info(f"[POST /api/search-jobs] query={query!r} sources={selected_sources}")
     return await _stream_jobs(
         query=query,
         location=location,
@@ -272,6 +359,9 @@ async def _stream_jobs(
         except Exception:
             pass
 
+    # Clamp num_ads to 5-100 per source (default 10)
+    per_source_limit = max(5, min(num_ads, 100))
+
     async def event_generator():
         try:
             logger.info(f"[SSE] START query={query!r} location={location!r} sources={sources_list} ranking={ranking_engine}")
@@ -291,61 +381,97 @@ async def _stream_jobs(
                 timeout_per_source=settings.SCRAPER_TIMEOUT,
             )
             logger.info(f"[SSE] searching sources={sources_list}")
-            
-            # STREAMING: Emit results as each source completes
+
+            # All sources are always queried; no early termination based on job count
+            target_total = 0
+            total_sources = len(source_registry)
+            sources_done = 0
             all_jobs = []
             source_results = {}
             emit_count = 0
-            
+            scored_jobs_map = {}  # signature -> scored job (for COMPLETED event)
+
+            source_timeouts = {name: get_source_timeout(name) for name in source_registry}
             async for result in aggregator.search_parallel_streaming(
                 sources=source_registry,
                 query=query,
                 location=location,
-                limit=max(num_ads, 50),  # Ensure at least 50 results per source
+                limit=per_source_limit,
+                target_jobs=target_total,
+                source_timeouts=source_timeouts,
             ):
-                # Add jobs to total
                 if result.jobs:
                     all_jobs.extend(result.jobs)
-                
-                # Store result for final status
+
                 source_results[result.source_name] = result
-                
-                # Emit PROGRESS event IMMEDIATELY for this source
+                sources_done += 1
+
                 status = "completed" if result.success else "error"
                 jobs_count = len(result.jobs) if result.jobs else 0
-                
+                progress = min(100, int(sources_done / total_sources * 100)) if total_sources > 0 else 100
+                source_progress = min(100, int(sources_done / total_sources * 100)) if total_sources > 0 else 100
+
                 logger.info(
-                    f"[SSE] source={result.source_name} status={status} jobs={jobs_count} duration={result.execution_time} error={result.error}"
+                    f"[SSE] source={result.source_name} status={status} jobs={jobs_count} duration={result.execution_time} error={result.error} progress={progress} sources_done={sources_done}/{total_sources}"
                 )
-                
-                # Log details for debugging
+
                 if result.jobs and jobs_count > 0:
                     logger.info(f"[SSE] source={result.source_name} sample_job={result.jobs[0].get('titre', 'N/A')}")
-                
-                # Emit event immediately
-                yield f"data: {json.dumps({'type': 'PROGRESS', 'progress': 100, 'source': result.source_name, 'status': status, 'jobs': result.jobs})}\n\n"
+
+                yield f"data: {json.dumps({'type': 'PROGRESS', 'progress': progress, 'total_so_far': len(all_jobs), 'target': per_source_limit, 'source': result.source_name, 'status': status, 'jobs': result.jobs, 'sources_done': sources_done, 'total_sources': total_sources, 'source_progress': source_progress, 'execution_time': result.execution_time})}\n\n"
                 emit_count += 1
+                await asyncio.sleep(0)
 
-            logger.info(f"[SSE] collected total_jobs={len(all_jobs)} sources={emit_count}")
+                # Score ONLY the new batch from this source (not all accumulated jobs)
+                if result.jobs and cv_data_dict:
+                    try:
+                        new_batch = result.jobs
+                        job_chunks = [new_batch] if len(new_batch) <= 20 else [new_batch[i:i+20] for i in range(0, len(new_batch), 20)]
+                        scored_jobs = []
+                        for chunk in job_chunks:
+                            scored = score_jobs(cv_data_dict, chunk, fast=True)
+                            scored_jobs.extend(scored)
+                        scored_jobs.sort(key=lambda x: x.get('pertinence_ai', 0), reverse=True)
 
-            if all_jobs and cv_data_dict:
-                try:
-                    if not cv_data_dict.get("is_fallback"):
-                        logger.info(f"[SSE] TF-IDF scoring start jobs={len(all_jobs)}")
-                        all_jobs = score_jobs(cv_data_dict, all_jobs, fast=True)
+                        # Update the scored jobs map for the COMPLETED event
+                        for job in scored_jobs:
+                            sig = f"{(job.get('title') or job.get('titre') or '').lower().strip()}|{(job.get('company') or job.get('entreprise') or '').lower().strip()}|{(job.get('link') or job.get('lien') or '').lower().strip()}"
+                            scored_jobs_map[sig] = job
+
+                        yield f"data: {json.dumps({'type': 'SCORES_UPDATED', 'jobs': scored_jobs, 'progress': progress})}\n\n"
+                    except Exception as e:
+                        logger.error(f"[SSE] Progressive AI scoring failed: {e}")
+                        yield f"data: {json.dumps({'type': 'SCORES_UPDATED', 'jobs': [], 'progress': progress})}\n\n"
+
+            # Emit COMPLETED event with all accumulated jobs and source status
+            source_status = {}
+            for sname, sresult in source_results.items():
+                source_status[sname] = {
+                    "success": sresult.success,
+                    "count": len(sresult.jobs) if sresult.jobs else 0,
+                    "status": "completed" if sresult.success else "error",
+                    "error": sresult.error,
+                    "execution_time": sresult.execution_time,
+                }
+
+            # Build final jobs list with scores (if CV data was provided)
+            if cv_data_dict and scored_jobs_map:
+                final_jobs = []
+                for job in all_jobs:
+                    sig = f"{(job.get('title') or job.get('titre') or '').lower().strip()}|{(job.get('company') or job.get('entreprise') or '').lower().strip()}|{(job.get('link') or job.get('lien') or '').lower().strip()}"
+                    if sig in scored_jobs_map:
+                        final_jobs.append(scored_jobs_map[sig])
                     else:
-                        logger.info("[SSE] Fallback mode detected, skipping AI/TF-IDF scoring")
-                    logger.info(f"[SSE] TF-IDF scoring done jobs={len(all_jobs)}")
-                except Exception as e:
-                    logger.error(f"[SSE] TF-IDF scoring failed: {e}")
+                        final_jobs.append(job)
+                final_jobs.sort(key=lambda x: x.get('pertinence_ai', 0), reverse=True)
+            else:
+                final_jobs = all_jobs
 
-            normalized_jobs = normalize_jobs_for_frontend(all_jobs, location)
-            logger.info(f"[SSE] normalized_jobs={len(normalized_jobs)}")
-            yield f"data: {json.dumps({'type': 'SCORES_UPDATED', 'jobs': normalized_jobs, 'progress': 100})}\n\n"
+            # Normalize all jobs for frontend
+            normalized_jobs = normalize_jobs_for_frontend(final_jobs)
 
-            source_status = {name: result.to_dict() for name, result in source_results.items()}
-            yield f"data: {json.dumps({'type': 'COMPLETED', 'jobs': normalized_jobs, 'source_status': source_status, 'progress': 100})}\n\n"
-            logger.info(f"[SSE] COMPLETED query={query!r} jobs={len(normalized_jobs)}")
+            yield f"data: {json.dumps({'type': 'COMPLETED', 'jobs': normalized_jobs, 'source_status': source_status, 'progress': 100, 'total_jobs': len(all_jobs)})}\n\n"
+            await asyncio.sleep(0)
         except Exception as e:
             logger.exception("[SSE] GLOBAL_ERROR")
             yield f"data: {json.dumps({'type': 'ERROR', 'message': str(e)})}\n\n"
@@ -354,7 +480,7 @@ async def _stream_jobs(
         event_generator(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
@@ -486,10 +612,10 @@ async def ai_call(request: Request):
         is_json = body.get("isJson", False)
         temperature = body.get("temperature", 0.3)
         max_tokens = body.get("maxTokens", 4096)
-        
+
         if not prompt:
             return {"error": "Prompt is required"}
-        
+
         # Map provider to the correct API key parameter
         kwargs = {
             "prompt": prompt,
@@ -498,7 +624,7 @@ async def ai_call(request: Request):
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-        
+
         # Add the appropriate API key based on provider
         if provider == "groq":
             groq_key = api_key or (settings.GROQ_API_KEY or "").strip()
@@ -532,15 +658,15 @@ async def ai_call(request: Request):
             kwargs["mistral_api_key"] = mistral_key
         else:
             return {"error": f"Unsupported provider: {provider}"}
-        
+
         # Call the AI provider
         text = await asyncio.to_thread(
             call_ai_provider,
             **kwargs
         )
-        
+
         return {"text": text}
-        
+
     except Exception as e:
         logger.error(f"[AI_CALL] Error: {str(e)}")
         return {"error": str(e)}
@@ -581,7 +707,7 @@ async def analyze_cv_endpoint(
     """Analyze a CV PDF and return structured analysis."""
     request_id = id(file)
     logger.info(f"[CV_ANALYSIS] request={request_id} start model={selected_model} file={file.filename} lang={lang_label}")
-    
+
     try:
         if not file or file.content_type != "application/pdf":
             logger.error(f"[CV_ANALYSIS] request={request_id} invalid file type={file.content_type if file else 'none'}")
@@ -596,7 +722,7 @@ async def analyze_cv_endpoint(
         pdf_file = io.BytesIO(pdf_bytes)
         text = await asyncio.to_thread(extract_text_from_pdf, pdf_file)
         logger.info(f"[CV_ANALYSIS] request={request_id} extracted_text_len={len(text) if text else 0}")
-        
+
         if not text or len(text.strip()) < 50:
             logger.error(f"[CV_ANALYSIS] request={request_id} extracted text too short")
             return {"error": "Impossible d'extraire du texte de ce PDF. Vérifiez qu'il contient du texte selectable."}
