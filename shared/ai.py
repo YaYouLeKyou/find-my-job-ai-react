@@ -408,10 +408,11 @@ ALL_JOB_PATTERNS = [
 
 
 def _is_placeholder_metier(value: str) -> bool:
-    """Détecte les réponses IA inexploitables type 'Non fourni', 'Non identifiable', 'N/A'."""
     normalized = (value or "").strip().lower()
     placeholders = {
         "non fourni",
+        "non communiqué",
+        "non communique",
         "non identifiable",
         "n/a",
         "na",
@@ -420,11 +421,40 @@ def _is_placeholder_metier(value: str) -> bool:
         "inconnu",
         "non spécifié",
         "non specifie",
+        "non renseigné",
+        "non renseigne",
         "",
     }
     if normalized in placeholders:
         return True
-    if normalized.startswith("non ") and len(normalized) < 30:
+    if normalized.startswith("non ") and len(normalized) < 40:
+        return True
+    return False
+
+
+def _is_placeholder_value(value: str) -> bool:
+    normalized = (value or "").strip().lower()
+    placeholders = {
+        "non fourni",
+        "non communiqué",
+        "non communique",
+        "non identifiable",
+        "n/a",
+        "na",
+        "indéterminé",
+        "indetermine",
+        "inconnu",
+        "non spécifié",
+        "non specifie",
+        "non renseigné",
+        "non renseigne",
+        "non disponible",
+        "non dispo",
+        "",
+    }
+    if normalized in placeholders:
+        return True
+    if normalized.startswith("non ") and len(normalized) < 40:
         return True
     return False
 
@@ -495,8 +525,16 @@ def analyze_cv_with_fallback(
                 data = json.loads(response_text)
                 metier = (data.get("metier") or "").strip()
                 if metier and not _is_placeholder_metier(metier):
-                    data["is_fallback"] = False
-                    return data
+                    invalid_fields = [
+                        k for k in [
+                            "nom_complet",
+                            "contact",
+                            "resume",
+                        ] if _is_placeholder_value(data.get(k))
+                    ]
+                    if len(invalid_fields) <= 1:
+                        data["is_fallback"] = False
+                        return data
             except (json.JSONDecodeError, TypeError):
                 pass
     except Exception as e:

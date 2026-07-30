@@ -41,7 +41,7 @@ class SearchAggregator:
     Uses ThreadPoolExecutor for concurrent execution with timeout.
     """
     
-    def __init__(self, max_workers: int = 30, timeout_per_source: float = 6.0):
+    def __init__(self, max_workers: int = 30, timeout_per_source: float = 20.0):
         self.max_workers = max_workers
         self.timeout_per_source = timeout_per_source
     
