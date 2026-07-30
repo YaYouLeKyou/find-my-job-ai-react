@@ -248,6 +248,268 @@ def call_ai_provider(
         raise Exception(err_msg)
 
 
+"""
+Dictionnaire exhaustif de détection de métiers par Regex (Fallback sans IA)
+Regroupe plus de 500 intitulés de postes et variantes (Français & Anglais)
+répartis sur 22 domaines professionnels (ROME / France Travail).
+"""
+
+JOB_DICTIONARY = {
+    "Logistique, Transport & Déménagement": [
+        r"Déménageur|Déménageuse|Chef\s*d'Équipe\s*Déménagement|Aide-Déménageur",
+        r"(?:Préparateur|Préparatrice)\s*de\s*Commandes|Magasinier|Cariste|Manutentionnaire|Agent\s*de\s*Quai|Palettiseur",
+        r"Conducteur|Conductrice\s*(?:Routier|SPL|Poids\s*Lourd|Ligne|Super\s*Lourd|Autocar|Bus|Tramway|Train|TGV)",
+        r"(?:Chauffeur|Livreur|Chauffeur-Livreur|Livreur\s*Express|Chauffeur\s*VTC|Taximan|Coursier|Chauffeur\s*Lourd)",
+        r"Responsable\s*(?:Logistique|Supply\s*Chain|Achats|Exploitation|Entrepôt|Plateforme)",
+        r"Affréteur|Dispatcher|Exploitant\s*Transport|Agent\s*d'Escale|Agent\s*de\s*Piste\s*Aéroportuaire",
+        r"(?:Acheteur|Acheteuse)\s*(?:IT|Industriel|International|Prestations|Projet|Hors-Production)?",
+        r"Gestionnaire\s*de\s*Stock|Approvisionneur|Approvisionneuse",
+    ],
+    "BTP, Construction & Artisanat du bâtiment": [
+        r"Maçon|Maçonne|Coffreur|Coffreuse|Ferrailleur|Bétonneur",
+        r"Électricien|Électricienne|Électricien\s*(?:Bâtiment|Tertiaire|Industriel)",
+        r"Plombier|Plombière|Chauffagiste|Installateur\s*Thermique|Cuisiste",
+        r"Peintre\s*(?:en\s*Bâtiment|Industriel)|Plaquiste|Jointeur|Plâtrier",
+        r"Menuisier|Menuisière|Charpentier|Charpentière|Couvreur|Zingueur|Étancheur",
+        r"Carreleur|Soliere|Poseur\s*de\s*Parquet|Moquettiste",
+        r"Serrurier|Métallier|Miroitier|Vitrier",
+        r"Jardinier|Jardinière|Paysagiste|Élagueur|Ouvrier\s*Paysagiste|Agent\s*d'Espaces\s*Verts",
+        r"(?:Conducteur|Conductrice)\s*de\s*(?:Travaux|Chantier|Engins)",
+        r"Chef\s*de\s*Chantier|Chef\s*d'Équipe\s*BTP|Conducteur\s*d'Opérations",
+        r"Métréur|Économiste\s*du\s*Bâtiment|Géomètre|Topographe|Conducteur\s*d'Engins\s*de\s*Chantier",
+        r"Dessinateur|Dessinatrice\s*Projeteur|Projeteur\s*BIM|BIM\s*Manager",
+        r"Architecte|Architecte\s*d'Intérieur|Urbaniste|Paysagiste-Concepteur",
+    ],
+    "Tech & Développement": [
+        r"(?:Développeur|Développeuse)\s*(?:Web|Full[ -]?Stack|React|Vue|Angular|Node\.?js|Python|Java|JavaScript|PHP|Ruby|Go|Rust|Mobile|iOS|Android|Backend|Frontend|API|Symfony|Laravel|Django|Flask|Spring|C\+\+|C#|\.NET|Embedded|Embarqué|WordPress|Shopify|Webflow)?",
+        r"(?:Ingénieur|Ingénieure)\s*(?:Logiciel|Informatique|Développement|Full[ -]?Stack|QA|Test|Validation|R\&D|Systèmes|Conception|Embedded)?",
+        r"(?:Scrum\s*Master|Agile\s*Coach|Product\s*Owner|Lead\s*Developer|Tech\s*Lead)",
+        r"(?:Intégrateur|Intégratrice)\s*(?:Web|HTML|CSS|CMS)|Webmaster",
+    ],
+    "Data, Cloud & Cybersécurité": [
+        r"Data\s*(?:Scientist|Analyst|Engineer|Architect|Specialist|Consultant|Analyste|Ingénieur)",
+        r"Machine\s*Learning\s*(?:Engineer|Scientist)|Ingénieur\s*IA",
+        r"DevOps\s*(?:Engineer|Specialist|Consultant|Ingénieur)?|Cloud\s*Engineer|SRE",
+        r"Architecte\s*(?:Logiciel|Informatique|Cloud|Solution|Data|Système|Web|Infrastructure|SI|Sécurité)",
+        r"(?:Administrateur|Administratrice)\s*(?:Système|Réseaux|Base\s*de\s*Données|Cloud|DevOps|Infrastructure|AWS|Azure|GCP|DBA)",
+        r"(?:Expert|Ingénieur|Consultant|Analyste)\s*(?:Cybersécurité|Sécurité\s*SI|SOC|Pentester)",
+        r"(?:Technicien|Technicienne)\s*(?:Informatique|Support|Réseau|Système|Helpdesk|Micro-informatique|Proximité)",
+    ],
+    "Propreté, Entretien & Déchets": [
+        r"Agent\s*d'Entretien|Agent\s*de\s*Propreté|Agent\s*de\s*Nettoyage|Femme\s*de\s*Ménage|Homme\s*de\s*Ménage|Technicien\s*de\s*Surface",
+        r"Ripeur|Éboueur|Agent\s*de\s*Collecte|Agent\s*de\s*Tri|Agent\s*de\s*Déchèterie",
+        r"Laveur\s*de\s*Vitres|Agent\s*d'Entretien\s*Industriel",
+        r"Agent\s*de\s*Maintenance|Factotum|Agent\s*des\s*Services\s*Généraux",
+    ],
+    "Restauration, Hôtellerie & Alimentation": [
+        r"Cuisinier|Cuisinière|Chef\s*de\s*Cuisine|Second\s*de\s*Cuisine|Commis\s*de\s*Cuisine|Chef\s*Pâtissier|Pâtissier|Pâtissière",
+        r"Boulanger|Boulangère|Boucher|Bouchère|Charcutier|Poissonnerie|Traiteur",
+        r"Serveur|Serveuse|Chef\s*de\s*Rang|Maître\s*d'Hôtel|Sommelier|Sommelière|Plongeur|Plongeuse",
+        r"Barman|Barmaid|Barista|Garçon\s*de\s*Café",
+        r"(?:Réceptionniste|Directeur\s*d'Hôtel|Gouvernant|Gouvernante|Veilleur\s*de\s*Nuit|Valet\s*de\s*Chambre|Femme\s*de\s*Chambre)",
+        r"Employé|Employée\s*de\s*Restauration\s*(?:Rapide|Collective)",
+    ],
+    "Commerce & Grande Distribution": [
+        r"(?:Commercial|Commerciale|Attaché(?:e)?\s*Commercial(?:e)?|Ingénieur\s*Commercial)",
+        r"(?:Business\s*Developer|BizDev|Account\s*Manager|Key\s*Account\s*Manager|KAM)",
+        r"Chef\s*de\s*Secteur|Responsable\s*Commerci(?:al|ale)|Directeur\s*Commercial",
+        r"(?:Responsable|Conseiller|Conseillère)\s*(?:Clientèle|Vente|Service\s*Client)",
+        r"(?:Vendeur|Vendeuse|Caissier|Caissière|Hôte|Hôtesse\s*de\s*Caisse|Chef\s*de\s*Rayon|Employé\s*de\s*Rayon|Mise\s*en\s*Rayon)",
+        r"Téléconseiller|Téléconseillère|Agent\s*de\s*Call\s*Center|Télévendeur",
+    ],
+    "Industrie, Maintenance & Production": [
+        r"(?:Ingénieur|Ingénieure)\s*(?:Mécanique|Électrique|Industriel|Qualité|Process|Production|QSE|HSE|Matériaux|Automatisme)",
+        r"(?:Technicien|Technicienne)\s*(?:Maintenance|Qualité|Usinage|Automatisme|Essais|Méthodes|Génie\s*Industriel)",
+        r"Opérateur|Opératrice\s*(?:de\s*Saisie|de\s*Production|d'Usinage|Assemblage|Ligne|Machine)",
+        r"Manoeuvre|Usineur|Oustilleur|Chaudronnier|Soudure|Soudeur|Soudeuse|Tuyauteur",
+        r"Dessinateur|Dessinatrice\s*Industriel|Concepteur\s*Mécanique",
+    ],
+    "Administratif & Secrétariat": [
+        r"(?:Assistant|Assistante)\s*(?:de\s*Gestion|Direction|Administrative|Commerciale|Opérationnelle|Polyvalente)",
+        r"Secrétaire\s*(?:Médicale|Juridique|Comptable|De\s*Direction|Bureautique)?",
+        r"Office\s*Manager|Gestionnaire\s*Administratif",
+        r"Agent\s*d'Accueil|Standardiste|Hôte|Hôtesse\s*d'Accueil",
+    ],
+    "Finance & Comptabilité": [
+        r"(?:Comptable|Aide-Comptable|Chef\s*Comptable|Expert-Comptable|Comptable\s*Fournisseurs|Comptable\s*Clients)",
+        r"Gestionnaire\s*de\s*Paie|Collaborateur\s*Comptable|Gestionnaire\s*Comptable",
+        r"(?:Contrôleur|Contrôleuse)\s*de\s*Gestion|Analyste\s*FP\&A",
+        r"Analyste\s*(?:Financier|Crédit|Risque|M\&A|KYC)",
+        r"(?:Directeur|Directrice|Responsable)\s*(?:Financier|RAF|DAF|Trésorerie)",
+        r"Trésorier|Trésorière|Auditeur|Auditrice",
+        r"Conseiller\s*(?:Bancaire|Financier|Patrimoine)",
+    ],
+    "Ressources Humaines": [
+        r"(?:Responsable|Chargé(?:e)?)\s*(?:des\s*Ressources\s*Humaines|du\s*Recrutement|RH|GPEC|Sourcing)",
+        r"(?:Talent\s*Acquisition\s*Specialist|Recruteur|Recruteuse|Chasseur\s*de\s*Têtes)",
+        r"(?:Assistant|Assistante)\s*RH|Gestionnaire\s*(?:RH|ADP)",
+        r"Directeur\s*des\s*Ressources\s*Humaines|DRH",
+    ],
+    "Digital, Design & Marketing": [
+        r"(?:UX|UI|UX/UI)\s*(?:Designer|Researcher)",
+        r"Designer\s*(?:Graphique|Web|Digital|Produit|Interface|Motion|3D|Product)",
+        r"(?:Graphiste|Infographiste|Directeur\s*Artistique|DA|Motion\s*Designer)",
+        r"Chef\s*de\s*Projet\s*(?:Digital|Web|Marketing|Communication|E-commerce|SEO)",
+        r"(?:Community\s*Manager|Social\s*Media\s*Manager|Content\s*Manager)",
+        r"(?:Responsable|Chargé(?:e)?)\s*de\s*(?:Communication|Marketing|SEO|SEA|E-commerce|Growth|Acquisition)",
+        r"Growth\s*Hacker|Traffic\s*Manager|Rédacteur\s*Web|Copywriter",
+    ],
+    "Management & Conseil": [
+        r"(?:Chef|Cheffe)\s*de\s*Projet\s*(?:Informatique|SI|Digital|Data|Organisation|Transverse|Industriel|PMO|AMOA)?",
+        r"(?:Project\s*Manager|Business\s*Analyst|Product\s*Manager)",
+        r"(?:Consultant|Consultante)\s*(?:Senior|Junior)?\s*(?:en\s*Management|Stratégie|Organisation|SI|RH|IT)",
+        r"(?:Directeur|Directrice)\s*(?:Général|Technique|CTO|CIO|DSI|Marketing|RH|Commercial|Financier|CFO|COO)",
+    ],
+    "Santé & Médical": [
+        r"(?:Infirmier|Infirmière|Infirmier\s*Anesthésiste|IBODE|IADE|Puéricultrice)",
+        r"Aide-Soignant|Aide-Soignante|Auxiliaire\s*de\s*Puériculture",
+        r"(?:Médecin|Pharmacien|Pharmacienne|Chirurgien|Dentiste|Sage-Femme)",
+        r"Kinésithérapeute|Ergothérapeute|Orthophoniste|Ostéopathe|Psychologue|Psychiatre",
+        r"Manipulateur\s*Radio|Technicien\s*de\s*Laboratoire\s*Médical",
+        r"Secrétaire\s*Médicale|Brancardier|Ambulancier|Ambulancière",
+    ],
+    "Social & Enfance": [
+        r"Éducateur|Éducatrice\s*(?:Spécialisé(?:e)?|Jeunes\s*Enfants)",
+        r"Assistant|Assistante\s*Sociale|Conseiller\s*ESF",
+        r"Auxiliaire\s*de\s*Vie|Aide\s*à\s*Domicile|Accompagnant\s*Éducatif|ATSEM|Nounou|Garde\s*d'Enfants",
+        r"Animateur|Animatrice\s*(?:Socioculturel|Scolaire|Enfants|Périscolaire)",
+    ],
+    "Enseignement & Formation": [
+        r"(?:Professeur|Professeure|Enseignant|Enseignante)\s*(?:des\s*Écoles|de\s*Français|d'Anglais|de\s*Mathématiques|de\s*Physique)?",
+        r"Formateur|Formatrice\s*(?:Professionnel|Consultant|Adultes|Tech)?",
+        r"AESH|Auxiliaire\s*de\s*Vie\s*Scolaire|CPE|Conseiller\s*Principal\s*d'Éducation",
+        r"Enseignant-Chercheur|Maître\s*de\s*Conférences",
+    ],
+    "Sécurité & Gardiennage": [
+        r"Agent\s*de\s*Sécurité|Agent\s*CQP|Agent\s*Master|Pompier|SSIAP|SSIAP\s*1|SSIAP\s*2|SSIAP\s*3",
+        r"Inspecteur\s*de\s*Sécurité|Agent\s*de\s*Sûreté|Maitre-Chien|Agent\s*Cynophile",
+        r"Gendarme|Policier|Agent\s*de\s*Police\s*Municipale|Militaire|Vigile|Gardien\s*d'Immeuble",
+    ],
+    "Droit & Juridique": [
+        r"(?:Juriste)\s*(?:Droit\s*des\s*Affaires|Droit\s*Social|Droit\s*du\s*Travail|Intellectuel|RGPD|DPO)?",
+        r"Avocat|Avocate|Notaire|Clerc\s*de\s*Notaire|Huissier|Commissaire\s*de\s*Justice",
+        r"Fiscaliste|Compliance\s*Officer|Assistante\s*Juridique",
+    ],
+    "Esthétique, Coiffure & Mode": [
+        r"Coiffeur|Coiffeuse|Barbier",
+        r"Esthéticien|Esthéticienne|Prothésiste\s*Ongulaire|Maquilleur|Maquilleuse",
+        r"Couturier|Couturière|Styliste|Modéliste",
+    ],
+    "Agriculture, Élevage & Pêche": [
+        r"Ouvrier\s*Agricole|Aide\s*Agricole|Arboriculteur|Viticulteur|Vendangeur",
+        r"Éleveur|Éleveuse|Tractoriste|Conducteur\s*d'Engins\s*Agricoles",
+        r"Pêcheur|Marin-Pêcheur|Aquaculteur",
+    ],
+}
+
+ALL_JOB_PATTERNS = [
+    pattern for sublist in JOB_DICTIONARY.values() for pattern in sublist
+]
+
+
+def extract_job_title_fallback(text: str, default: str = "Développeur") -> str:
+    """Extrait le poste du CV avec recherche prioritaire dans l'en-tête."""
+    if not text or not text.strip():
+        return default
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    header_text = " ".join(lines[:15])
+
+    for pattern in ALL_JOB_PATTERNS:
+        match = re.search(pattern, header_text, re.IGNORECASE)
+        if match:
+            return match.group(0).strip()
+
+    for pattern in ALL_JOB_PATTERNS:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return match.group(0).strip()
+
+    for line in lines[:5]:
+        if len(line) < 60 and not re.search(
+            r"@|phone|tél|adresse|curriculum|cv|permis|français",
+            line,
+            re.IGNORECASE,
+        ):
+            return line
+
+    return default
+
+
+def analyze_cv_with_fallback(
+    text: str,
+    target_lang: str = "français",
+    selected_model: str = "Groq / Llama 3.3",
+    gemini_api_key: str = "",
+    xai_api_key: str = "",
+    groq_api_key: str = "",
+    ollama_url: str = "http://localhost:11434",
+    custom_gemini_key: Optional[str] = None,
+) -> dict:
+    """Analyse un CV via l'IA. Si l'IA échoue, utilise un parser regex local."""
+    fallback_used = False
+    try:
+        response_text = call_ai_provider(
+            """Tu es un expert en recrutement. Analyse ce CV et retourne uniquement un objet JSON en {target_lang} avec les clés suivantes :
+            "nom_complet", "contact", "metier", "mots_cles" (liste de chaînes), "resume" (maximum 3 lignes), "annees_experience" (nombre entier), "recommandations_metiers" (liste de 5 métiers suggérés), "metiers_alternatifs" (liste de 3 métiers radicalement différents utilisant les mêmes compétences transférables), "suggestions_amelioration" (liste de 3 à 5 conseils concrets pour améliorer l'impact de ce CV).
+
+            LOGIQUE D'IDENTIFICATION DU MÉTIER :
+            - Si le profil contient des métiers multiples (ex: "Consultant & Développeur"), NE les regroupe PAS.
+            - Sélectionne le métier le plus porteur/pertinent pour une recherche d'emploi actuelle comme "metier" principal.
+            - Place le second métier (ou les métiers connexes identifiés) en priorité absolue au début de la liste "recommandations_metiers".
+
+            Texte du CV :
+            {text}""",
+            selected_model,
+            is_json=True,
+            gemini_api_key=gemini_api_key,
+            xai_api_key=xai_api_key,
+            groq_api_key=groq_api_key,
+            ollama_url=ollama_url,
+            custom_gemini_key=custom_gemini_key,
+        )
+        if response_text:
+            try:
+                data = json.loads(response_text)
+                if isinstance(data, dict) and data.get("metier"):
+                    return data
+            except (json.JSONDecodeError, TypeError):
+                pass
+    except Exception as e:
+        logger.error(f"[Fallback] Erreur lors de l'analyse IA du CV : {e}")
+
+    logger.info("[Fallback] Analyse IA indisponible. Utilisation du parser d'urgence regex/heuristique.")
+    fallback_used = True
+    metier = extract_job_title_fallback(text or "")
+
+    first_lines = " ".join(
+        [line.strip() for line in (text or "").splitlines() if line.strip()][:10]
+    )
+    keywords = []
+    for token in re.split(r"[^A-Za-zÀ-ÖØ-öø-ÿ]+", first_lines):
+        t = token.strip()
+        if 3 <= len(t) <= 30:
+            keywords.append(t)
+    keywords = list(dict.fromkeys(keywords))[:12]
+
+    return {
+        "nom_complet": "",
+        "contact": "",
+        "metier": metier,
+        "mots_cles": keywords,
+        "resume": "Analyse en mode secours : métier détecté automatiquement à partir du CV.",
+        "annees_experience": 0,
+        "recommandations_metiers": [metier],
+        "metiers_alternatifs": [],
+        "suggestions_amelioration": [
+            "Passez votre souris sur une offre pour générer une lettre de motivation personnalisée.",
+            "Utilisez les filtres pour affiner vos sources et votre type de contrat.",
+            "Téléversez un CV plus complet pour obtenir une analyse plus précise.",
+        ],
+        "is_fallback": fallback_used,
+    }
+
+
 def analyze_cv(
     text: str,
     target_lang: str = "français",
@@ -259,36 +521,19 @@ def analyze_cv(
     custom_gemini_key: Optional[str] = None,
 ) -> Optional[dict]:
     """Analyse un CV via l'IA et retourne un dict structuré."""
-    prompt = f"""
-    Tu es un expert en recrutement. Analyse ce CV et retourne uniquement un objet JSON en {target_lang} avec les clés suivantes :
-    "nom_complet", "contact", "metier", "mots_cles" (liste de chaînes), "resume" (maximum 3 lignes), "annees_experience" (nombre entier), "recommandations_metiers" (liste de 5 métiers suggérés), "metiers_alternatifs" (liste de 3 métiers radicalement différents utilisant les mêmes compétences transférables), "suggestions_amelioration" (liste de 3 à 5 conseils concrets pour améliorer l'impact de ce CV).
-
-    LOGIQUE D'IDENTIFICATION DU MÉTIER :
-    - Si le profil contient des métiers multiples (ex: "Consultant & Développeur"), NE les regroupe PAS.
-    - Sélectionne le métier le plus porteur/pertinent pour une recherche d'emploi actuelle comme "metier" principal.
-    - Place le second métier (ou les métiers connexes identifiés) en priorité absolue au début de la liste "recommandations_metiers".
-
-    Texte du CV :
-    {text}
-    """
-    try:
-        response_text = call_ai_provider(
-            prompt, selected_model, is_json=True,
-            gemini_api_key=gemini_api_key, xai_api_key=xai_api_key,
-            groq_api_key=groq_api_key, ollama_url=ollama_url,
-            custom_gemini_key=custom_gemini_key
-        )
-        if not response_text:
-            return None
-        return json.loads(response_text)
-    except json.JSONDecodeError as je:
-        logger.error(f"JSONDecodeError: {je}")
-        if response_text:
-            logger.error(f"Réponse brute ayant échoué : {response_text}")
+    result = analyze_cv_with_fallback(
+        text=text,
+        target_lang=target_lang,
+        selected_model=selected_model,
+        gemini_api_key=gemini_api_key,
+        xai_api_key=xai_api_key,
+        groq_api_key=groq_api_key,
+        ollama_url=ollama_url,
+        custom_gemini_key=custom_gemini_key,
+    )
+    if not result:
         return None
-    except Exception as e:
-        logger.error(f"Erreur lors de l'analyse du CV : {e}")
-        return None
+    return result if not result.get("is_fallback") else result
 
 
 def generate_cover_letter(

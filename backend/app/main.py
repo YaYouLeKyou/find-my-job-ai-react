@@ -38,7 +38,7 @@ from app.scrapers.web_sources import (
     scrape_enhanced,
 )
 
-from shared.ai import call_ai_provider, analyze_cv
+from shared.ai import call_ai_provider, analyze_cv_with_fallback
 from shared.utils import extract_text_from_pdf
 import io
 
@@ -332,6 +332,10 @@ async def _stream_jobs(
                 try:
                     logger.info(f"[SSE] TF-IDF scoring start jobs={len(all_jobs)}")
                     all_jobs = score_jobs(cv_data_dict, all_jobs, fast=True)
+                    if cv_data_dict.get("is_fallback"):
+                        for job in all_jobs:
+                            job["match_score"] = 50.0
+                            job["pertinence_ai"] = 50.0
                     logger.info(f"[SSE] TF-IDF scoring done jobs={len(all_jobs)}")
                 except Exception as e:
                     logger.error(f"[SSE] TF-IDF scoring failed: {e}")
@@ -609,7 +613,7 @@ async def analyze_cv_endpoint(
         logger.info(f"[CV_ANALYSIS] request={request_id} calling analyze_cv model={selected_model} lang={target_lang} gemini_present={bool(gemini_key)}")
 
         result = await asyncio.to_thread(
-            analyze_cv,
+            analyze_cv_with_fallback,
             text=text,
             target_lang=target_lang,
             selected_model=selected_model,
@@ -622,7 +626,7 @@ async def analyze_cv_endpoint(
             logger.error(f"[CV_ANALYSIS] request={request_id} analyze_cv returned None")
             return {"error": "L'analyse du CV a échoué. Vérifiez la clé API ou le modèle sélectionné."}
 
-        logger.info(f"[CV_ANALYSIS] request={request_id} success metier={result.get('metier')}")
+        logger.info(f"[CV_ANALYSIS] request={request_id} success metier={result.get('metier')} fallback={result.get('is_fallback')}")
         return result
 
     except Exception as e:

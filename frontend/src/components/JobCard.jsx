@@ -109,6 +109,13 @@ export default function JobCard({
           </div>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {/* Badge Fallback sans IA */}
+          {cvData?.is_fallback && !job.ai_scored && (
+            <div className="score-badge low" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Sparkles size={14} />
+              <span>Recherche sans IA (Mode Secours)</span>
+            </div>
+          )}
           {/* Badge IA */}
           {showAiBadge && score && (
             <div className={`score-badge ${getScoreColorClass(score)}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -117,10 +124,16 @@ export default function JobCard({
             </div>
           )}
           {/* Badge de match CV */}
-          {job.match_score !== undefined && job.match_score !== null && !showAiBadge && (
+          {job.match_score !== undefined && job.match_score !== null && !showAiBadge && !cvData?.is_fallback && (
             <div className={`score-badge ${getScoreColorClass(job.match_score)}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Sparkles size={14} />
               <span>Match {job.match_score}%</span>
+            </div>
+          )}
+          {job.match_score !== undefined && job.match_score !== null && !showAiBadge && cvData?.is_fallback && (
+            <div className={`score-badge ${getScoreColorClass(job.match_score)}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Sparkles size={14} />
+              <span>Score {job.match_score}%</span>
             </div>
           )}
         </div>

@@ -7,6 +7,7 @@ from .ai import (
     call_local_llama,
     call_ai_provider,
     analyze_cv,
+    analyze_cv_with_fallback,
     generate_cover_letter,
     rank_jobs_with_ai,
 )

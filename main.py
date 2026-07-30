@@ -959,7 +959,7 @@ if uploaded_file is not None:
             cv_text = extract_text_from_pdf(uploaded_file)
             # On vérifie qu'on a assez de texte (au moins 50 caractères) pour une analyse pertinente
             if cv_text and len(cv_text) > 50:
-                data = analyze_cv(cv_text, target_lang=st.session_state['lang_label'])
+                data = analyze_cv_with_fallback(cv_text, target_lang=st.session_state['lang_label'])
                 if data:
                     logger.info("--- Données brutes de l'analyse CV ---")
                     logger.info(json.dumps(data, indent=2, ensure_ascii=False))

@@ -25,6 +25,11 @@ export default function CvProfile({
             📩 {cvData.contact}
           </span>
         )}
+        {cvData.is_fallback && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(255, 111, 0, 0.12)', border: '1px solid rgba(255, 111, 0, 0.35)', color: '#e65100', padding: '6px 12px', borderRadius: '9999px', fontSize: '0.8rem', fontWeight: '700', width: 'fit-content' }}>
+            ⚠️ Recherche sans IA (Mode Secours)
+          </div>
+        )}
       </div>
 
       {/* Grid Profil & Pistes */}
