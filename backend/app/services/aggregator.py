@@ -141,8 +141,9 @@ class SearchAggregator:
     ):
         """Search multiple sources in parallel and stream results as they complete.
 
-        Uses asyncio.to_thread + asyncio.wait_for to ensure no single source
-        can block the stream longer than timeout_per_source seconds.
+        Uses asyncio.to_thread + asyncio.wait_for + asyncio.wait(FIRST_COMPLETED)
+        to release results the moment a source finishes, instead of waiting for
+        every source to converge before emitting a single SSE event.
         """
         all_jobs = []
         source_results = {}
@@ -150,31 +151,25 @@ class SearchAggregator:
 
         logger.info(f"Starting streaming parallel search with {len(sources)} sources")
 
-        source_tasks = {}
-        task_to_source = {}
+        pending: Dict[str, asyncio.Task] = {}
 
         for source_name, source_fn in sources.items():
             try:
                 source_start_times[source_name] = time.time()
-                logger.info(f"[SOURCE: {source_name}] ⏱️ Start search for query: \"{query}\"")
+                logger.info(
+                    f"[SOURCE: {source_name}] start search for query: \"{query}\""
+                )
 
-                async def _run_source(fn=source_fn, q=query, l=location, n=limit):
-                    try:
-                        return await asyncio.wait_for(
-                            asyncio.to_thread(fn, q, l, n),
-                            timeout=self.timeout_per_source,
-                        )
-                    except asyncio.TimeoutError:
-                        raise TimeoutError(f"Source timed out after {self.timeout_per_source}s")
-                    except Exception:
-                        raise
-
-                task = asyncio.create_task(_run_source())
-                source_tasks[source_name] = task
-                task_to_source[task] = source_name
+                task = asyncio.create_task(
+                    asyncio.wait_for(
+                        asyncio.to_thread(source_fn, query, location, limit),
+                        timeout=self.timeout_per_source,
+                    )
+                )
+                pending[source_name] = task
 
             except Exception as e:
-                logger.error(f"[SOURCE: {source_name}] Erreur de soumission: {e}")
+                logger.error(f"[SOURCE: {source_name}] submission error: {e}")
                 result = SourceResult(
                     source_name=source_name,
                     jobs=[],
@@ -185,59 +180,101 @@ class SearchAggregator:
                 source_results[source_name] = result
                 yield result
 
-        for task in asyncio.as_completed(list(source_tasks.values())):
-            source_name = task_to_source.get(task)
-            if not source_name:
-                continue
+        while pending:
+            done, not_done = await asyncio.wait(
+                pending.values(),
+                timeout=self.timeout_per_source,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
 
-            start_time = source_start_times.get(source_name, time.time())
-
-            try:
-                jobs = await task
-                duration = time.time() - start_time
-
-                result = SourceResult(
-                    source_name=source_name,
-                    jobs=jobs if jobs else [],
-                    success=True,
-                    execution_time=round(duration, 2),
-                )
-
-                source_results[source_name] = result
-                all_jobs.extend(jobs)
-
-                logger.info(
-                    f"[SOURCE: {source_name}] ✅ Success: {len(jobs)} jobs found in {duration:.2f}s"
-                )
-                yield result
-
-            except Exception as e:
-                duration = time.time() - start_time
-                error_msg = str(e)
-
-                if "timeout" in error_msg.lower():
-                    logger.error(f"[SOURCE: {source_name}] Timeout (> {self.timeout_per_source}s)")
-                elif "401" in error_msg or "403" in error_msg:
-                    logger.error(
-                        f"[SOURCE: {source_name}] Quota/Authentification: {error_msg[:100]}"
+            if done:
+                for task in done:
+                    source_name = next(
+                        (name for name, t in pending.items() if t == task),
+                        None,
                     )
-                else:
-                    logger.error(f"[SOURCE: {source_name}] Erreur: {error_msg[:100]}")
+                    if source_name is None:
+                        continue
 
-                logger.info(
-                    f"[SOURCE: {source_name}] ❌ Error after {duration:.2f}s: {error_msg[:100]}"
-                )
+                    start_time = source_start_times.get(
+                        source_name, time.time()
+                    )
 
-                result = SourceResult(
-                    source_name=source_name,
-                    jobs=[],
-                    success=False,
-                    error=error_msg[:100],
-                    execution_time=round(duration, 2),
-                )
+                    try:
+                        jobs = await task
+                        duration = time.time() - start_time
 
-                source_results[source_name] = result
-                yield result
+                        result = SourceResult(
+                            source_name=source_name,
+                            jobs=jobs if jobs else [],
+                            success=True,
+                            execution_time=round(duration, 2),
+                        )
+
+                        source_results[source_name] = result
+                        all_jobs.extend(jobs)
+                        logger.info(
+                            f"[SOURCE: {source_name}] success: {len(jobs)} jobs found in {duration:.2f}s"
+                        )
+                        yield result
+
+                    except Exception as e:
+                        duration = time.time() - start_time
+                        error_msg = str(e)
+
+                        if "timeout" in error_msg.lower():
+                            logger.error(
+                                f"[SOURCE: {source_name}] timeout after {duration:.2f}s"
+                            )
+                        elif "401" in error_msg or "403" in error_msg:
+                            logger.error(
+                                f"[SOURCE: {source_name}] quota/auth: {error_msg[:100]}"
+                            )
+                        else:
+                            logger.error(
+                                f"[SOURCE: {source_name}] error: {error_msg[:100]}"
+                            )
+
+                        result = SourceResult(
+                            source_name=source_name,
+                            jobs=[],
+                            success=False,
+                            error=error_msg[:100],
+                            execution_time=round(duration, 2),
+                        )
+
+                        source_results[source_name] = result
+                        yield result
+
+                    pending.pop(source_name, None)
+            else:
+                for source_name, task in list(pending.items()):
+                    task.cancel()
+                    try:
+                        await task
+                    except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
+                        pass
+
+                    start_time = source_start_times.get(
+                        source_name, time.time()
+                    )
+                    duration = time.time() - start_time
+                    logger.error(
+                        f"[SOURCE: {source_name}] timeout after {duration:.2f}s"
+                    )
+
+                    result = SourceResult(
+                        source_name=source_name,
+                        jobs=[],
+                        success=False,
+                        error=f"Timeout after {self.timeout_per_source}s",
+                        execution_time=round(duration, 2),
+                    )
+
+                    source_results[source_name] = result
+                    yield result
+
+                pending.clear()
 
         logger.info(
             f"Streaming search complete: {len(all_jobs)} jobs from {len(source_results)} sources"
