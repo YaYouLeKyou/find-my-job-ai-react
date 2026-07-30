@@ -407,6 +407,28 @@ ALL_JOB_PATTERNS = [
 ]
 
 
+def _is_placeholder_metier(value: str) -> bool:
+    """Détecte les réponses IA inexploitables type 'Non fourni', 'Non identifiable', 'N/A'."""
+    normalized = (value or "").strip().lower()
+    placeholders = {
+        "non fourni",
+        "non identifiable",
+        "n/a",
+        "na",
+        "indéterminé",
+        "indetermine",
+        "inconnu",
+        "non spécifié",
+        "non specifie",
+        "",
+    }
+    if normalized in placeholders:
+        return True
+    if normalized.startswith("non ") and len(normalized) < 30:
+        return True
+    return False
+
+
 def extract_job_title_fallback(text: str, default: str = "Développeur") -> str:
     """Extrait le poste du CV avec recherche prioritaire dans l'en-tête."""
     if not text or not text.strip():
@@ -450,7 +472,7 @@ def analyze_cv_with_fallback(
     fallback_used = False
     try:
         response_text = call_ai_provider(
-            """Tu es un expert en recrutement. Analyse ce CV et retourne uniquement un objet JSON en {target_lang} avec les clés suivantes :
+            f"""Tu es un expert en recrutement. Analyse ce CV et retourne uniquement un objet JSON en {target_lang} avec les clés suivantes :
             "nom_complet", "contact", "metier", "mots_cles" (liste de chaînes), "resume" (maximum 3 lignes), "annees_experience" (nombre entier), "recommandations_metiers" (liste de 5 métiers suggérés), "metiers_alternatifs" (liste de 3 métiers radicalement différents utilisant les mêmes compétences transférables), "suggestions_amelioration" (liste de 3 à 5 conseils concrets pour améliorer l'impact de ce CV).
 
             LOGIQUE D'IDENTIFICATION DU MÉTIER :
@@ -471,14 +493,16 @@ def analyze_cv_with_fallback(
         if response_text:
             try:
                 data = json.loads(response_text)
-                if isinstance(data, dict) and data.get("metier"):
+                metier = (data.get("metier") or "").strip()
+                if metier and not _is_placeholder_metier(metier):
+                    data["is_fallback"] = False
                     return data
             except (json.JSONDecodeError, TypeError):
                 pass
     except Exception as e:
         logger.error(f"[Fallback] Erreur lors de l'analyse IA du CV : {e}")
 
-    logger.info("[Fallback] Analyse IA indisponible. Utilisation du parser d'urgence regex/heuristique.")
+    logger.info("[Fallback] Analyse IA indisponible ou non exploitable. Utilisation du parser d'urgence regex/heuristique.")
     fallback_used = True
     metier = extract_job_title_fallback(text or "")
 
