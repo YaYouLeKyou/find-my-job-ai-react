@@ -117,23 +117,17 @@ export default function JobCard({
             </div>
           )}
           {/* Badge IA */}
-          {showAiBadge && score && (
+          {showAiBadge && score && !cvData?.is_fallback && (
             <div className={`score-badge ${getScoreColorClass(score)}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Sparkles size={14} />
               <span>Trié par IA {Math.round(score)}%</span>
             </div>
           )}
-          {/* Badge de match CV */}
+          {/* Badge de match CV - seulement en mode IA */}
           {job.match_score !== undefined && job.match_score !== null && !showAiBadge && !cvData?.is_fallback && (
             <div className={`score-badge ${getScoreColorClass(job.match_score)}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Sparkles size={14} />
               <span>Match {job.match_score}%</span>
-            </div>
-          )}
-          {job.match_score !== undefined && job.match_score !== null && !showAiBadge && cvData?.is_fallback && (
-            <div className={`score-badge ${getScoreColorClass(job.match_score)}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sparkles size={14} />
-              <span>Score {job.match_score}%</span>
             </div>
           )}
         </div>

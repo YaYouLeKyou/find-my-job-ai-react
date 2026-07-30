@@ -330,12 +330,11 @@ async def _stream_jobs(
 
             if all_jobs and cv_data_dict:
                 try:
-                    logger.info(f"[SSE] TF-IDF scoring start jobs={len(all_jobs)}")
-                    all_jobs = score_jobs(cv_data_dict, all_jobs, fast=True)
-                    if cv_data_dict.get("is_fallback"):
-                        for job in all_jobs:
-                            job["match_score"] = 50.0
-                            job["pertinence_ai"] = 50.0
+                    if not cv_data_dict.get("is_fallback"):
+                        logger.info(f"[SSE] TF-IDF scoring start jobs={len(all_jobs)}")
+                        all_jobs = score_jobs(cv_data_dict, all_jobs, fast=True)
+                    else:
+                        logger.info("[SSE] Fallback mode detected, skipping AI/TF-IDF scoring")
                     logger.info(f"[SSE] TF-IDF scoring done jobs={len(all_jobs)}")
                 except Exception as e:
                     logger.error(f"[SSE] TF-IDF scoring failed: {e}")
