@@ -1,18 +1,24 @@
+/**
+ * Sidebar - Version refactorisée avec pipeline IA unifié
+ * 
+ * Changements :
+ * - Regroupement "🔬 Analyse du CV" et "⚖️ Tri & Rédaction" en UN SEUL PIPELINE UNIFIÉ : "⚡ Traitement & Analyse IA"
+ * - L'utilisateur choisit UN SEUL modèle actif
+ * - Intégration du composant APIKeyManager pour la gestion dynamique des clés
+ * - Interface claire et épurée
+ */
+
 import React, { useState, useEffect } from 'react';
 import { LANGS, STRINGS } from '../utils/translations';
-import { Settings, Cpu, Key, Globe, Save, ExternalLink, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Wifi, WifiOff, Menu, X, Trash2 } from 'lucide-react';
+import { Settings, Cpu, Key, Globe, Save, ExternalLink, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Wifi, WifiOff, Menu, X, Trash2, Zap } from 'lucide-react';
+import { useAI, AI_MODELS } from '../context/AIContext';
+import { APIKeyManager } from './APIKeyManager';
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 export default function Sidebar({
   lang,
   setLang,
-  analysisEngine,
-  setAnalysisEngine,
-  rankingEngine,
-  setRankingEngine,
-  customGeminiKey,
-  setCustomGeminiKey,
   ollamaOnline,
   searchHistory,
   savedJobs,
@@ -23,72 +29,24 @@ export default function Sidebar({
   onClearCache
 }) {
   const S = STRINGS[LANGS[lang].code];
-  const [saved, setSaved] = useState(!!customGeminiKey);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [modelStatus, setModelStatus] = useState({
-    groq: false,
-    gemini: false,
-    xai: false
-  });
-  const [modelDetails, setModelDetails] = useState({
-    groq: {},
-    gemini: {}
-  });
-  const [loadingStatus, setLoadingStatus] = useState(true);
   const [activeTab, setActiveTab] = useState('settings');
 
+  // Utiliser le contexte AI centralisé
+  const { activeModel, setActiveModel, activeModelConfig, modelStatus, refreshModelStatus } = useAI();
+
   const fetchStatus = async () => {
-    try {
-      const keyParam = customGeminiKey?.trim() ? `?custom_gemini_key=${encodeURIComponent(customGeminiKey.trim())}` : '';
-      const response = await fetch(`${API_BASE}/api/ai/status${keyParam}`);
-      const text = await response.text();
-      console.log('[DEBUG] AI status response:', response.status, text.substring(0, 300));
-      if (response.ok && text.trim().startsWith('{')) {
-        const data = JSON.parse(text);
-        setModelStatus({
-          groq: !!data.groq?.online,
-          gemini: !!data.gemini?.online,
-          xai: false
-        });
-        setModelDetails({
-          groq: data.groq || {},
-          gemini: data.gemini || {}
-        });
-      } else {
-        console.error('[DEBUG] AI status returned non-JSON:', text);
-      }
-    } catch (error) {
-      console.error("Failed to fetch AI status:", error);
-    } finally {
-      setLoadingStatus(false);
-    }
+    await refreshModelStatus();
   };
 
-  const handleSaveKey = async () => {
-    if (customGeminiKey && customGeminiKey.trim()) {
-      localStorage.setItem('gemini_api_key', customGeminiKey.trim());
-      setSaved(true);
-      await fetchStatus(); // Revalider le statut Gemini immédiatement
-      setTimeout(() => setSaved(false), 2500);
-    }
-  };
-
-  // Load saved key on mount
-  React.useEffect(() => {
-    const savedKey = localStorage.getItem('gemini_api_key');
-    if (savedKey && !customGeminiKey) {
-      setCustomGeminiKey(savedKey);
-    }
-  }, []);
-
-  // Fetch model status from AI status endpoint
+  // Fetch model status on mount
   useEffect(() => {
     fetchStatus();
-  }, [customGeminiKey]);
+  }, [refreshModelStatus]);
 
   // Close mobile sidebar on window resize above breakpoint
-  React.useEffect(() => {
+  useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth > 599 && mobileOpen) {
         setMobileOpen(false);
@@ -99,19 +57,14 @@ export default function Sidebar({
   }, [mobileOpen]);
 
   const getStatusIcon = (isAvailable) => {
-    if (loadingStatus) return <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>...</span>;
     return isAvailable ? 
       <CheckCircle2 size={14} style={{ color: 'var(--success-color)' }} /> : 
       <AlertCircle size={14} style={{ color: 'var(--error-color)' }} />;
   };
 
-  const getStatusText = (isAvailable, modelKey) => {
-    if (loadingStatus) return 'Vérification...';
-    if (!isAvailable) return 'Non configuré';
-    const details = modelDetails[modelKey] || {};
-    if (details.online) return 'En ligne';
-    if (details.configured && details.error) return 'Hors ligne';
-    return 'Disponible';
+  const getStatusText = (isAvailable) => {
+    if (!isAvailable) return 'Hors ligne';
+    return 'En ligne';
   };
 
   const closeMobile = () => setMobileOpen(false);
@@ -257,6 +210,7 @@ export default function Sidebar({
           {/* Settings Tab */}
           {activeTab === 'settings' && (
             <React.Fragment>
+              {/* Language Section */}
               <div className="sidebar-section">
                 <h3 className="sidebar-section-title">
                   <Globe size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
@@ -277,124 +231,99 @@ export default function Sidebar({
                 </div>
               </div>
 
+              {/* ⚡ PIPELINE IA UNIFIÉ - Traitement & Analyse IA */}
               <div className="sidebar-section">
                 <h3 className="sidebar-section-title">
-                  <Cpu size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
-                  {S.ai_config}
+                  <Zap size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
+                  ⚡ Traitement & Analyse IA
                 </h3>
                 
                 <div className="form-group" style={{ marginBottom: '12px' }}>
-                  <label>{S.cv_analysis}</label>
+                  <label>🧠 Modèle IA principal</label>
                   <select
                     className="select-control"
-                    value={analysisEngine}
-                    onChange={(e) => setAnalysisEngine(e.target.value)}
+                    value={activeModel}
+                    onChange={(e) => setActiveModel(e.target.value)}
                   >
-                    <option value="Gemini 3.5">Gemini 3.5</option>
-                    <option value="Gemini 2.5">Gemini 2.5</option>
-                    <option value="Groq / Llama 3.3">Groq / Llama 3.3</option>
-                    <option value="Llama 3.2 (Local/dev)">Llama 3.2 (Local/dev)</option>
-                    <option value="Llama 3.2 Vision (Local/dev)">Llama 3.2 Vision (Local/dev)</option>
+                    {AI_MODELS.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.label}
+                        {model.isLocal ? ' 🏠' : ''}
+                        {model.requiresPersonalKey ? ' 🔑' : ''}
+                      </option>
+                    ))}
                   </select>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Llama 3.3 via Groq est ultra-rapide.
-                  </span>
-                </div>
-
-                <div className="form-group">
-                  <label>{S.tri_redac}</label>
-                  <select
-                    className="select-control"
-                    value={rankingEngine}
-                    onChange={(e) => setRankingEngine(e.target.value)}
-                  >
-                    <option value="Gemini 3.5">Gemini 3.5</option>
-                    <option value="Gemini 2.5">Gemini 2.5</option>
-                    <option value="Groq / Llama 3.3">Groq / Llama 3.3</option>
-                    <option value="Llama 3.2 (Local/dev)">Llama 3.2 (Local/dev)</option>
-                    <option value="Qwen 3 4B (Local/dev)">Qwen 3 4B (Local/dev)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="sidebar-section">
-                <h3 className="sidebar-section-title">
-                  <Key size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
-                  {S.personal_key}
-                </h3>
-                <div className="form-group">
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <input
-                      type="password"
-                      className="input-control"
-                      style={{ flexGrow: 1 }}
-                      placeholder="Clé Gemini API..."
-                      value={customGeminiKey}
-                      onChange={(e) => {
-                        setCustomGeminiKey(e.target.value);
-                        setSaved(false);
-                      }}
-                    />
-                    <button
-                      className="btn btn-primary"
-                      style={{ padding: '8px 12px', flexShrink: 0 }}
-                      onClick={handleSaveKey}
-                      disabled={!customGeminiKey || !customGeminiKey.trim()}
-                      title="Enregistrer la clé pour la session"
-                    >
-                      <Save size={16} />
-                    </button>
-                  </div>
-                  {saved && (
-                    <span style={{ fontSize: '0.75rem', color: 'var(--success-color)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
-                      <CheckCircle2 size={12} />
-                      Clé enregistrée pour cette session
+                  {activeModelConfig && (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
+                      {activeModelConfig.description}
                     </span>
                   )}
-                  <a
-                    href="https://aistudio.google.com/app/apikey"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      fontSize: '0.75rem',
-                      color: 'var(--primary-color)',
-                      textDecoration: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      marginTop: '4px'
-                    }}
-                  >
-                    <ExternalLink size={12} />
-                    Obtenir une clé Gemini API gratuite
-                  </a>
                 </div>
+
+                {/* Gestion dynamique des clés API (BYOK) */}
+                <APIKeyManager compact />
               </div>
 
+              {/* Statut des modèles AI */}
               <div className="sidebar-section">
                 <h3 className="sidebar-section-title">
                   <Cpu size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
                   Statut des modèles AI
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)' }}>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: '600' }}>Groq / Llama 3.3</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {getStatusIcon(modelStatus.groq)}
-                      <span style={{ color: modelStatus.groq ? '#2e7d32' : '#c62828', fontSize: '0.8rem', fontWeight: '700' }}>
-                        {getStatusText(modelStatus.groq, 'groq')}
-                      </span>
+                  {/* Modèle actif en premier */}
+                  {activeModelConfig && (
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between', 
+                      padding: '8px 10px', 
+                      background: 'var(--primary-color)',
+                      color: 'white',
+                      borderRadius: 'var(--radius-sm)',
+                      fontWeight: 600,
+                    }}>
+                      <span>{activeModelConfig.label} (Actif)</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {getStatusIcon(modelStatus[activeModel] ?? false)}
+                        <span style={{ fontSize: '0.8rem' }}>
+                          {getStatusText(modelStatus[activeModel] ?? false)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)' }}>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: '600' }}>Gemini 3.5 / 2.5</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {getStatusIcon(modelStatus.gemini)}
-                      <span style={{ color: modelStatus.gemini ? '#2e7d32' : '#c62828', fontSize: '0.8rem', fontWeight: '700' }}>
-                        {getStatusText(modelStatus.gemini, 'gemini')}
-                      </span>
-                    </div>
-                  </div>
+                  )}
+                  
+                  {/* Autres modèles */}
+                  {AI_MODELS
+                    .filter(m => m.id !== activeModel)
+                    .filter((m, i, arr) => arr.findIndex(x => x.provider === m.provider) === i)
+                    .map((model) => {
+                      const isAvailable = modelStatus[model.id] ?? false;
+                      return (
+                        <div key={model.id} style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'space-between', 
+                          padding: '8px 10px', 
+                          background: 'var(--bg-secondary)', 
+                          borderRadius: 'var(--radius-sm)' 
+                        }}>
+                          <span style={{ color: 'var(--text-primary)', fontWeight: '600' }}>
+                            {model.label}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {getStatusIcon(isAvailable)}
+                            <span style={{ 
+                              color: isAvailable ? '#2e7d32' : '#c62828', 
+                              fontSize: '0.8rem', 
+                              fontWeight: '700' 
+                            }}>
+                              {getStatusText(isAvailable)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             </React.Fragment>
@@ -452,12 +381,12 @@ export default function Sidebar({
                         transition: 'all 0.2s'
                       }}
                       onMouseEnter={(e) => {
-                        e.target.style.background = 'var(--primary-color)';
-                        e.target.style.color = 'white';
+                        e.currentTarget.style.background = 'var(--primary-color)';
+                        e.currentTarget.style.color = 'white';
                       }}
                       onMouseLeave={(e) => {
-                        e.target.style.background = 'var(--glass-bg)';
-                        e.target.style.color = 'var(--text-primary)';
+                        e.currentTarget.style.background = 'var(--glass-bg)';
+                        e.currentTarget.style.color = 'var(--text-primary)';
                       }}
                     >
                       <div style={{ fontWeight: '600' }}>{item.query}</div>
@@ -513,12 +442,12 @@ export default function Sidebar({
                         transition: 'all 0.2s'
                       }}
                       onMouseEnter={(e) => {
-                        e.target.style.background = 'var(--primary-color)';
-                        e.target.style.color = 'white';
+                        e.currentTarget.style.background = 'var(--primary-color)';
+                        e.currentTarget.style.color = 'white';
                       }}
                       onMouseLeave={(e) => {
-                        e.target.style.background = 'var(--glass-bg)';
-                        e.target.style.color = 'var(--text-primary)';
+                        e.currentTarget.style.background = 'var(--glass-bg)';
+                        e.currentTarget.style.color = 'var(--text-primary)';
                       }}
                     >
                       <div style={{ fontWeight: '600', fontSize: '0.8rem' }}>{job.title}</div>
@@ -562,7 +491,7 @@ export default function Sidebar({
           marginTop: '16px'
         }}>
           <Globe size={20} style={{ color: 'var(--text-secondary)' }} title="Language" />
-          <Cpu size={20} style={{ color: 'var(--text-secondary)' }} title="AI Config" />
+          <Zap size={20} style={{ color: 'var(--text-secondary)' }} title="Traitement & Analyse IA" />
           <Key size={20} style={{ color: 'var(--text-secondary)' }} title="Clé API" />
         </div>
       )}
