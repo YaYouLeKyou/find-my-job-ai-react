@@ -392,25 +392,37 @@ export default function FreelanceMissionApp({ onBackToHub, lang, setLang }) {
           <div className="alert alert-info" style={{
             background: 'linear-gradient(135deg, rgba(0,188,212,0.1), rgba(0,137,123,0.06))',
             border: '1px solid rgba(0,188,212,0.25)',
-            padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', borderRadius: 'var(--radius-md)',
+            padding: '20px 24px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', borderRadius: 'var(--radius-md)',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '1 1 auto' }}>
-              <Key size={22} style={{ color: 'var(--freelance-primary)', flexShrink: 0 }} />
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: '1 1 auto' }}>
+              <Key size={24} style={{ color: 'var(--freelance-primary)', flexShrink: 0, marginTop: '2px' }} />
               <div>
-                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Clé API Gemini manquante</span>
-                <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                  Ajoutez votre clé personnelle dans le panneau latéral pour utiliser Gemini (recommandé).
-                </span>
+                <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '1rem', marginBottom: '8px' }}>
+                  🚀 Débloquez la puissance de l'IA
+                </div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '12px' }}>
+                  Pour utiliser les modèles d'IA avancés (Gemini, OpenAI, Claude, etc.) et obtenir des résultats personnalisés, suivez ces étapes :
+                </div>
+                <ol style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.8', paddingLeft: '20px', margin: 0 }}>
+                  <li style={{ marginBottom: '6px' }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>Choisissez votre modèle IA</strong> dans le panneau latéral (section "⚡ Traitement & Analyse IA")
+                  </li>
+                  <li style={{ marginBottom: '6px' }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>Cliquez sur le lien</strong> "Obtenir une clé API" sous le champ de clé API
+                  </li>
+                  <li style={{ marginBottom: '6px' }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>Créez une clé API gratuite</strong> sur le site du fournisseur (Google AI Studio, OpenAI, etc.)
+                  </li>
+                  <li>
+                    <strong style={{ color: 'var(--text-primary)' }}>Copiez-collez votre clé</strong> dans le champ dédié du panneau latéral
+                  </li>
+                </ol>
+                <div style={{ marginTop: '12px', padding: '10px 14px', background: 'rgba(0, 188, 212, 0.08)', border: '1px solid rgba(0, 188, 212, 0.15)', borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  💡 <strong>Astuce :</strong> Sans clé personnelle, l'application fonctionne avec le modèle Groq par défaut (Llama 3.3 70B) en quota partagé. Pour une expérience optimale, ajoutez votre propre clé API.
+                </div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="btn btn-freelance"
-                style={{ textDecoration: 'none', fontSize: '0.85rem', padding: '10px 16px', whiteSpace: 'nowrap' }}>
-                <ExternalLink size={14} /> Obtenir une clé gratuite
-              </a>
-              <button className="btn btn-secondary" style={{ padding: '10px 12px' }} onClick={() => setDismissKeyPrompt(true)}>
-                <X size={14} />
-              </button>
+            <div style={{ display: 'flex', gap: '8px', flexShrink: 0, flexDirection: 'column' }}>
             </div>
           </div>
         )}
@@ -654,8 +666,6 @@ export default function FreelanceMissionApp({ onBackToHub, lang, setLang }) {
               <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Groq</span>
               <span style={{ opacity: 0.4 }}>·</span>
               <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Llama</span>
-              <span style={{ opacity: 0.4 }}>·</span>
-              <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Ollama</span>
             </span>
             <span style={{ opacity: 0.3, fontWeight: '900' }}>|</span>
             <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>by Yanès Hadiouche</span>

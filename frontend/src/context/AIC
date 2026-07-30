@@ -16,8 +16,11 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import {
   AI_MODELS,
   DEFAULT_MODEL_ID,
+  DEFAULT_PROVIDER,
   getModelById,
   getApiKeyUrl,
+  getProviderLabel,
+  modelRequiresKey,
 } from '../config/aiProviders';
 
 // =============================================================================
@@ -43,16 +46,25 @@ export interface APIKeyConfig {
 }
 
 export interface AIContextValue {
+  // Modèle IA actif
   activeModel: string;
   setActiveModel: (modelId: string) => void;
   activeModelConfig: AIModelConfig | null;
+
+  // Clés API multi-fournisseurs
   apiKeys: Record<string, APIKeyConfig>;
   setApiKey: (provider: AIProvider, key: string) => void;
   clearApiKey: (provider: AIProvider) => void;
   getActiveApiKey: () => string | null;
+
+  // Statut des modèles
   modelStatus: Record<string, boolean>;
   refreshModelStatus: () => Promise<void>;
+
+  // URLs d'obtention de clés dynamiques
   getApiKeyUrl: (provider: AIProvider) => string;
+
+  // Helpers
   isUsingPersonalKey: boolean;
   requiresApiKey: boolean;
   activeProvider: AIProvider | null;
@@ -66,6 +78,7 @@ const AIContext = createContext<AIContextValue | undefined>(undefined);
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+// Chiffrement simple pour le stockage local
 const encryptKey = (key: string): string => {
   try { return btoa(encodeURIComponent(key)); } catch { return key; }
 };
@@ -75,16 +88,24 @@ const decryptKey = (encrypted: string): string => {
 };
 
 export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  // ===========================================================================
+  // MODÈLE ACTIF (défaut: Groq / Llama 3.3 70B)
+  // ===========================================================================
   const [activeModel, setActiveModelState] = useState<string>(() => {
     return localStorage.getItem('ai_active_model') || DEFAULT_MODEL_ID;
   });
 
+  // ===========================================================================
+  // CLÉS API
+  // ===========================================================================
   const [apiKeys, setApiKeysState] = useState<Record<string, APIKeyConfig>>(() => {
     const providers: AIProvider[] = ['groq', 'gemini', 'openai', 'anthropic', 'deepseek', 'mistral', 'cohere', 'perplexity', 'xai'];
     const defaults: Record<string, APIKeyConfig> = {};
     providers.forEach(p => {
       defaults[p] = { provider: p, key: '', isValid: false, lastValidated: null };
     });
+
+    // Charger les clés sauvegardées
     try {
       const savedKeys = localStorage.getItem('ai_api_keys');
       if (savedKeys) {
@@ -100,19 +121,28 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     } catch (e) {
       console.error('[AIContext] Failed to load API keys:', e);
     }
+
     return defaults;
   });
 
+  // ===========================================================================
+  // STATUT DES MODÈLES
+  // ===========================================================================
   const [modelStatus, setModelStatus] = useState<Record<string, boolean>>({});
 
+  // Configuration du modèle actif
   const activeModelConfig = getModelById(activeModel) || null;
   const activeProvider = activeModelConfig?.provider || null;
   const requiresApiKey = activeModelConfig?.requiresPersonalKey || false;
 
+  // ===========================================================================
+  // PERSISTANCE
+  // ===========================================================================
+
   const setActiveModel = useCallback((modelId: string) => {
     setActiveModelState(modelId);
     localStorage.setItem('ai_active_model', modelId);
-    console.log('[AIContext] Active model changed to:', modelId);
+    console.log(`[AIContext] Active model changed to: ${modelId}`);
   }, []);
 
   const persistApiKeys = useCallback((keys: Record<string, APIKeyConfig>) => {
@@ -135,7 +165,10 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   const setApiKey = useCallback((provider: AIProvider, key: string) => {
     setApiKeysState(prev => {
-      const updated = { ...prev, [provider]: { provider, key, isValid: false, lastValidated: null } };
+      const updated = {
+        ...prev,
+        [provider]: { provider, key, isValid: false, lastValidated: null },
+      };
       persistApiKeys(updated);
       return updated;
     });
@@ -143,11 +176,18 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   const clearApiKey = useCallback((provider: AIProvider) => {
     setApiKeysState(prev => {
-      const updated = { ...prev, [provider]: { provider, key: '', isValid: false, lastValidated: null } };
+      const updated = {
+        ...prev,
+        [provider]: { provider, key: '', isValid: false, lastValidated: null },
+      };
       persistApiKeys(updated);
       return updated;
     });
   }, [persistApiKeys]);
+
+  // ===========================================================================
+  // HELPERS
+  // ===========================================================================
 
   const getActiveApiKey = useCallback((): string | null => {
     if (!activeProvider) return null;
@@ -160,14 +200,22 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     return !!getActiveApiKey();
   }, [requiresApiKey, getActiveApiKey]);
 
+  // ===========================================================================
+  // VALIDATION DES CLÉS VIA BACKEND
+  // ===========================================================================
+
   const refreshModelStatus = useCallback(async () => {
     try {
       const geminiKey = apiKeys.gemini.key;
-      const keyParam = geminiKey?.trim() ? '?custom_gemini_key=' + encodeURIComponent(geminiKey.trim()) : '';
-      const response = await fetch(API_BASE + '/api/ai/status' + keyParam);
+      const keyParam = geminiKey?.trim() ? `?custom_gemini_key=${encodeURIComponent(geminiKey.trim())}` : '';
+
+      const response = await fetch(`${API_BASE}/api/ai/status${keyParam}`);
+
       if (response.ok) {
         const data = await response.json();
         const newStatus: Record<string, boolean> = {};
+
+        // Mapper les statuts backend vers les modèles frontend
         if (data.groq) {
           newStatus['Groq / Llama 3.3 70B'] = !!data.groq.online;
           newStatus['Groq / DeepSeek R1'] = !!data.groq.online;
@@ -178,11 +226,18 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
           newStatus['Gemini 2.5 Pro'] = !!data.gemini.online;
           newStatus['Gemini 2.5 Flash'] = !!data.gemini.online;
         }
+
         setModelStatus(newStatus);
+
+        // Mettre à jour la validité des clés si on a une réponse pour Gemini
         if (geminiKey && data.gemini) {
           setApiKeysState(prev => ({
             ...prev,
-            gemini: { ...prev.gemini, isValid: !!data.gemini.online, lastValidated: Date.now() },
+            gemini: {
+              ...prev.gemini,
+              isValid: !!data.gemini.online,
+              lastValidated: Date.now(),
+            },
           }));
         }
       }
@@ -191,8 +246,15 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     }
   }, [apiKeys.gemini.key]);
 
-  useEffect(() => { refreshModelStatus(); }, [refreshModelStatus]);
+  // ===========================================================================
+  // EFFETS
+  // ===========================================================================
 
+  useEffect(() => {
+    refreshModelStatus();
+  }, [refreshModelStatus]);
+
+  // Auto-validation : si le modèle nécessite une clé et qu'on en a une
   useEffect(() => {
     if (activeModelConfig?.requiresPersonalKey && activeProvider) {
       const keyConfig = apiKeys[activeProvider];
@@ -201,6 +263,10 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       }
     }
   }, [activeModel, activeModelConfig, activeProvider, apiKeys, refreshModelStatus]);
+
+  // ===========================================================================
+  // VALEUR DU CONTEXTE
+  // ===========================================================================
 
   const value: AIContextValue = {
     activeModel,
@@ -218,8 +284,12 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     activeProvider,
   };
 
-  return React.createElement(AIContext.Provider, { value }, children);
+  return <AIContext.Provider value={value}>{children}</AIContext.Provider>;
 };
+
+// =============================================================================
+// HOOK
+// =============================================================================
 
 export const useAI = (): AIContextValue => {
   const context = useContext(AIContext);

@@ -11,7 +11,8 @@
 import React, { useState, useEffect } from 'react';
 import { LANGS, STRINGS } from '../utils/translations';
 import { Settings, Cpu, Key, Globe, Save, ExternalLink, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Wifi, WifiOff, Menu, X, Trash2, Zap } from 'lucide-react';
-import { useAI, AI_MODELS } from '../context/AIContext';
+import { useAI } from '../context/AIContext';
+import { AI_MODELS } from '../config/aiProviders';
 import { APIKeyManager } from './APIKeyManager';
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -34,7 +35,7 @@ export default function Sidebar({
   const [activeTab, setActiveTab] = useState('settings');
 
   // Utiliser le contexte AI centralisé
-  const { activeModel, setActiveModel, activeModelConfig, modelStatus, refreshModelStatus } = useAI();
+  const { activeModel, setActiveModel, activeModelConfig, modelStatus, refreshModelStatus, apiKeys } = useAI();
 
   const fetchStatus = async () => {
     await refreshModelStatus();
@@ -268,62 +269,70 @@ export default function Sidebar({
               <div className="sidebar-section">
                 <h3 className="sidebar-section-title">
                   <Cpu size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
-                  Statut des modèles AI
+                  Modèles IA configurés
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
-                  {/* Modèle actif en premier */}
-                  {activeModelConfig && (
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'space-between', 
-                      padding: '8px 10px', 
-                      background: 'var(--primary-color)',
-                      color: 'white',
-                      borderRadius: 'var(--radius-sm)',
-                      fontWeight: 600,
-                    }}>
-                      <span>{activeModelConfig.label} (Actif)</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        {getStatusIcon(modelStatus[activeModel] ?? false)}
-                        <span style={{ fontSize: '0.8rem' }}>
-                          {getStatusText(modelStatus[activeModel] ?? false)}
+                  {/* Afficher uniquement les modèles avec clé personnelle ET en ligne */}
+                  {AI_MODELS
+                    .filter(model => {
+                      // Ne montrer que les modèles qui nécessitent une clé personnelle
+                      if (!model.requiresPersonalKey) return false;
+                      
+                      // Vérifier que la clé existe et est valide
+                      const keyConfig = apiKeys[model.provider];
+                      if (!keyConfig?.key || !keyConfig.isValid) return false;
+                      
+                      // Vérifier que le modèle est en ligne
+                      return modelStatus[model.id] === true;
+                    })
+                    .map((model) => (
+                      <div key={model.id} style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between', 
+                        padding: '8px 10px', 
+                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05))',
+                        border: '1px solid rgba(16, 185, 129, 0.2)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontWeight: 600,
+                      }}>
+                        <span style={{ color: 'var(--text-primary)' }}>
+                          {model.label}
                         </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {getStatusIcon(true)}
+                          <span style={{ 
+                            color: '#2e7d32', 
+                            fontSize: '0.8rem', 
+                            fontWeight: '700' 
+                          }}>
+                            En ligne
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  
+                  {/* Message si aucun modèle configuré */}
+                  {AI_MODELS.filter(model => {
+                    if (!model.requiresPersonalKey) return false;
+                    const keyConfig = apiKeys[model.provider];
+                    return keyConfig?.key && keyConfig.isValid && modelStatus[model.id] === true;
+                  }).length === 0 && (
+                    <div style={{ 
+                      padding: '12px', 
+                      background: 'var(--bg-secondary)', 
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '0.8rem',
+                      color: 'var(--text-muted)',
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ marginBottom: '8px' }}>🔑</div>
+                      <div>Aucun modèle personnel configuré</div>
+                      <div style={{ fontSize: '0.75rem', marginTop: '4px' }}>
+                        Ajoutez une clé API pour utiliser Gemini, OpenAI, etc.
                       </div>
                     </div>
                   )}
-                  
-                  {/* Autres modèles */}
-                  {AI_MODELS
-                    .filter(m => m.id !== activeModel)
-                    .filter((m, i, arr) => arr.findIndex(x => x.provider === m.provider) === i)
-                    .map((model) => {
-                      const isAvailable = modelStatus[model.id] ?? false;
-                      return (
-                        <div key={model.id} style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'space-between', 
-                          padding: '8px 10px', 
-                          background: 'var(--bg-secondary)', 
-                          borderRadius: 'var(--radius-sm)' 
-                        }}>
-                          <span style={{ color: 'var(--text-primary)', fontWeight: '600' }}>
-                            {model.label}
-                          </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            {getStatusIcon(isAvailable)}
-                            <span style={{ 
-                              color: isAvailable ? '#2e7d32' : '#c62828', 
-                              fontSize: '0.8rem', 
-                              fontWeight: '700' 
-                            }}>
-                              {getStatusText(isAvailable)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
                 </div>
               </div>
             </React.Fragment>

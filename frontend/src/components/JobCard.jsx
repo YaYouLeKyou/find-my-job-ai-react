@@ -18,6 +18,14 @@ export default function JobCard({
 }) {
   const S = STRINGS[LANGS[lang].code];
   const [expanded, setExpanded] = useState(false);
+  
+  // État pour le badge IA
+  const [isAiScored, setIsAiScored] = useState(false);
+  const [aiScore, setAiScore] = useState(null);
+  
+  // Afficher le badge de tri IA si le job a été scoré
+  const showAiBadge = job.ai_scored || isAiScored;
+  const score = job.pertinence_ai || aiScore;
   const [letterLoading, setLetterLoading] = useState(false);
   const [letterContent, setLetterContent] = useState("");
   const [letterError, setLetterError] = useState("");
@@ -100,12 +108,22 @@ export default function JobCard({
             <strong>{job?.company || "Entreprise confidentielle"}</strong>
           </div>
         </div>
-        {job.match_score !== undefined && job.match_score !== null && (
-          <div className={`score-badge ${getScoreColorClass(job.match_score)}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Sparkles size={14} />
-            <span>Match {job.match_score}%</span>
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {/* Badge IA */}
+          {showAiBadge && score && (
+            <div className={`score-badge ${getScoreColorClass(score)}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Sparkles size={14} />
+              <span>Trié par IA {Math.round(score)}%</span>
+            </div>
+          )}
+          {/* Badge de match CV */}
+          {job.match_score !== undefined && job.match_score !== null && !showAiBadge && (
+            <div className={`score-badge ${getScoreColorClass(job.match_score)}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Sparkles size={14} />
+              <span>Match {job.match_score}%</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="job-card-meta">

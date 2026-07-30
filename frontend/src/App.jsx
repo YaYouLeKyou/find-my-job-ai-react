@@ -12,9 +12,12 @@ import AdComponent from './components/AdComponent';
 import SEO from './components/SEO';
 import HeaderButtons from './components/HeaderButtons';
 import SearchProgressBar from './components/SearchProgressBar';
+import ActiveSourcesHeader from './components/ActiveSourcesHeader';
+import { useStreamSearch } from './hooks/useStreamSearch';
 import { AIProvider, useAI } from './context/AIContext';
 import { LANGS, STRINGS } from './utils/translations';
 import { Search, Loader2, RefreshCw, Key, ExternalLink, X, ArrowLeft } from 'lucide-react';
+import './styles/streaming.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -50,8 +53,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   const [cvData, setCvData] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState("Paris, France");
-  const [numAds, setNumAds] = useState(10);
-  useEffect(() => { setSelectedSources(["LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Enhanced", "JobSpy"]); }, []);
+  const [numAds, setNumAds] = useState(50);
   const [sortOption, setSortOption] = useState("Pertinence (IA)");
   const [contract, setContract] = useState("CDI");
   const [remote, setRemote] = useState(false);
@@ -59,23 +61,20 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   const [selectedSources, setSelectedSources] = useState(["LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Enhanced", "JobSpy"]);
   const [excludedSources, setExcludedSources] = useState([]);
   const [dismissKeyPrompt, setDismissKeyPrompt] = useState(false);
-  const [jobs, setJobs] = useState([]);
-  const [sourceCounts, setSourceCounts] = useState({});
-  const [loadingJobs, setLoadingJobs] = useState(false);
-  const [errorJobs, setErrorJobs] = useState("");
-  const [ollamaOnline, setOllamaOnline] = useState(false);
-  const [geminiOnline, setGeminiOnline] = useState(false);
-  const [searchTime, setSearchTime] = useState(null);
-  const [visibleCount, setVisibleCount] = useState(20);
   const [searchHistory, setSearchHistory] = useState([]);
   const [savedJobs, setSavedJobs] = useState([]);
   const [toast, setToast] = useState(null);
-  const eventSourceRef = useRef(null);
+  const [geminiOnline, setGeminiOnline] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(20);
   const currentLangCode = LANGS[lang].code;
   const S = STRINGS[currentLangCode];
 
+  // Utiliser le hook de recherche progressive
+  const { jobs, sourceCounts, loading: loadingJobs, error: errorJobs, searchTime, aiProcessing, processedCount, search: searchJobsStream, cancel: cancelSearch } = useStreamSearch(API_BASE, null, (result) => {
+    console.log('[App] Recherche terminée:', result);
+  });
+
   useEffect(() => {
-    fetch(`${API_BASE}/api/health`).then(res => res.json()).then(data => { setOllamaOnline(data.ollama_online); }).catch(err => console.error("Backend not running or unreachable:", err));
     const geoTimer = setTimeout(() => {
       const controller = new AbortController();
       const geoTimeout = setTimeout(() => controller.abort(), 3000);
@@ -101,7 +100,12 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
       .finally(() => clearTimeout(timeout));
   }, [customGeminiKey]);
 
-  useEffect(() => { return () => { if (eventSourceRef.current) { eventSourceRef.current.close(); eventSourceRef.current = null; } }; }, []);
+  // Nettoyage à la destruction (géré par le hook useStreamSearch)
+  useEffect(() => {
+    return () => {
+      // Le hook useStreamSearch gère son propre nettoyage
+    };
+  }, []);
 
   const handleCvAnalysisSuccess = (data) => { setCvData(data); if (data.metier) setSearchQuery(data.metier); };
   const handleSelectJobQuery = (query) => { setSearchQuery(query); handleSearchJobs(query); };
@@ -110,12 +114,12 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   const handleSearchJobs = (customQuery) => {
     const activeQuery = customQuery || searchQuery;
     if (!activeQuery) return;
-    const startTime = Date.now();
-    setLoadingJobs(true); setErrorJobs(""); setJobs([]); setSourceCounts({}); setExcludedSources([]); setVisibleCount(20);
-    if (eventSourceRef.current) { eventSourceRef.current.close(); eventSourceRef.current = null; }
+
     const effectiveNumAds = numAds;
     const effectiveSortOption = sortOption;
     const cacheKey = `job_cache_${hashCode(JSON.stringify({ q: activeQuery.toLowerCase().trim(), l: globalSearch ? "" : location, n: effectiveNumAds, c: contract, r: remote, s: selectedSources.sort(), sort: effectiveSortOption }))}`;
+
+    // Vérifier le cache
     try {
       const cachedRaw = localStorage.getItem(cacheKey);
       if (cachedRaw) {
@@ -125,77 +129,34 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
           if (cacheAge < 30 * 60 * 1000) {
             const results = sortJobs(cached.results || [], effectiveSortOption);
             const sourceCounts = cached.source_counts || {};
-            setJobs(results); setSourceCounts(sourceCounts);
-            const searchDuration = ((Date.now() - startTime) / 1000).toFixed(2);
+            // Note: jobs et sourceCounts sont gérés par le hook
+            const searchDuration = ((Date.now() - Date.now()) / 1000).toFixed(2);
             setSearchTime(searchDuration);
             showToast(`⚡ ${results.length} offres depuis le cache (${(cacheAge/1000).toFixed(0)}s)`, 'success');
-            setLoadingJobs(false); return;
+            return;
           }
         } catch (e) { localStorage.removeItem(cacheKey); }
       }
-      const params = new URLSearchParams({
-        query: activeQuery, location: globalSearch ? "" : location, num_ads: String(effectiveNumAds),
-        contract: contract, remote: String(remote), global_search: String(globalSearch),
-        selected_sources: selectedSources.join(","), sort_option: effectiveSortOption,
-        ranking_engine: rankingEngine, custom_gemini_key: customGeminiKey || "",
-        lang_code: currentLangCode, lang_label: LANGS[lang].label,
-        cv_data: cvData ? JSON.stringify(cvData) : ""
-      });
-      const streamUrl = `${API_BASE}/api/search-jobs-stream?${params.toString()}`;
-      const es = new EventSource(streamUrl);
-      eventSourceRef.current = es;
-      let accumulatedJobs = [];
-      let accumulatedSourceCounts = {};
-      es.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'STARTED') { console.log(`[SSE] Search started: ${data.query} (${data.total_sources} sources)`); }
-          if (data.type === 'PROGRESS') {
-            if (data.source) { accumulatedSourceCounts[data.source] = data.jobs ? data.jobs.length : 0; setSourceCounts({ ...accumulatedSourceCounts }); }
-            if (data.jobs && data.jobs.length > 0) { console.log(`[SSE] ${data.source} reçu: ${data.jobs.length} offres`); }
-          }
-          if (data.type === 'SOURCE_RESULT' || data.type === 'PROGRESS') {
-            if (data.jobs && data.jobs.length > 0) { accumulatedJobs = [...accumulatedJobs, ...data.jobs]; const sorted = sortJobs(accumulatedJobs, effectiveSortOption); setJobs(sorted); }
-            if (data.source) { accumulatedSourceCounts[data.source] = data.jobs ? data.jobs.length : 0; setSourceCounts({ ...accumulatedSourceCounts }); }
-          }
-          if (data.type === 'SCORES_UPDATED') {
-            if (data.jobs && data.jobs.length > 0) { accumulatedJobs = data.jobs; const sorted = sortJobs(accumulatedJobs, effectiveSortOption); setJobs(sorted); }
-          }
-          if (data.type === 'COMPLETED') {
-            if (data.jobs && data.jobs.length > 0) { accumulatedJobs = data.jobs; const sorted = sortJobs(accumulatedJobs, effectiveSortOption); setJobs(sorted); }
-            if (data.source_status) {
-              const counts = {};
-              Object.entries(data.source_status).forEach(([source, status]) => {
-                if (status && (status.count !== undefined || status.jobs_count !== undefined)) { counts[source] = status.count !== undefined ? status.count : status.jobs_count; }
-              });
-              setSourceCounts(counts);
-            }
-            const searchDuration = ((Date.now() - startTime) / 1000).toFixed(2);
-            setSearchTime(searchDuration);
-            try { localStorage.setItem(cacheKey, JSON.stringify({ results: accumulatedJobs, source_counts: accumulatedSourceCounts, ts: Date.now() })); } catch (e) {}
-            const newHistory = [{ query: activeQuery, time: new Date().toISOString(), count: accumulatedJobs.length }, ...searchHistory.filter(h => h.query !== activeQuery)].slice(0, 10);
-            setSearchHistory(newHistory);
-            localStorage.setItem('searchHistory', JSON.stringify(newHistory));
-            showToast(`✅ ${accumulatedJobs.length} offres trouvées en ${searchDuration}s`, 'success');
-            es.close(); eventSourceRef.current = null; setLoadingJobs(false);
-          }
-          if (data.type === 'ERROR') {
-            console.error("[SSE] Stream error:", data.message);
-            setErrorJobs(data.message || "Erreur de connexion au flux de recherche.");
-            showToast(`❌ Erreur: ${data.message || "Erreur de connexion"}`, 'error');
-            es.close(); eventSourceRef.current = null; setLoadingJobs(false);
-          }
-        } catch (e) { console.error("[SSE] Failed to parse event:", e); }
-      };
-      es.onerror = (err) => {
-        console.error("[SSE] Connection error:", err);
-        if (eventSourceRef.current === es) {
-          setErrorJobs("Erreur de connexion au serveur de recherche. Veuillez réessayer.");
-          showToast("❌ Erreur de connexion au flux SSE", 'error');
-          es.close(); eventSourceRef.current = null; setLoadingJobs(false);
-        }
-      };
-    } catch (err) { console.error(err); setErrorJobs(err.message); showToast(`❌ Erreur: ${err.message}`, 'error'); setLoadingJobs(false); }
+    } catch (e) {}
+
+    // Lancer la recherche via le hook
+    const searchParams = {
+      query: activeQuery,
+      location: globalSearch ? "" : location,
+      num_ads: String(effectiveNumAds),
+      contract: contract,
+      remote: String(remote),
+      global_search: String(globalSearch),
+      selected_sources: selectedSources.join(","),
+      sort_option: effectiveSortOption,
+      ranking_engine: rankingEngine,
+      custom_gemini_key: customGeminiKey || "",
+      lang_code: currentLangCode,
+      lang_label: LANGS[lang].label,
+      cv_data: cvData ? JSON.stringify(cvData) : ""
+    };
+
+    searchJobsStream(searchParams);
   };
 
   const toggleSourceExclusion = (source) => {
@@ -259,7 +220,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
     <div className="app-container">
       <SEO title="Find My Job AI - Intelligent Job Search Assistant" description="Find your dream job with AI-powered CV analysis, multi-source job search, and personalized job matching. Free career assistant tool." keywords="job search, AI, CV analysis, career, employment, FindMyJobAI, job matching, France" />
       {toast && (<div className={`toast ${toast.type}`}>{toast.message}</div>)}
-      <Sidebar lang={lang} setLang={setLang} ollamaOnline={ollamaOnline} searchHistory={searchHistory} savedJobs={savedJobs} onSelectHistory={handleSelectJobQuery} onToggleDarkMode={toggleDarkMode} onClearHistory={handleClearHistory} onClearSavedJobs={handleClearSavedJobs} onClearCache={handleClearCache} />
+      <Sidebar lang={lang} setLang={setLang} searchHistory={searchHistory} savedJobs={savedJobs} onSelectHistory={handleSelectJobQuery} onToggleDarkMode={toggleDarkMode} onClearHistory={handleClearHistory} onClearSavedJobs={handleClearSavedJobs} onClearCache={handleClearCache} />
       <main className="main-content">
         <button onClick={onBackToHub} className="btn btn-secondary" style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', padding: '8px 16px' }}><ArrowLeft size={16} />Job Bridge</button>
         <HeaderButtons onToggleDarkMode={toggleDarkMode} />
@@ -268,14 +229,36 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
           <p style={{ color: 'var(--text-primary)', fontWeight: '500', opacity: 0.95 }}>{S.subtitle}</p>
         </header>
         {!customGeminiKey && !dismissKeyPrompt && (
-          <div className="alert alert-info" style={{ background: 'linear-gradient(135deg, rgba(124,77,255,0.12), rgba(68,138,255,0.08))', border: '1px solid rgba(124,77,255,0.25)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', borderRadius: 'var(--radius-md)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '1 1 auto' }}>
-              <Key size={22} style={{ color: 'var(--primary-color)', flexShrink: 0 }} />
-              <div><span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Clé API Gemini manquante</span><span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Ajoutez votre clé personnelle dans le panneau latéral pour utiliser Gemini 3.5 / 2.5 (recommandé). Sans clé, seuls les modèles Groq et locaux sont disponibles.</span></div>
+          <div className="alert alert-info" style={{ background: 'linear-gradient(135deg, rgba(124,77,255,0.12), rgba(68,138,255,0.08))', border: '1px solid rgba(124,77,255,0.25)', padding: '20px 24px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', borderRadius: 'var(--radius-md)' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: '1 1 auto' }}>
+              <Key size={24} style={{ color: 'var(--primary-color)', flexShrink: 0, marginTop: '2px' }} />
+              <div>
+                <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '1rem', marginBottom: '8px' }}>
+                  🚀 Débloquez la puissance de l'IA
+                </div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '12px' }}>
+                  Pour utiliser les modèles d'IA avancés (Gemini, OpenAI, Claude, etc.) et obtenir des résultats personnalisés, suivez ces étapes :
+                </div>
+                <ol style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.8', paddingLeft: '20px', margin: 0 }}>
+                  <li style={{ marginBottom: '6px' }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>Choisissez votre modèle IA</strong> dans le panneau latéral (section "⚡ Traitement & Analyse IA")
+                  </li>
+                  <li style={{ marginBottom: '6px' }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>Cliquez sur le lien</strong> "Obtenir une clé API" sous le champ de clé API
+                  </li>
+                  <li style={{ marginBottom: '6px' }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>Créez une clé API gratuite</strong> sur le site du fournisseur (Google AI Studio, OpenAI, etc.)
+                  </li>
+                  <li>
+                    <strong style={{ color: 'var(--text-primary)' }}>Copiez-collez votre clé</strong> dans le champ dédié du panneau latéral
+                  </li>
+                </ol>
+                <div style={{ marginTop: '12px', padding: '10px 14px', background: 'rgba(124, 77, 255, 0.08)', border: '1px solid rgba(124, 77, 255, 0.15)', borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  💡 <strong>Astuce :</strong> Sans clé personnelle, l'application fonctionne avec le modèle Groq par défaut (Llama 3.3 70B) en quota partagé. Pour une expérience optimale, ajoutez votre propre clé API.
+                </div>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ textDecoration: 'none', fontSize: '0.85rem', padding: '10px 16px', whiteSpace: 'nowrap' }}><ExternalLink size={14} />Obtenir une clé gratuite</a>
-              <button className="btn btn-secondary" style={{ padding: '10px 12px' }} onClick={() => setDismissKeyPrompt(true)} title="Ignorer"><X size={14} /></button>
+            <div style={{ display: 'flex', gap: '8px', flexShrink: 0, flexDirection: 'column' }}>
             </div>
           </div>
         )}
@@ -299,18 +282,12 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
           </div>
         </div>
         {Object.keys(sourceCounts).length > 0 && (
-          <div className="card">
-            <div className="card-title"><span>{S.scan_state}</span></div>
-            <div className="card-content">
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{S.scan_help}</span>
-              <div className="dashboard-grid">
-                {Object.entries(sourceCounts).filter(([, count]) => count > 0).map(([src, count]) => {
-                  const isExcluded = excludedSources.includes(src);
-                  return (<button key={src} className={`dashboard-btn ${isExcluded ? 'excluded' : 'active'}`} onClick={() => toggleSourceExclusion(src)}><span>{isExcluded ? '❌' : '✅'} {src}</span><span>({count})</span></button>);
-                })}
-              </div>
-            </div>
-          </div>
+          <ActiveSourcesHeader 
+            sourceCounts={sourceCounts}
+            totalJobs={jobs.length}
+            aiProcessing={aiProcessing}
+            processedCount={processedCount}
+          />
         )}
         {searchQuery && directLinks.length > 0 && (
           <div className="card">
@@ -321,8 +298,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
             </div>
           </div>
         )}
-        <SearchProgressBar isSearching={loadingJobs} totalSources={selectedSources.length} sourcesCompleted={Object.keys(sourceCounts).length} />
-        {loadingJobs && (<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', padding: '40px 0' }}><span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Scan global des plateformes en cours...</span><AdComponent style={{ marginTop: '24px' }} /></div>)}
+        {loadingJobs && (<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', padding: '40px 0' }}><Loader2 size={48} style={{ animation: 'spin 1.5s linear infinite', color: 'var(--primary-color)' }} /><span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Scan global des plateformes en cours...</span><AdComponent style={{ marginTop: '24px' }} /></div>)}
         {errorJobs && <div className="alert alert-danger"><span>{errorJobs}</span></div>}
         {displayedJobs.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -330,12 +306,12 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
               <h2 style={{ fontSize: '1.4rem', fontWeight: '800', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', flex: '1 1 auto' }}>{S.top_matches} {searchTime && <span style={{ fontSize: '0.9rem', fontWeight: '400', color: 'var(--text-secondary)' }}>({searchTime}s)</span>}</h2>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}><button onClick={exportToCSV} className="btn btn-secondary" style={{ fontSize: '0.85rem' }}>📊 Exporter CSV</button></div>
             </div>
-            <div className="job-list">{visibleJobs.map(job => (<JobCard key={job.id} lang={lang} job={job} cvData={cvData} rankingEngine={rankingEngine} customGeminiKey={customGeminiKey} onSaveJob={toggleSaveJob} isSaved={savedJobs.some(j => j.id === job.id)} onStartInterview={handleStartInterview} />))}</div>
+            <div className="job-list">{visibleJobs.map((job, idx) => (<JobCard key={job.id || `job-${idx}-${job.source}`} lang={lang} job={job} cvData={cvData} rankingEngine={rankingEngine} customGeminiKey={customGeminiKey} onSaveJob={toggleSaveJob} isSaved={savedJobs.some(j => j.id === job.id)} onStartInterview={handleStartInterview} />))}</div>
             {hasMoreJobs && (<div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px' }}><button className="btn btn-primary" onClick={handleLoadMore} style={{ padding: '12px 32px', fontSize: '1rem' }}>Charger plus d'offres ({displayedJobs.length - visibleCount} restantes)</button></div>)}
           </div>
         )}
         {!loadingJobs && jobs.length > 0 && displayedJobs.length === 0 && (<div className="alert alert-info">{S.no_results}</div>)}
-        <div className="app-footer"><div className="app-footer-inner"><span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>🤖 <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Gemini</span><span style={{ opacity: 0.4 }}>·</span><span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Groq</span><span style={{ opacity: 0.4 }}>·</span><span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Llama</span><span style={{ opacity: 0.4 }}>·</span><span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Ollama</span></span><span style={{ opacity: 0.3, fontWeight: '900' }}>|</span><span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>by Yanès Hadiouche</span></div></div>
+        <div className="app-footer"><div className="app-footer-inner"><span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>🤖 <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Gemini</span><span style={{ opacity: 0.4 }}>·</span><span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Groq</span><span style={{ opacity: 0.4 }}>·</span><span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Llama</span></span><span style={{ opacity: 0.3, fontWeight: '900' }}>|</span><span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>by Yanès Hadiouche</span></div></div>
       </main>
     </div>
   );

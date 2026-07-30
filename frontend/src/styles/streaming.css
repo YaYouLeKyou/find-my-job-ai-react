@@ -1,0 +1,197 @@
+/**
+ * Animations pour l'affichage progressif des résultats
+ * - Réorganisation fluide des cartes
+ * - Transitions douces
+ * - Indicateurs de chargement
+ */
+
+/* Animation d'apparition des cartes */
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Animation de réorganisation */
+@keyframes smoothReorder {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Animation de pulsation pour le badge IA */
+@keyframes aiPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(124, 77, 255, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(124, 77, 255, 0);
+  }
+}
+
+/* Animation de chargement IA */
+@keyframes aiProcessing {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Classes utilitaires */
+.job-card-enter {
+  animation: slideInUp 0.4s ease-out;
+}
+
+.job-card-reorder {
+  animation: smoothReorder 0.3s ease-in-out;
+}
+
+.ai-badge-pulse {
+  animation: aiPulse 2s ease-in-out infinite;
+}
+
+.ai-processing-gradient {
+  background: linear-gradient(90deg, 
+    rgba(124, 77, 255, 0.1) 0%, 
+    rgba(68, 138, 255, 0.2) 50%, 
+    rgba(124, 77, 255, 0.1) 100%
+  );
+  background-size: 200% 200%;
+  animation: aiProcessing 2s ease infinite;
+}
+
+/* Transition fluide pour les cartes */
+.job-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.job-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+}
+
+/* Indicateur de source */
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+
+.source-badge:hover {
+  background: rgba(16, 185, 129, 0.2);
+  transform: scale(1.05);
+}
+
+/* Score IA badge */
+.ai-score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, rgba(124, 77, 255, 0.15), rgba(68, 138, 255, 0.1));
+  border: 1px solid rgba(124, 77, 255, 0.3);
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.ai-score-badge.high {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.1));
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #2e7d32;
+}
+
+.ai-score-badge.medium {
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.15), rgba(255, 193, 7, 0.1));
+  border-color: rgba(255, 193, 7, 0.3);
+  color: #f57c00;
+}
+
+.ai-score-badge.low {
+  background: linear-gradient(135deg, rgba(244, 67, 54, 0.15), rgba(244, 67, 54, 0.1));
+  border-color: rgba(244, 67, 54, 0.3);
+  color: #c62828;
+}
+
+/* Loader avec animation fluide */
+.loader-smooth {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Cache les éléments pendant le chargement */
+.skeleton {
+  background: linear-gradient(90deg, 
+    var(--bg-secondary) 25%, 
+    var(--bg-tertiary) 50%, 
+    var(--bg-secondary) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Transition pour les compteurs */
+.counter-update {
+  transition: all 0.3s ease;
+  transform: scale(1.1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .job-card {
+    padding: 12px;
+  }
+  
+  .job-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .source-badge {
+    font-size: 0.7rem;
+    padding: 3px 8px;
+  }
+}

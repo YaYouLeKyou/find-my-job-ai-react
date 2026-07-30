@@ -280,7 +280,6 @@ export default function FreelanceSidebar({
                     </div>
                   ))}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)' }}>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: '600' }}>Ollama (Local)</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {modelStatus.ollama ? <Wifi size={14} style={{ color: '#2e7d32' }} /> : <WifiOff size={14} style={{ color: '#c62828' }} />}
                       <span style={{ color: modelStatus.ollama ? '#2e7d32' : '#c62828', fontSize: '0.75rem', fontWeight: '700' }}>

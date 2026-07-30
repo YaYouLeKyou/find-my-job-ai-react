@@ -216,6 +216,46 @@ export default function WorkerApp({ onBackToHub, lang }) {
           </p>
         </header>
 
+        {/* API Key prompt */}
+        {!customGeminiKey && !dismissKeyPrompt && (
+          <div className="alert alert-info" style={{
+            background: 'linear-gradient(135deg, rgba(255,111,0,0.1), rgba(255,143,0,0.06))',
+            border: '1px solid rgba(255,111,0,0.25)',
+            padding: '20px 24px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', borderRadius: 'var(--radius-md)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: '1 1 auto' }}>
+              <Key size={24} style={{ color: '#ff6f00', flexShrink: 0, marginTop: '2px' }} />
+              <div>
+                <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '1rem', marginBottom: '8px' }}>
+                  🚀 Débloquez la puissance de l'IA
+                </div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '12px' }}>
+                  Pour utiliser les modèles d'IA avancés (Gemini, OpenAI, Claude, etc.) et obtenir des résultats personnalisés, suivez ces étapes :
+                </div>
+                <ol style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.8', paddingLeft: '20px', margin: 0 }}>
+                  <li style={{ marginBottom: '6px' }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>Choisissez votre modèle IA</strong> dans le panneau latéral (section "⚡ Traitement & Analyse IA")
+                  </li>
+                  <li style={{ marginBottom: '6px' }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>Cliquez sur le lien</strong> "Obtenir une clé API" sous le champ de clé API
+                  </li>
+                  <li style={{ marginBottom: '6px' }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>Créez une clé API gratuite</strong> sur le site du fournisseur (Google AI Studio, OpenAI, etc.)
+                  </li>
+                  <li>
+                    <strong style={{ color: 'var(--text-primary)' }}>Copiez-collez votre clé</strong> dans le champ dédié du panneau latéral
+                  </li>
+                </ol>
+                <div style={{ marginTop: '12px', padding: '10px 14px', background: 'rgba(255, 111, 0, 0.08)', border: '1px solid rgba(255, 111, 0, 0.15)', borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  💡 <strong>Astuce :</strong> Sans clé personnelle, l'application fonctionne avec le modèle Groq par défaut (Llama 3.3 70B) en quota partagé. Pour une expérience optimale, ajoutez votre propre clé API.
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexShrink: 0, flexDirection: 'column' }}>
+            </div>
+          </div>
+        )}
+
         {/* Search Filters */}
         <div className="card" style={{ borderColor: 'rgba(255,111,0,0.2)' }}>
           <div className="card-title">
@@ -585,7 +625,6 @@ export default function WorkerApp({ onBackToHub, lang }) {
               <span style={{ opacity: 0.4 }}>·</span>
               <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Llama</span>
               <span style={{ opacity: 0.4 }}>·</span>
-              <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Ollama</span>
             </span>
             <span style={{ opacity: 0.3, fontWeight: '900' }}>|</span>
             <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>by Yanès Hadiouche</span>

@@ -872,7 +872,7 @@ def _normalize_rss_date(value: Optional[str]) -> str:
     try:
         return datetime.fromisoformat(value.replace('Z', '+00:00')).strftime('%Y-%m-%d')
     except Exception:
-        return value[:10]
+        return value[:50]
 
 def parse_rss_items(xml_text: str, query: str, location: str, limit: int = 50) -> List[dict]:
     from xml.etree import ElementTree as ET

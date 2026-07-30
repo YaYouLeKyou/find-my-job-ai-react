@@ -295,8 +295,13 @@ async def _stream_jobs(
                 sources=source_registry,
                 query=query,
                 location=location,
-                limit=num_ads,
+                limit=max(num_ads, 50),  # Ensure at least 50 results per source
             )
+            
+            # Emit PROGRESS events for each source as they complete
+            for source_name, result in source_results.items():
+                if result.jobs:
+                    yield f"data: {json.dumps({'type': 'PROGRESS', 'source': source_name, 'jobs': result.jobs, 'status': 'completed' if result.success else 'error'})}\n\n"
 
             emit_count = 0
             for source_name, result in source_results.items():
@@ -451,6 +456,81 @@ async def ai_status(custom_gemini_key: Optional[str] = Query(None)):
     }
     logger.info(f"[AI_STATUS] Final result: {result}")
     return result
+
+
+# ─── Unified AI Call Endpoint ──────────────────────────────────────────────────
+
+@app.post("/api/ai/call")
+async def ai_call(request: Request):
+    """Unified AI call endpoint for all providers."""
+    try:
+        body = await request.json()
+        prompt = body.get("prompt", "")
+        model = body.get("model", "Groq / Llama 3.3 70B")
+        provider = body.get("provider", "groq")
+        model_name = body.get("modelName")
+        api_key = body.get("apiKey")
+        is_json = body.get("isJson", False)
+        temperature = body.get("temperature", 0.3)
+        max_tokens = body.get("maxTokens", 4096)
+        
+        if not prompt:
+            return {"error": "Prompt is required"}
+        
+        # Map provider to the correct API key parameter
+        kwargs = {
+            "prompt": prompt,
+            "selected_model": model,
+            "is_json": is_json,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        
+        # Add the appropriate API key based on provider
+        if provider == "groq":
+            groq_key = api_key or (settings.GROQ_API_KEY or "").strip()
+            if not groq_key:
+                return {"error": "Groq API key is required"}
+            kwargs["groq_api_key"] = groq_key
+        elif provider == "gemini":
+            gemini_key = api_key or (settings.GEMINI_API_KEY or "").strip()
+            if not gemini_key:
+                return {"error": "Gemini API key is required"}
+            kwargs["gemini_api_key"] = gemini_key
+        elif provider == "openai":
+            openai_key = api_key or (settings.OPENAI_API_KEY or "").strip()
+            if not openai_key:
+                return {"error": "OpenAI API key is required"}
+            kwargs["openai_api_key"] = openai_key
+        elif provider == "anthropic":
+            anthropic_key = api_key or (settings.ANTHROPIC_API_KEY or "").strip()
+            if not anthropic_key:
+                return {"error": "Anthropic API key is required"}
+            kwargs["anthropic_api_key"] = anthropic_key
+        elif provider == "deepseek":
+            deepseek_key = api_key or (settings.DEEPSEEK_API_KEY or "").strip()
+            if not deepseek_key:
+                return {"error": "DeepSeek API key is required"}
+            kwargs["deepseek_api_key"] = deepseek_key
+        elif provider == "mistral":
+            mistral_key = api_key or (settings.MISTRAL_API_KEY or "").strip()
+            if not mistral_key:
+                return {"error": "Mistral API key is required"}
+            kwargs["mistral_api_key"] = mistral_key
+        else:
+            return {"error": f"Unsupported provider: {provider}"}
+        
+        # Call the AI provider
+        text = await asyncio.to_thread(
+            call_ai_provider,
+            **kwargs
+        )
+        
+        return {"text": text}
+        
+    except Exception as e:
+        logger.error(f"[AI_CALL] Error: {str(e)}")
+        return {"error": str(e)}
 
 
 # ─── Health Check ─────────────────────────────────────────────────────────────

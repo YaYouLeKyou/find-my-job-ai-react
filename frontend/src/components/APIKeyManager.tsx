@@ -11,7 +11,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Key, Save, ExternalLink, CheckCircle2, AlertCircle, X, Eye, EyeOff } from 'lucide-react';
-import { useAI, AIProvider, PROVIDER_LABELS } from '../context/AIContext';
+import { useAI, AIProvider } from '../context/AIContext';
+import { PROVIDER_LABELS } from '../config/aiProviders';
 
 interface APIKeyManagerProps {
   /** Afficher en mode compact (pour les sidebars) */
@@ -58,9 +59,7 @@ export const APIKeyManager: React.FC<APIKeyManagerProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <CheckCircle2 size={16} style={{ color: 'var(--success-color)' }} />
           <span>
-            {activeModelConfig?.isLocal 
-              ? 'Modèle local - Aucune clé requise' 
-              : 'Quota partagé de l\'application - Aucune clé requise'}
+            Quota partagé de l\'application - Aucune clé requise
           </span>
         </div>
       </div>
