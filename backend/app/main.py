@@ -625,7 +625,8 @@ async def analyze_cv_endpoint(
             logger.error(f"[CV_ANALYSIS] request={request_id} analyze_cv returned None")
             return {"error": "L'analyse du CV a échoué. Vérifiez la clé API ou le modèle sélectionné."}
 
-        logger.info(f"[CV_ANALYSIS] request={request_id} success metier={result.get('metier')} fallback={result.get('is_fallback')}")
+        mode = "MODE SECOURS (regex)" if result.get("is_fallback") else "IA"
+        logger.warning(f"[CV_ANALYSIS] request={request_id} mode={mode} metier={result.get('metier')}")
         return result
 
     except Exception as e:

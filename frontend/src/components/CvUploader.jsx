@@ -92,6 +92,11 @@ export default function CvUploader({
 
       const data = JSON.parse(responseText);
       console.log("[CV_ANALYSIS] Success:", data);
+      if (data.is_fallback) {
+        console.warn("[CV_ANALYSIS] MODE SECOURS = Le parsing regex a été utilisé, pas l'IA");
+      } else {
+        console.info("[CV_ANALYSIS] MODE IA = L'analyse IA a réussi");
+      }
       onAnalysisSuccess(data);
     } catch (err) {
       console.error("[CV_ANALYSIS] Unexpected error:", err);

@@ -500,6 +500,7 @@ def analyze_cv_with_fallback(
 ) -> dict:
     """Analyse un CV via l'IA. Si l'IA échoue, utilise un parser regex local."""
     fallback_used = False
+    ai_error_reason = None
     try:
         response_text = call_ai_provider(
             f"""Tu es un expert en recrutement. Analyse ce CV et retourne uniquement un objet JSON en {target_lang} avec les clés suivantes :
@@ -533,14 +534,21 @@ def analyze_cv_with_fallback(
                         ] if _is_placeholder_value(data.get(k))
                     ]
                     if len(invalid_fields) <= 1:
+                        logger.info("[MODE] Analyse CV = IA (réponse valide)")
                         data["is_fallback"] = False
                         return data
-            except (json.JSONDecodeError, TypeError):
+                    ai_error_reason = f"IA: champs placeholders detects={invalid_fields}"
+                else:
+                    ai_error_reason = "IA: metier vide ou placeholder"
+            except (json.JSONDecodeError, TypeError) as e:
+                ai_error_reason = f"IA: JSON invalide ({e})"
                 pass
+        else:
+            ai_error_reason = "IA: réponse vide"
     except Exception as e:
-        logger.error(f"[Fallback] Erreur lors de l'analyse IA du CV : {e}")
+        ai_error_reason = f"IA: exception {e}"
 
-    logger.info("[Fallback] Analyse IA indisponible ou non exploitable. Utilisation du parser d'urgence regex/heuristique.")
+    logger.warning(f"[MODE SECOURS] Analyse CV indisponible ou non exploitable. Raison: {ai_error_reason}. Utilisation du parser regex local.")
     fallback_used = True
     metier = extract_job_title_fallback(text or "")
 
