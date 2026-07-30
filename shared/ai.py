@@ -497,13 +497,19 @@ def analyze_cv_with_fallback(
     groq_api_key: str = "",
     ollama_url: str = "http://localhost:11434",
     custom_gemini_key: Optional[str] = None,
+    force_fallback_mode: bool = False,
 ) -> dict:
-    """Analyse un CV via l'IA. Si l'IA échoue, utilise un parser regex local."""
+    """Analyse un CV via l'IA. Si l'IA échoue ou est désactivée, utilise un parser regex local."""
     fallback_used = False
     ai_error_reason = None
-    try:
-        response_text = call_ai_provider(
-            f"""Tu es un expert en recrutement. Analyse ce CV et retourne uniquement un objet JSON en {target_lang} avec les clés suivantes :
+
+    if force_fallback_mode:
+        logger.warning("[MODE SECOURS FORCÉ] Analyse CV en mode sans IA d'après le paramètre utilisateur.")
+        fallback_used = True
+    else:
+        try:
+            response_text = call_ai_provider(
+                f"""Tu es un expert en recrutement. Analyse ce CV et retourne uniquement un objet JSON en {target_lang} avec les clés suivantes :
             "nom_complet", "contact", "metier", "mots_cles" (liste de chaînes), "resume" (maximum 3 lignes), "annees_experience" (nombre entier), "recommandations_metiers" (liste de 5 métiers suggérés), "metiers_alternatifs" (liste de 3 métiers radicalement différents utilisant les mêmes compétences transférables), "suggestions_amelioration" (liste de 3 à 5 conseils concrets pour améliorer l'impact de ce CV).
 
             LOGIQUE D'IDENTIFICATION DU MÉTIER :
@@ -513,40 +519,39 @@ def analyze_cv_with_fallback(
 
             Texte du CV :
             {text}""",
-            selected_model,
-            is_json=True,
-            gemini_api_key=gemini_api_key,
-            xai_api_key=xai_api_key,
-            groq_api_key=groq_api_key,
-            ollama_url=ollama_url,
-            custom_gemini_key=custom_gemini_key,
-        )
-        if response_text:
-            try:
-                data = json.loads(response_text)
-                metier = (data.get("metier") or "").strip()
-                if metier and not _is_placeholder_metier(metier):
-                    invalid_fields = [
-                        k for k in [
-                            "nom_complet",
-                            "contact",
-                            "resume",
-                        ] if _is_placeholder_value(data.get(k))
-                    ]
-                    if len(invalid_fields) <= 1:
-                        logger.info("[MODE] Analyse CV = IA (réponse valide)")
-                        data["is_fallback"] = False
-                        return data
-                    ai_error_reason = f"IA: champs placeholders detects={invalid_fields}"
-                else:
-                    ai_error_reason = "IA: metier vide ou placeholder"
-            except (json.JSONDecodeError, TypeError) as e:
-                ai_error_reason = f"IA: JSON invalide ({e})"
-                pass
-        else:
-            ai_error_reason = "IA: réponse vide"
-    except Exception as e:
-        ai_error_reason = f"IA: exception {e}"
+                selected_model,
+                is_json=True,
+                gemini_api_key=gemini_api_key,
+                xai_api_key=xai_api_key,
+                groq_api_key=groq_api_key,
+                ollama_url=ollama_url,
+                custom_gemini_key=custom_gemini_key,
+            )
+            if response_text:
+                try:
+                    data = json.loads(response_text)
+                    metier = (data.get("metier") or "").strip()
+                    if metier and not _is_placeholder_metier(metier):
+                        invalid_fields = [
+                            k for k in [
+                                "nom_complet",
+                                "contact",
+                                "resume",
+                            ] if _is_placeholder_value(data.get(k))
+                        ]
+                        if len(invalid_fields) <= 1:
+                            logger.info("[MODE] Analyse CV = IA (réponse valide)")
+                            data["is_fallback"] = False
+                            return data
+                        ai_error_reason = f"IA: champs placeholders detects={invalid_fields}"
+                    else:
+                        ai_error_reason = "IA: metier vide ou placeholder"
+                except (json.JSONDecodeError, TypeError) as e:
+                    ai_error_reason = f"IA: JSON invalide ({e})"
+            else:
+                ai_error_reason = "IA: réponse vide"
+        except Exception as e:
+            ai_error_reason = f"IA: exception {e}"
 
     logger.warning(f"[MODE SECOURS] Analyse CV indisponible ou non exploitable. Raison: {ai_error_reason}. Utilisation du parser regex local.")
     fallback_used = True

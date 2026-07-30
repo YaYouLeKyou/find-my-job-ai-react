@@ -66,6 +66,7 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
   const [toast, setToast] = useState(null);
   const [geminiOnline, setGeminiOnline] = useState(false);
   const [visibleCount, setVisibleCount] = useState(20);
+  const [forceFallbackMode, setForceFallbackMode] = useState(false);
   const currentLangCode = LANGS[lang].code;
   const S = STRINGS[currentLangCode];
 
@@ -256,13 +257,26 @@ function FindMyJobApp({ onBackToHub, lang, setLang }) {
                 <div style={{ marginTop: '12px', padding: '10px 14px', background: 'rgba(124, 77, 255, 0.08)', border: '1px solid rgba(124, 77, 255, 0.15)', borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                   💡 <strong>Astuce :</strong> Sans clé personnelle, l'application fonctionne avec le modèle Groq par défaut (Llama 3.3 70B) en quota partagé. Pour une expérience optimale, ajoutez votre propre clé API.
                 </div>
+                <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setForceFallbackMode((v) => !v)}
+                    className={`btn ${!forceFallbackMode ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ fontSize: '0.82rem', padding: '8px 14px' }}
+                  >
+                    {!forceFallbackMode ? 'Mode AI activé' : 'Mode AI désactivé'}
+                  </button>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    {!forceFallbackMode ? 'L’analyse CV tentera d’utiliser l’IA, avec repli automatique si besoin.' : 'L’analyse CV utilisera le parsing local sans IA.'}
+                  </span>
+                </div>
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px', flexShrink: 0, flexDirection: 'column' }}>
             </div>
           </div>
         )}
-        <CvUploader lang={lang} analysisEngine={analysisEngine} customGeminiKey={customGeminiKey} onAnalysisSuccess={handleCvAnalysisSuccess} />
+        <CvUploader lang={lang} analysisEngine={analysisEngine} customGeminiKey={customGeminiKey} forceFallbackMode={forceFallbackMode} onAnalysisSuccess={handleCvAnalysisSuccess} />
         {cvData && <CvProfile lang={lang} cvData={cvData} onSelectJobQuery={handleSelectJobQuery} />}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <JobFilters lang={lang} numAds={numAds} setNumAds={setNumAds} sortOption={sortOption} setSortOption={setSortOption} contract={contract} setContract={setContract} remote={remote} setRemote={setRemote} globalSearch={globalSearch} setGlobalSearch={setGlobalSearch} location={location} setLocation={setLocation} selectedSources={selectedSources} setSelectedSources={setSelectedSources} onRefresh={() => handleSearchJobs()} />

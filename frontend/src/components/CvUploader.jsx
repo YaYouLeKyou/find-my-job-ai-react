@@ -9,6 +9,7 @@ export default function CvUploader({
   lang,
   analysisEngine,
   customGeminiKey,
+  forceFallbackMode,
   onAnalysisSuccess
 }) {
   const S = STRINGS[LANGS[lang].code];
@@ -46,11 +47,13 @@ export default function CvUploader({
       formData.append("custom_gemini_key", customGeminiKey);
     }
     formData.append("lang_label", LANGS[lang].label);
+    formData.append("force_fallback_mode", forceFallbackMode ? "true" : "false");
 
     try {
       console.log("[CV_ANALYSIS] Uploading file:", file.name, "type:", file.type, "size:", file.size);
       console.log("[CV_ANALYSIS] selected_model:", analysisEngine);
       console.log("[CV_ANALYSIS] custom_gemini_key present:", !!customGeminiKey);
+      console.log("[CV_ANALYSIS] force_fallback_mode:", forceFallbackMode);
       
       const response = await fetch(`${API_BASE}/api/analyze-cv`, {
         method: "POST",

@@ -576,6 +576,7 @@ async def analyze_cv_endpoint(
     selected_model: str = Form("Groq / Llama 3.3"),
     custom_gemini_key: Optional[str] = Form(None),
     lang_label: str = Form("français"),
+    force_fallback_mode: bool = Form(False),
 ):
     """Analyze a CV PDF and return structured analysis."""
     request_id = id(file)
@@ -619,6 +620,7 @@ async def analyze_cv_endpoint(
             gemini_api_key=gemini_key,
             groq_api_key=settings.GROQ_API_KEY,
             ollama_url=settings.OLLAMA_URL,
+            force_fallback_mode=force_fallback_mode,
         )
 
         if not result:
