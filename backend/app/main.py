@@ -38,7 +38,7 @@ from app.scrapers.web_sources import (
     scrape_enhanced,
 )
 
-from shared.ai import call_ai_provider, analyze_cv_with_fallback
+from shared.ai import call_ai_provider, analyze_cv_with_fallback, generate_cover_letter
 from shared.utils import extract_text_from_pdf
 import io
 
@@ -707,6 +707,184 @@ async def health_check():
 async def diagnostic():
     """Diagnostic endpoint to check API key configuration."""
     return settings.validate()
+
+
+# ─── Cover Letter Generation Endpoint ─────────────────────────────────
+
+@app.post("/api/generate-letter")
+async def generate_letter_endpoint(request: Request):
+    """Generate a personalized cover letter using AI."""
+    try:
+        body = await request.json()
+        cv_data = body.get("cv_data", {})
+        job_title = body.get("job_title", "")
+        company = body.get("company", "")
+        job_description = body.get("job_description", "")
+        ranking_engine = body.get("ranking_engine", "Groq / Llama 3.3")
+        custom_gemini_key = body.get("custom_gemini_key")
+        lang_label = body.get("lang_label", "français")
+
+        if not cv_data:
+            return {"error": "CV data is required"}
+        if not job_title:
+            return {"error": "Job title is required"}
+
+        target_lang = (lang_label or "français").split("(")[0].strip().lower()
+        if "english" in target_lang or "anglais" in target_lang:
+            target_lang = "anglais"
+        elif "espagnol" in target_lang or "español" in target_lang:
+            target_lang = "espagnol"
+        else:
+            target_lang = "français"
+
+        gemini_key = (custom_gemini_key or "").strip()
+        logger.info(f"[LETTER] Generating letter for job={job_title!r} company={company!r}")
+
+        result = await asyncio.to_thread(
+            generate_cover_letter,
+            cv_data=cv_data,
+            job_title=job_title,
+            company=company,
+            job_description=job_description,
+            target_lang=target_lang,
+            selected_model=ranking_engine,
+            gemini_api_key=settings.GEMINI_API_KEY,
+            groq_api_key=settings.GROQ_API_KEY,
+            ollama_url=settings.OLLAMA_URL,
+            custom_gemini_key=gemini_key or None,
+        )
+
+        if not result:
+            return {"error": "Failed to generate cover letter"}
+
+        return {"letter": result}
+
+    except Exception as e:
+        logger.error(f"[LETTER] Error: {str(e)}")
+        return {"error": str(e)}
+
+
+# ─── Mock Interview: Generate Question ────────────────────────────────
+
+@app.post("/api/mock-interview/question")
+async def mock_interview_question(request: Request):
+    """Generate an interview question using AI."""
+    try:
+        body = await request.json()
+        job_title = body.get("job_title", "Poste")
+        job_description = body.get("job_description", "")
+        company = body.get("company", "")
+        cv_data = body.get("cv_data")
+        interview_stage = body.get("interview_stage", "débutant")
+        question_type = body.get("question_type", "technique")
+        ranking_engine = body.get("ranking_engine", "Groq / Llama 3.3")
+        custom_gemini_key = body.get("custom_gemini_key")
+
+        gemini_key = (custom_gemini_key or "").strip()
+
+        cv_context = ""
+        if cv_data:
+            cv_context = f"""
+PROFIL CANDIDAT :
+- Metier : {cv_data.get('metier', 'Non specifie')}
+- Annees d'experience : {cv_data.get('annees_experience', 0)}
+- Competences cles : {', '.join(cv_data.get('mots_cles', []))}
+- Resume : {cv_data.get('resume', '')}
+"""
+
+        prompt = f"""Tu es un recruteur expérimenté en {company or 'entreprise'}. Prepare une question d'entretien pour le poste de {job_title}.
+
+{cv_context}
+
+CONTEXTE :
+- Niveau d'experience du candidat : {interview_stage}
+- Type de question : {question_type}
+- Description du poste : {job_description}
+
+Pose une question pertinente, professionnelle, qui permet de veritablement evaluer les competences du candidat pour ce poste. La question doit etre en francais. Reponds uniquement par la question, sans aucune autre mention."""
+
+        result = await asyncio.to_thread(
+            call_ai_provider,
+            prompt=prompt,
+            selected_model=ranking_engine,
+            is_json=False,
+            custom_gemini_key=gemini_key or None,
+        )
+
+        if not result:
+            return {"error": "Failed to generate interview question"}
+
+        return {"question": result}
+
+    except Exception as e:
+        logger.error(f"[MOCK_INTERVIEW] Question error: {str(e)}")
+        return {"error": str(e)}
+
+
+# ─── Mock Interview: Evaluate Answer ────────────────────────────────
+
+@app.post("/api/mock-interview/evaluate")
+async def mock_interview_evaluate(request: Request):
+    """Evaluate an interview answer using AI."""
+    try:
+        body = await request.json()
+        question = body.get("question", "")
+        answer = body.get("answer", "")
+        job_title = body.get("job_title", "Poste")
+        job_description = body.get("job_description", "")
+        cv_data = body.get("cv_data")
+        ranking_engine = body.get("ranking_engine", "Groq / Llama 3.3")
+        custom_gemini_key = body.get("custom_gemini_key")
+
+        if not question or not answer:
+            return {"error": "Question and answer are required"}
+
+        gemini_key = (custom_gemini_key or "").strip()
+
+        cv_context = ""
+        if cv_data:
+            cv_context = f"""
+PROFIL CANDIDAT :
+- Metier : {cv_data.get('metier', 'Non specifie')}
+- Annees d'experience : {cv_data.get('annees_experience', 0)}
+- Competences cles : {', '.join(cv_data.get('mots_cles', []))}
+"""
+
+        prompt = f"""Tu es un recruteur experimente. Evalue la reponse d'un candidat a la question d'entretien suivante.
+
+QUESTION: {question}
+REPONSE DU CANDIDAT: {answer}
+POSTE: {job_title}
+DESCRIPTION: {job_description}
+{cv_context}
+
+Evalue sur 10 et fournis un retour constructif. Retourne UN OBJET JSON avec les cles suivantes : score (entier 0-10), feedback (texte court), points_forts (liste de 3 items), axes_amelioration (liste de 3 items)."""
+
+        result = await asyncio.to_thread(
+            call_ai_provider,
+            prompt=prompt,
+            selected_model=ranking_engine,
+            is_json=True,
+            custom_gemini_key=gemini_key or None,
+        )
+
+        if not result:
+            return {"error": "Failed to evaluate interview answer"}
+
+        try:
+            data = json.loads(result)
+        except (json.JSONDecodeError, TypeError):
+            json_match = re.search(r'\{.*\}', result, re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group())
+            else:
+                return {"error": "Invalid response format"}
+
+        return {"evaluation": data}
+
+    except Exception as e:
+        logger.error(f"[MOCK_INTERVIEW] Evaluation error: {str(e)}")
+        return {"error": str(e)}
 
 
 # ─── CV Analysis Endpoint ─────────────────────────────────────────────────────

@@ -246,7 +246,13 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
 
     // --- Start Interview ---
     const handleStartInterview = (job) => {
-        const interviewUrl = `/mock-interview.html?job=${encodeURIComponent(job.title || '')}&company=${encodeURIComponent(job.company || '')}`;
+        // Store job and CV data in sessionStorage for the standalone mock-interview page
+        sessionStorage.setItem('mockInterviewJob', JSON.stringify(job));
+        sessionStorage.setItem('mockInterviewCvData', JSON.stringify(cvData));
+        sessionStorage.setItem('mockInterviewRankingEngine', activeModel);
+        sessionStorage.setItem('mockInterviewCustomGeminiKey', customGeminiKey || '');
+
+        const interviewUrl = `/mock-interview.html`;
         window.open(interviewUrl, '_blank');
     };
 
