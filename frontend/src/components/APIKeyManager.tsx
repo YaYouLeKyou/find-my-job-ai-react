@@ -50,10 +50,10 @@ export const APIKeyManager: React.FC<APIKeyManagerProps> = ({
     return (
       <div style={{
         padding: '12px',
-        background: 'var(--bg-secondary)',
+        background: 'var(--color-surface-secondary)',
         borderRadius: 'var(--radius-sm)',
         fontSize: '0.85rem',
-        color: 'var(--text-secondary)',
+        color: 'var(--color-text-secondary)',
         ...style,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

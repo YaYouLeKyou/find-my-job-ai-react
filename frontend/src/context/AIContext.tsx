@@ -66,6 +66,10 @@ const AIContext = createContext<AIContextValue | undefined>(undefined);
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+// Module-level flag to prevent multiple failed requests when backend is down
+let _backendDown = false;
+let _backendDownResetTimer: ReturnType<typeof setTimeout> | null = null;
+
 const encryptKey = (key: string): string => {
   try { return btoa(encodeURIComponent(key)); } catch { return key; }
 };
@@ -161,11 +165,20 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   }, [requiresApiKey, getActiveApiKey]);
 
   const refreshModelStatus = useCallback(async () => {
+    // Skip request if backend is known to be down (prevents console spam)
+    if (_backendDown) return;
+
     try {
       const geminiKey = apiKeys.gemini.key;
       const keyParam = geminiKey?.trim() ? '?custom_gemini_key=' + encodeURIComponent(geminiKey.trim()) : '';
       const response = await fetch(API_BASE + '/api/ai/status' + keyParam);
       if (response.ok) {
+        // Backend is up - reset the flag
+        _backendDown = false;
+        if (_backendDownResetTimer) {
+          clearTimeout(_backendDownResetTimer);
+          _backendDownResetTimer = null;
+        }
         const data = await response.json();
         const newStatus: Record<string, boolean> = {};
         if (data.groq) {
@@ -187,7 +200,21 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         }
       }
     } catch (error) {
-      console.error('[AIContext] Failed to refresh model status:', error);
+      // Silently handle connection errors when backend is not running
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        // Set flag to prevent further requests until backend is back
+        _backendDown = true;
+        // Reset after 30 seconds to allow retry when backend comes back
+        if (_backendDownResetTimer) clearTimeout(_backendDownResetTimer);
+        _backendDownResetTimer = setTimeout(() => { _backendDown = false; }, 30000);
+        // Only log once per session
+        if (!sessionStorage.getItem('ai_backend_down_logged')) {
+          console.warn('[AIContext] Backend not reachable. Start the backend with: start_backend.bat');
+          sessionStorage.setItem('ai_backend_down_logged', '1');
+        }
+      } else {
+        console.error('[AIContext] Failed to refresh model status:', error);
+      }
     }
   }, [apiKeys.gemini.key]);
 

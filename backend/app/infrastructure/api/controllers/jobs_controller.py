@@ -174,7 +174,7 @@ async def stream_jobs(
             yield f"data: {json.dumps({'type': 'jobs_sorted', 'jobs': sorted_jobs})}\n\n"
 
             # Final completion
-            yield f"data: {json.dumps({
+            complete_data = {
                 'type': 'complete',
                 'total_jobs': len(sorted_jobs),
                 'message': f'Recherche terminée ! {len(sorted_jobs)} offres trouvées et triées par pertinence',
@@ -184,7 +184,8 @@ async def stream_jobs(
                     'LinkedIn': {'success': True, 'jobs_count': len(linkedin_jobs), 'duration': 1.0, 'status': 'completed'},
                     'Google Jobs': {'success': True, 'jobs_count': len(google_jobs), 'duration': 1.0, 'status': 'completed'}
                 }
-            })}\n\n"
+            }
+            yield f"data: {json.dumps(complete_data)}\n\n"
 
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'message': f'Erreur serveur: {str(e)}'})}\n\n"

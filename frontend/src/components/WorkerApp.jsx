@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import WorkerSidebar from './WorkerSidebar';
+import CvUploader from './CvUploader';
+import CvProfile from './CvProfile';
 import SEO from './SEO';
 import HeaderButtons from './HeaderButtons';
 import AdComponent from './AdComponent';
 import { LANGS, STRINGS } from '../utils/translations';
-import { ArrowLeft, Search, Loader2, Briefcase, User, FileText, Star, Mail, Phone, MapPin, Trash2, Download, Filter, X, ChevronDown, ChevronUp, Eye, Heart, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Search, Loader2, Briefcase, User, FileText, Star, Mail, Phone, MapPin, Trash2, Download, Filter, X, ChevronDown, ChevronUp, Eye, Heart, AlertCircle, CheckCircle2, Cpu, Key, Save, ExternalLink, ChevronLeft, ChevronRight, Globe, DollarSign } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -12,7 +15,7 @@ const CONTRACT_TYPES = ['CDI', 'CDD', 'Stage', 'Alternance', 'Intérim', 'Temps 
 const EXPERIENCE_LEVELS = ['Débutant', 'Junior (1-3 ans)', 'Confirmé (3-5 ans)', 'Senior (5-10 ans)', 'Expert (10+ ans)'];
 const SKILLS_SUGGESTIONS = ['JavaScript', 'Python', 'React', 'Node.js', 'Java', 'SQL', 'AWS', 'Docker', 'Kubernetes', 'Git', 'Agile', 'Marketing', 'Vente', 'Communication'];
 
-export default function WorkerApp({ onBackToHub, lang }) {
+export default function WorkerApp({ onBackToHub, lang, setLang }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState("France");
   const [contract, setContract] = useState("CDI");
@@ -26,18 +29,23 @@ export default function WorkerApp({ onBackToHub, lang }) {
   const [toast, setToast] = useState(null);
   const [customGeminiKey, setCustomGeminiKey] = useState("");
   const [dismissKeyPrompt, setDismissKeyPrompt] = useState(false);
+  const [aiMode, setAiMode] = useState(false);
+  const [cvData, setCvData] = useState(null);
+  const [analysisEngine, setAnalysisEngine] = useState("Groq / Llama 3.3");
 
-  // New features
-  const [savedCandidates, setSavedCandidates] = useState([]);
-  const [searchHistory, setSearchHistory] = useState([]);
-  const [salaryMin, setSalaryMin] = useState("");
-  const [salaryMax, setSalaryMax] = useState("");
-  const [selectedSkills, setSelectedSkills] = useState([]);
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [selectedCandidate, setSelectedCandidate] = useState(null);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+// New features
+      const [savedCandidates, setSavedCandidates] = useState([]);
+      const [searchHistory, setSearchHistory] = useState([]);
+      const [salaryMin, setSalaryMin] = useState("");
+      const [salaryMax, setSalaryMax] = useState("");
+      const [selectedSkills, setSelectedSkills] = useState([]);
+      const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+      const [selectedCandidate, setSelectedCandidate] = useState(null);
+      const [showDetailModal, setShowDetailModal] = useState(false);
+      const [currentPage, setCurrentPage] = useState(1);
+      const [visibleCount, setVisibleCount] = useState(10);
+      const itemsPerPage = 10;
+      const [recommendedSalary, setRecommendedSalary] = useState(null);
 
   const showToast = (message, type = 'info') => {
     setToast({ message, type });

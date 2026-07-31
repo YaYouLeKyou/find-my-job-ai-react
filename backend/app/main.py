@@ -255,7 +255,9 @@ async def api_jobs_stream(
     selected_sources: str = Query(""),
     ranking_engine: str = Query("Groq / Llama 3.3"),
     custom_gemini_key: str = Query(None),
-    cv_data: str = Query(None)
+    cv_data: str = Query(None),
+    agent_type: str = Query("job"),
+    no_ai_mode: bool = Query(False),
 ):
     """Stream job search results using Server-Sent Events (SSE)."""
     return await _stream_jobs(
@@ -268,6 +270,8 @@ async def api_jobs_stream(
         ranking_engine=ranking_engine,
         custom_gemini_key=custom_gemini_key,
         cv_data=cv_data,
+        agent_type=agent_type,
+        no_ai_mode=no_ai_mode,
     )
 
 
@@ -287,6 +291,8 @@ async def legacy_api_search_jobs_stream(
     sort_option: str = Query("Pertinence (IA)"),
     lang_code: str = Query("fr"),
     lang_label: str = Query("français"),
+    agent_type: str = Query("job"),
+    no_ai_mode: bool = Query(False),
 ):
     """Compatibility route for the legacy frontend."""
     logger.info(f"[COMPAT] /api/search-jobs-stream called, forwarding to /api/jobs/stream")
@@ -300,6 +306,8 @@ async def legacy_api_search_jobs_stream(
         ranking_engine=ranking_engine,
         custom_gemini_key=custom_gemini_key,
         cv_data=cv_data,
+        agent_type=agent_type,
+        no_ai_mode=no_ai_mode,
     )
 
 
@@ -319,6 +327,8 @@ async def post_search_jobs(request: Request):
     ranking_engine = body.get("ranking_engine", "Groq / Llama 3.3")
     custom_gemini_key = body.get("custom_gemini_key")
     cv_data = body.get("cv_data")
+    agent_type = body.get("agent_type", "job")
+    no_ai_mode = body.get("no_ai_mode", False)
     if isinstance(selected_sources, list):
         selected_sources = ",".join(selected_sources)
     if selected_sources == "":
@@ -326,7 +336,7 @@ async def post_search_jobs(request: Request):
             selected_sources = "Indeed,LinkedIn,Monster,Google Jobs,JobSpy"
         else:
             selected_sources = "LinkedIn,Indeed,France Travail,Apec,Monster"
-    logger.info(f"[POST /api/search-jobs] query={query!r} sources={selected_sources}")
+    logger.info(f"[POST /api/search-jobs] query={query!r} sources={selected_sources} agent_type={agent_type} no_ai_mode={no_ai_mode}")
     return await _stream_jobs(
         query=query,
         location=location,
@@ -337,6 +347,8 @@ async def post_search_jobs(request: Request):
         ranking_engine=ranking_engine,
         custom_gemini_key=custom_gemini_key,
         cv_data=cv_data,
+        agent_type=agent_type,
+        no_ai_mode=no_ai_mode,
     )
 
 
@@ -350,6 +362,8 @@ async def _stream_jobs(
     ranking_engine: str,
     custom_gemini_key: Optional[str],
     cv_data: Optional[str],
+    agent_type: str = "job",
+    no_ai_mode: bool = False,
 ):
     sources_list = [s.strip() for s in selected_sources.split(",") if s.strip()]
     cv_data_dict = None
@@ -364,7 +378,7 @@ async def _stream_jobs(
 
     async def event_generator():
         try:
-            logger.info(f"[SSE] START query={query!r} location={location!r} sources={sources_list} ranking={ranking_engine}")
+            logger.info(f"[SSE] START query={query!r} location={location!r} sources={sources_list} ranking={ranking_engine} agent_type={agent_type} no_ai_mode={no_ai_mode}")
             source_registry = build_source_registry(sources_list, cv_data_dict)
             total_sources = len(source_registry)
             logger.info(f"[SSE] registry={total_sources} built from requested={sources_list}")
@@ -423,7 +437,8 @@ async def _stream_jobs(
                 await asyncio.sleep(0)
 
                 # Score ONLY the new batch from this source (not all accumulated jobs)
-                if result.jobs and cv_data_dict:
+                # DÉSACTIVÉ en Mode Sans IA (no_ai_mode)
+                if result.jobs and cv_data_dict and not no_ai_mode:
                     try:
                         new_batch = result.jobs
                         job_chunks = [new_batch] if len(new_batch) <= 20 else [new_batch[i:i+20] for i in range(0, len(new_batch), 20)]

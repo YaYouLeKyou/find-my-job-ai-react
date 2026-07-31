@@ -42,6 +42,8 @@ async def freelance_search_stream(
     cv_data: str = Query(None),
     tjm_min: Optional[int] = Query(None),
     tjm_max: Optional[int] = Query(None),
+    agent_type: str = Query("freelance"),
+    no_ai_mode: bool = Query(False),
 ):
     """
     SSE stream for freelance mission search.
@@ -86,6 +88,8 @@ async def freelance_search_stream(
         ranking_engine=ranking_engine,
         custom_gemini_key=custom_gemini_key,
         cv_data=cv_data,
+        agent_type=agent_type,
+        no_ai_mode=no_ai_mode,
     )
 
 
@@ -110,6 +114,8 @@ async def worker_search_stream(
     experience: Optional[str] = Query(None),
     salary_min: Optional[int] = Query(None),
     salary_max: Optional[int] = Query(None),
+    agent_type: str = Query("recruiter"),
+    no_ai_mode: bool = Query(False),
 ):
     """
     SSE stream for worker/candidate search.
@@ -152,4 +158,6 @@ async def worker_search_stream(
         ranking_engine=ranking_engine,
         custom_gemini_key=custom_gemini_key,
         cv_data=cv_data,
+        agent_type=agent_type,
+        no_ai_mode=no_ai_mode,
     )

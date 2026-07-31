@@ -47,9 +47,18 @@ export default function JobFilters({
         <div className="filters-row-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
           
           <div className="form-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label>{S.num_ads}</label>
-              <span style={{ fontWeight: 800, color: 'var(--primary-color)', fontSize: '1rem' }}>{numAds}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <label style={{ flex: 1, minWidth: '120px' }}>{S.num_ads}</label>
+              <span style={{
+                fontWeight: 800,
+                color: 'var(--primary-color)',
+                fontSize: '1.1rem',
+                background: 'rgba(99, 102, 241, 0.1)',
+                padding: '2px 12px',
+                borderRadius: '9999px',
+                minWidth: '36px',
+                textAlign: 'center',
+              }}>{numAds}</span>
             </div>
             <input
               type="range"

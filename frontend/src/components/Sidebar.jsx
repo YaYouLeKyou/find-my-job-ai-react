@@ -312,7 +312,7 @@ export default function Sidebar({
                       </div>
                     ))}
                   
-                  {/* Message si aucun modèle configuré */}
+                   {/* Message si aucun modèle configuré */}
                   {AI_MODELS.filter(model => {
                     if (!model.requiresPersonalKey) return false;
                     const keyConfig = apiKeys[model.provider];
@@ -320,7 +320,7 @@ export default function Sidebar({
                   }).length === 0 && (
                     <div style={{ 
                       padding: '12px', 
-                      background: 'var(--bg-secondary)', 
+                      background: 'var(--surface-secondary)', 
                       borderRadius: 'var(--radius-sm)',
                       fontSize: '0.8rem',
                       color: 'var(--text-muted)',

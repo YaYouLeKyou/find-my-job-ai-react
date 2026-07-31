@@ -1,30 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Cpu, Key, Save, ExternalLink, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Wifi, WifiOff, Globe, DollarSign, Briefcase, Trash2 } from 'lucide-react';
+import { Settings, Cpu, Key, Save, ExternalLink, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Globe, DollarSign, Briefcase, Trash2 } from 'lucide-react';
 import { LANGS } from '../utils/translations';
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
-export default function FreelanceSidebar({
+export default function WorkerSidebar({
   lang,
   setLang,
-  analysisEngine,
-  setAnalysisEngine,
-  rankingEngine,
-  setRankingEngine,
   customGeminiKey,
   setCustomGeminiKey,
   ollamaOnline,
   searchHistory,
-  savedMissions,
+  savedCandidates,
   onSelectHistory,
   onToggleDarkMode,
   onClearHistory,
-  onClearSavedMissions,
-  tjmMin,
-  setTjmMin,
-  tjmMax,
-  setTjmMax,
-  recommendedTjm,
+  onClearSavedCandidates,
+  salaryMin,
+  setSalaryMin,
+  salaryMax,
+  setSalaryMax,
+  recommendedSalary,
 }) {
   const [saved, setSaved] = useState(!!customGeminiKey);
   const [collapsed, setCollapsed] = useState(false);
@@ -33,8 +29,8 @@ export default function FreelanceSidebar({
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [activeTab, setActiveTab] = useState('settings');
 
-  // Use all 7 languages from translations.js
-  const LANGS_MAP = LANGS;
+  // AI Mode Toggle State
+  const [aiMode, setAiMode] = useState(false);
 
   const handleSaveKey = () => {
     if (customGeminiKey && customGeminiKey.trim()) {
@@ -100,13 +96,13 @@ export default function FreelanceSidebar({
   const tabs = [
     { id: 'settings', icon: '⚙️', label: 'Paramètres' },
     { id: 'history', icon: '📋', label: 'Historique', count: searchHistory?.length },
-    { id: 'saved', icon: '⭐', label: 'Missions', count: savedMissions?.length },
-    { id: 'tjm', icon: '💰', label: 'TJM' },
+    { id: 'saved', icon: '⭐', label: 'Favoris', count: savedCandidates?.length },
+    { id: 'salary', icon: '💰', label: 'Salaire' },
   ];
 
   return (
     <aside
-      className="sidebar freelance-sidebar"
+      className="sidebar worker-sidebar"
       style={{ width: collapsed ? '60px' : '320px', transition: 'width 0.3s ease' }}
     >
       {/* Logo */}
@@ -115,24 +111,24 @@ export default function FreelanceSidebar({
         style={{
           justifyContent: collapsed ? 'center' : 'space-between',
           padding: collapsed ? '16px 0' : '16px',
-          background: 'linear-gradient(135deg, rgba(0,188,212,0.08) 0%, rgba(0,137,123,0.08) 100%)',
+          background: 'linear-gradient(135deg, rgba(255,111,0,0.08) 0%, rgba(255,143,0,0.08) 100%)',
           borderRadius: '12px',
           marginBottom: '4px',
         }}
       >
         {!collapsed && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '1.3rem' }}>🚀</span>
+            <span style={{ fontSize: '1.3rem' }}>👷</span>
             <span
               style={{
-                background: 'linear-gradient(135deg, #00bcd4, #00897b)',
+                background: 'linear-gradient(135deg, #ff6f00, #ff8f00)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 fontWeight: '800',
                 fontSize: '1rem',
               }}
             >
-              Find my freelance mission AI
+              Find My Worker AI
             </span>
           </div>
         )}
@@ -147,6 +143,44 @@ export default function FreelanceSidebar({
 
       {!collapsed ? (
         <React.Fragment>
+          {/* AI Mode Toggle */}
+          <div className="sidebar-section" style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--surface-secondary)', borderRadius: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Cpu size={18} style={{ color: '#ff6f00' }} />
+                <span style={{ fontWeight: '600', fontSize: '0.9rem' }}>Mode IA</span>
+              </div>
+              <button
+                onClick={() => setAiMode(!aiMode)}
+                style={{
+                  width: '50px',
+                  height: '26px',
+                  background: aiMode ? '#ff6f00' : 'var(--border-color)',
+                  borderRadius: '13px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  transition: 'background 0.3s'
+                }}
+              >
+                <div style={{
+                  position: 'absolute',
+                  top: '3px',
+                  left: aiMode ? '27px' : '3px',
+                  width: '20px',
+                  height: '20px',
+                  background: 'white',
+                  borderRadius: '50%',
+                  transition: 'left 0.3s',
+                  boxShadow: 'var(--shadow-sm)'
+                }} />
+              </button>
+              <span style={{ fontSize: '0.8rem', color: aiMode ? '#ff6f00' : 'var(--text-muted)', fontWeight: '600' }}>
+                {aiMode ? 'Avec IA' : 'Sans IA'}
+              </span>
+            </div>
+          </div>
+
           {/* Tabs */}
           <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', marginBottom: '8px' }}>
             {tabs.map(tab => (
@@ -158,8 +192,8 @@ export default function FreelanceSidebar({
                   padding: '8px 4px',
                   background: 'none',
                   border: 'none',
-                  borderBottom: activeTab === tab.id ? '2px solid var(--freelance-primary)' : 'none',
-                  color: activeTab === tab.id ? 'var(--freelance-primary)' : 'var(--text-secondary)',
+                  borderBottom: activeTab === tab.id ? '2px solid var(--worker-primary)' : 'none',
+                  color: activeTab === tab.id ? 'var(--worker-primary)' : 'var(--text-secondary)',
                   cursor: 'pointer',
                   fontWeight: '600',
                   fontSize: '0.75rem',
@@ -172,7 +206,7 @@ export default function FreelanceSidebar({
                 {tab.count > 0 && (
                   <span style={{
                     position: 'absolute', top: '4px', right: '4px',
-                    background: 'var(--freelance-primary)', color: 'white',
+                    background: 'var(--worker-primary)', color: 'white',
                     borderRadius: '50%', width: '14px', height: '14px',
                     fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
@@ -192,8 +226,8 @@ export default function FreelanceSidebar({
                   Langue
                 </h3>
                 <div className="form-group">
-                  <select className="select-control freelance-select" value={lang} onChange={(e) => setLang(e.target.value)}>
-                    {Object.keys(LANGS_MAP).map(k => <option key={k} value={k}>{k}</option>)}
+                  <select className="select-control worker-select" value={lang} onChange={(e) => setLang(e.target.value)}>
+                    {Object.keys(LANGS).map(k => <option key={k} value={k}>{k}</option>)}
                   </select>
                 </div>
               </div>
@@ -204,21 +238,21 @@ export default function FreelanceSidebar({
                   Configuration IA
                 </h3>
                 <div className="form-group" style={{ marginBottom: '12px' }}>
-                  <label>🔬 Analyse du profil</label>
-                  <select className="select-control freelance-select" value={analysisEngine} onChange={(e) => setAnalysisEngine(e.target.value)}>
-                    <option value="Gemini 3.5">Gemini 3.5</option>
-                    <option value="Gemini 2.5">Gemini 2.5</option>
-                    <option value="Groq / Llama 3.3">Groq / Llama 3.3</option>
-                    <option value="Llama 3.2 (Local/dev)">Llama 3.2 (Local)</option>
+                  <label>🔬 Traitement du CV</label>
+                  <select className="select-control worker-select" value={lang} onChange={(e) => setLang(e.target.value)}>
+                    <option value="français">Gemini 3.5</option>
+                    <option value="français">Gemini 2.5</option>
+                    <option value="français">Groq / Llama 3.3</option>
+                    <option value="français">Llama 3.2 (Local)</option>
                   </select>
                 </div>
                 <div className="form-group">
                   <label>⚖️ Tri & Proposition</label>
-                  <select className="select-control freelance-select" value={rankingEngine} onChange={(e) => setRankingEngine(e.target.value)}>
-                    <option value="Gemini 3.5">Gemini 3.5</option>
-                    <option value="Gemini 2.5">Gemini 2.5</option>
-                    <option value="Groq / Llama 3.3">Groq / Llama 3.3</option>
-                    <option value="Llama 3.2 (Local/dev)">Llama 3.2 (Local)</option>
+                  <select className="select-control worker-select" value={lang} onChange={(e) => setLang(e.target.value)}>
+                    <option value="français">Gemini 3.5</option>
+                    <option value="français">Gemini 2.5</option>
+                    <option value="français">Groq / Llama 3.3</option>
+                    <option value="français">Llama 3.2 (Local)</option>
                   </select>
                 </div>
               </div>
@@ -232,14 +266,14 @@ export default function FreelanceSidebar({
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input
                       type="password"
-                      className="input-control freelance-input"
+                      className="input-control worker-input"
                       style={{ flexGrow: 1 }}
                       placeholder="Clé Gemini API..."
                       value={customGeminiKey}
                       onChange={(e) => { setCustomGeminiKey(e.target.value); setSaved(false); }}
                     />
                     <button
-                      className="btn btn-freelance"
+                      className="btn btn-worker"
                       style={{ padding: '8px 12px', flexShrink: 0 }}
                       onClick={handleSaveKey}
                       disabled={!customGeminiKey || !customGeminiKey.trim()}
@@ -253,7 +287,7 @@ export default function FreelanceSidebar({
                     </span>
                   )}
                   <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer"
-                    style={{ fontSize: '0.75rem', color: 'var(--freelance-primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                    style={{ fontSize: '0.75rem', color: 'var(--worker-primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
                     <ExternalLink size={12} /> Obtenir une clé gratuite
                   </a>
                 </div>
@@ -323,12 +357,12 @@ export default function FreelanceSidebar({
                         borderRadius: 'var(--radius-sm)', cursor: 'pointer', textAlign: 'left', fontSize: '0.85rem',
                         color: 'var(--text-primary)', transition: 'all 0.2s',
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--freelance-primary)'; e.currentTarget.style.color = 'white'; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--worker-primary)'; e.currentTarget.style.color = 'white'; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--glass-bg)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
                     >
                       <div style={{ fontWeight: '600' }}>{item.query}</div>
                       <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '2px' }}>
-                        {new Date(item.time).toLocaleDateString('fr-FR')} — {item.count} missions
+                        {new Date(item.time).toLocaleDateString('fr-FR')} — {item.count} résultats
                       </div>
                     </button>
                   ))}
@@ -337,41 +371,41 @@ export default function FreelanceSidebar({
             </div>
           )}
 
-          {/* Saved Missions Tab */}
+          {/* Saved Candidates Tab */}
           {activeTab === 'saved' && (
             <div className="sidebar-section">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <h3 className="sidebar-section-title" style={{ margin: 0 }}>⭐ Missions sauvegardées</h3>
-                {savedMissions?.length > 0 && onClearSavedMissions && (
+                <h3 className="sidebar-section-title" style={{ margin: 0 }}>⭐ Favoris</h3>
+                {savedCandidates?.length > 0 && onClearSavedCandidates && (
                   <button
-                    onClick={onClearSavedMissions}
+                    onClick={onClearSavedCandidates}
                     className="btn btn-secondary"
                     style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-                    title="Vider les missions sauvegardées"
+                    title="Vider les favoris"
                   >
                     <Trash2 size={12} /> Vider
                   </button>
                 )}
               </div>
-              {!savedMissions?.length ? (
+              {!savedCandidates?.length ? (
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
-                  Aucune mission sauvegardée
+                  Aucun favori
                 </p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '350px', overflowY: 'auto' }}>
-                  {savedMissions.map((m, idx) => (
+                  {savedCandidates.map((candidate, idx) => (
                     <a
-                      key={idx} href={m.link} target="_blank" rel="noopener noreferrer"
+                      key={idx} href={candidate.link} target="_blank" rel="noopener noreferrer"
                       style={{
                         padding: '8px 12px', background: 'var(--glass-bg)', border: '1px solid var(--border-color)',
                         borderRadius: 'var(--radius-sm)', textDecoration: 'none', fontSize: '0.85rem',
                         color: 'var(--text-primary)', display: 'block', transition: 'all 0.2s',
                       }}
                     >
-                      <div style={{ fontWeight: '600', fontSize: '0.82rem' }}>{m.title}</div>
+                      <div style={{ fontWeight: '600', fontSize: '0.82rem' }}>{candidate.title}</div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
-                        <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{m.company || m.client}</span>
-                        {m.tjm && <span style={{ fontSize: '0.75rem', color: 'var(--freelance-primary)', fontWeight: '700' }}>💰 {m.tjm}</span>}
+                        <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{candidate.company || 'Non spécifié'}</span>
+                        {candidate.salary && <span style={{ fontSize: '0.75rem', color: '#ff6f00', fontWeight: '700' }}>💰 {candidate.salary}</span>}
                       </div>
                     </a>
                   ))}
@@ -380,49 +414,49 @@ export default function FreelanceSidebar({
             </div>
           )}
 
-          {/* TJM Calculator Tab */}
-          {activeTab === 'tjm' && (
+          {/* Salary Calculator Tab */}
+          {activeTab === 'salary' && (
             <div className="sidebar-section">
-              <h3 className="sidebar-section-title">💰 Calculateur TJM</h3>
+              <h3 className="sidebar-section-title">💰 Calculateur de salaire</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div className="form-group">
-                  <label>TJM minimum (€/jour)</label>
+                  <label>Salaire minimum (€/mois)</label>
                   <input
                     type="number"
-                    className="input-control freelance-input"
-                    placeholder="ex: 350"
-                    value={tjmMin || ''}
-                    onChange={(e) => setTjmMin(e.target.value)}
+                    className="input-control worker-input"
+                    placeholder="ex: 2000"
+                    value={salaryMin || ''}
+                    onChange={(e) => setSalaryMin(e.target.value)}
                     min="0"
-                    step="50"
+                    step="100"
                   />
                 </div>
                 <div className="form-group">
-                  <label>TJM maximum (€/jour)</label>
+                  <label>Salaire maximum (€/mois)</label>
                   <input
                     type="number"
-                    className="input-control freelance-input"
-                    placeholder="ex: 800"
-                    value={tjmMax || ''}
-                    onChange={(e) => setTjmMax(e.target.value)}
+                    className="input-control worker-input"
+                    placeholder="ex: 8000"
+                    value={salaryMax || ''}
+                    onChange={(e) => setSalaryMax(e.target.value)}
                     min="0"
-                    step="50"
+                    step="100"
                   />
                 </div>
 
-                {recommendedTjm && (
+                {recommendedSalary && (
                   <div style={{
                     padding: '14px',
-                    background: 'linear-gradient(135deg, rgba(0,188,212,0.1), rgba(0,137,123,0.1))',
-                    border: '1px solid rgba(0,188,212,0.25)',
+                    background: 'linear-gradient(135deg, rgba(255,111,0,0.1), rgba(255,143,0,0.1))',
+                    border: '1px solid rgba(255,111,0,0.25)',
                     borderRadius: '12px',
                     marginTop: '4px',
                   }}>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--freelance-primary)', fontWeight: '700', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      🤖 TJM recommandé par l'IA
+                    <div style={{ fontSize: '0.75rem', color: '#ff6f00', fontWeight: '700', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      🤖 Salaire recommandé par l'IA
                     </div>
-                    <div style={{ fontSize: '1.6rem', fontWeight: '900', color: 'var(--freelance-dark)', letterSpacing: '-0.02em' }}>
-                      {recommendedTjm} €/jour
+                    <div style={{ fontSize: '1.6rem', fontWeight: '900', color: 'var(--worker-dark)', letterSpacing: '-0.02em' }}>
+                      {recommendedSalary} €/mois
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                       Basé sur votre profil + données marché
@@ -438,7 +472,7 @@ export default function FreelanceSidebar({
                   color: 'var(--text-muted)',
                   lineHeight: '1.6',
                 }}>
-                  💡 Analysez votre CV pour obtenir un TJM recommandé selon votre profil et les tendances du marché freelance.
+                  💡 Analysez votre profil pour obtenir un salaire recommandé selon votre niveau d'expérience et les tendances du marché de l'emploi.
                 </div>
               </div>
             </div>
@@ -446,7 +480,7 @@ export default function FreelanceSidebar({
 
           <div className="sidebar-section" style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>FreelanceMissionAI v1.0</span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>WorkerAI v1.0</span>
               {onToggleDarkMode && (
                 <button
                   onClick={onToggleDarkMode}
@@ -463,9 +497,10 @@ export default function FreelanceSidebar({
           <Globe size={20} style={{ color: 'var(--text-secondary)' }} />
           <Cpu size={20} style={{ color: 'var(--text-secondary)' }} />
           <Key size={20} style={{ color: 'var(--text-secondary)' }} />
-          <DollarSign size={20} style={{ color: 'var(--freelance-primary)' }} />
+          <DollarSign size={20} style={{ color: '#ff6f00' }} />
         </div>
       )}
+
     </aside>
   );
 }
