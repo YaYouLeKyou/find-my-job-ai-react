@@ -238,7 +238,7 @@ export default function WorkerSidebar({
                   Configuration IA
                 </h3>
                 <div className="form-group" style={{ marginBottom: '12px' }}>
-                  <label>🔬 Traitement du CV</label>
+                  <label>🔬 Traitement de la Fiche de poste</label>
                   <select className="select-control worker-select" value={lang} onChange={(e) => setLang(e.target.value)}>
                     <option value="français">Gemini 3.5</option>
                     <option value="français">Gemini 2.5</option>

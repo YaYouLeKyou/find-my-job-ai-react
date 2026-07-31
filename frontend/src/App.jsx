@@ -877,6 +877,9 @@ function UnifiedAgentAppWithAgent({ agentType, onBackToHub, lang, setLang, onTog
     );
 }
 
+// Export UnifiedAgentApp for reuse in standalone agent apps
+export { UnifiedAgentApp };
+
 // ─── Root App wrapped with AIProvider + AgentProvider ──────────────────────────
 export default function App() {
     return (

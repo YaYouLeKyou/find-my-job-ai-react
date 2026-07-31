@@ -75,9 +75,9 @@ export const PROVIDER_COLORS = {
 
 /** @type {AIModel[]} */
 export const AI_MODELS = [
-    // ═══════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════
     // GROQ - DÉFAUT SYSTÈME (clé partagée de l'application)
-    // ═══════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════
     {
         id: 'Groq / Llama 3.3 70B',
         label: 'Groq / Llama 3.3 70B',
@@ -103,9 +103,9 @@ export const AI_MODELS = [
         apiKeyUrl: 'https://console.groq.com/keys',
     },
 
-    // ═══════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════
     // GOOGLE GEMINI
-    // ═══════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════
     {
         id: 'Gemini 3.5 Pro',
         label: 'Gemini 3.5 Pro',
@@ -131,85 +131,9 @@ export const AI_MODELS = [
         apiKeyUrl: 'https://aistudio.google.com/app/apikey',
     },
 
-    // ═══════════════════════════════════════════════════════════════
-    // OPENAI
-    // ═══════════════════════════════════════════════════════════════
-    {
-        id: 'OpenAI / GPT-4o',
-        label: 'OpenAI / GPT-4o',
-        provider: 'openai',
-        requiresPersonalKey: true,
-        description: 'Modèle multimodal le plus avancé d\'OpenAI',
-        apiKeyUrl: 'https://platform.openai.com/api-keys',
-    },
-    {
-        id: 'OpenAI / GPT-4o-mini',
-        label: 'OpenAI / GPT-4o-mini',
-        provider: 'openai',
-        requiresPersonalKey: true,
-        description: 'Modèle rapide et économique d\'OpenAI',
-        apiKeyUrl: 'https://platform.openai.com/api-keys',
-    },
-    {
-        id: 'OpenAI / o1',
-        label: 'OpenAI / o1',
-        provider: 'openai',
-        requiresPersonalKey: true,
-        description: 'Modèle de raisonnement avancé',
-        apiKeyUrl: 'https://platform.openai.com/api-keys',
-    },
-    {
-        id: 'OpenAI / o3-mini',
-        label: 'OpenAI / o3-mini',
-        provider: 'openai',
-        requiresPersonalKey: true,
-        description: 'Modèle de raisonnement économique',
-        apiKeyUrl: 'https://platform.openai.com/api-keys',
-    },
-
-    // ═══════════════════════════════════════════════════════════════
-    // ANTHROPIC
-    // ═══════════════════════════════════════════════════════════════
-    {
-        id: 'Anthropic / Claude 3.5 Sonnet',
-        label: 'Anthropic / Claude 3.5 Sonnet',
-        provider: 'anthropic',
-        requiresPersonalKey: true,
-        description: 'Modèle équilibré d\'Anthropic',
-        apiKeyUrl: 'https://console.anthropic.com/settings/keys',
-    },
-    {
-        id: 'Anthropic / Claude 3.5 Haiku',
-        label: 'Anthropic / Claude 3.5 Haiku',
-        provider: 'anthropic',
-        requiresPersonalKey: true,
-        description: 'Modèle rapide et économique d\'Anthropic',
-        apiKeyUrl: 'https://console.anthropic.com/settings/keys',
-    },
-
-    // ═══════════════════════════════════════════════════════════════
-    // DEEPSEEK
-    // ═══════════════════════════════════════════════════════════════
-    {
-        id: 'DeepSeek / V3',
-        label: 'DeepSeek / V3',
-        provider: 'deepseek',
-        requiresPersonalKey: true,
-        description: 'Modèle généraliste haute performance',
-        apiKeyUrl: 'https://platform.deepseek.com/api_keys',
-    },
-    {
-        id: 'DeepSeek / R1',
-        label: 'DeepSeek / R1',
-        provider: 'deepseek',
-        requiresPersonalKey: true,
-        description: 'Modèle de raisonnement avancé',
-        apiKeyUrl: 'https://platform.deepseek.com/api_keys',
-    },
-
-    // ═══════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════
     // MISTRAL AI
-    // ═══════════════════════════════════════════════════════════════
+    // ════════════════════════════════════════════════════════════════
     {
         id: 'Mistral / Large',
         label: 'Mistral / Large',

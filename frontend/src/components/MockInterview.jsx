@@ -8,10 +8,8 @@ import {
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 export default function MockInterview({ onBack, job, cvData, rankingEngine, customGeminiKey, parseError }) {
-  // ─── Core State ──────────────────────────────────────────────────────────
+  // ─── Core State ──────────────────────────────────────────────────
   const [mode, setMode] = useState('written');
-  const [interviewStage, setInterviewStage] = useState('débutant');
-  const [questionType, setQuestionType] = useState('technique');
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [conversation, setConversation] = useState([]);
   const [userAnswer, setUserAnswer] = useState('');
@@ -22,11 +20,9 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [error, setError] = useState('');
   const [toast, setToast] = useState(null);
-
-  // ─── Essential Stats Only ─────────────────────────────────────────────────
-  const [questionCount, setQuestionCount] = useState(0);
   const [darkMode, setDarkMode] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState(null);
+  const [questionCount, setQuestionCount] = useState(0);
 
   const recognitionRef = useRef(null);
   const synthesisRef = useRef(null);

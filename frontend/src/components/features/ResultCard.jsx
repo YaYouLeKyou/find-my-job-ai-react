@@ -10,7 +10,7 @@ import {
     ExternalLink, Star, MapPin, Clock, Euro, Calendar,
     Building, Mail, Phone, FileText, Tag,
     ChevronDown, ChevronUp, Download, Loader2, Copy, Check,
-    MessageSquare, Sparkles, Briefcase,
+    MessageSquare, Sparkles, Briefcase, Trash2,
 } from 'lucide-react';
 import { useAgent } from '../../context/AgentContext';
 import { LANGS, STRINGS } from '../../utils/translations';
@@ -21,6 +21,7 @@ function ResultCard({
     item,
     resultType,
     onSave,
+    onDelete,
     isSaved = false,
     aiScore,
     aiProcessed = false,
@@ -371,10 +372,50 @@ function ResultCard({
                     </span>
                 )}
                 {source && (
-                    <span style={metaChipStyle}>
-                        <Tag size={12} />
-                        <span>{source}</span>
-                    </span>
+                    <div className="source-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                        <span style={metaChipStyle}>
+                            <Tag size={12} />
+                            <span>{source}</span>
+                        </span>
+                        {source && (
+                            <button
+                                className="btn btn-delete-sm"
+                                onClick={handleDeleteSource}
+                                title="Supprimer cette source"
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#999' }}
+                            >
+                                <Trash2 size={14} />
+                    </button>
+                )}
+                {/* Delete button */}
+                {onDelete && (
+                    <button
+                        onClick={() => onDelete(item)}
+                        style={{
+                            padding: '8px',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid var(--color-border)',
+                            background: 'var(--color-surface)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s ease',
+                            color: 'var(--color-danger)',
+                            flexShrink: 0,
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'var(--color-surface)';
+                        }}
+                        title="Supprimer cette offre"
+                    >
+                        <Trash2 size={18} />
+                    </button>
+                )}
+            </div>
                 )}
                 {renderTypeSpecificFields()}
             </div>
