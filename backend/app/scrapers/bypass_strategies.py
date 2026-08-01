@@ -396,6 +396,7 @@ def normalize_job_fields(job: dict) -> dict:
     """
     Harmonise le format de sortie de chaque scraper.
     Garantit que tous les champs requis sont présents.
+    PRÉSERVE les champs AI (pertinence_ai, match_score, ai_scored, match_reason).
     """
     normalized = {
         "titre": str(job.get("titre", job.get("title", ""))).strip(),
@@ -419,6 +420,16 @@ def normalize_job_fields(job: dict) -> dict:
         normalized["salaire_min"] = job["salaire_min"]
     if "salaire_max" in job:
         normalized["salaire_max"] = job["salaire_max"]
+
+    # ⚠️ PRÉSERVER les champs AI (critique pour les scores)
+    if "pertinence_ai" in job:
+        normalized["pertinence_ai"] = job["pertinence_ai"]
+    if "match_score" in job:
+        normalized["match_score"] = job["match_score"]
+    if "ai_scored" in job:
+        normalized["ai_scored"] = job["ai_scored"]
+    if "match_reason" in job:
+        normalized["match_reason"] = job["match_reason"]
 
     return normalized
 

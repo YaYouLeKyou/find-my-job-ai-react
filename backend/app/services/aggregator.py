@@ -299,15 +299,23 @@ def normalize_jobs_for_frontend(jobs: List[dict], search_location: str = "") -> 
     
     # Add frontend-specific fields
     for job in normalized:
-        # pertinence_ai
-        match_score = job.get("match_score")
-        if match_score is None:
-            match_score = job.get("ml_score", 0)
-        try:
-            score = float(match_score)
-        except (TypeError, ValueError):
-            score = 0.0
-        job["pertinence_ai"] = max(0.0, min(100.0, score))
+        # pertinence_ai - PRÉSERVER le score AI existant s'il est déjà présent
+        existing_score = job.get("pertinence_ai")
+        if existing_score is not None:
+            try:
+                job["pertinence_ai"] = max(0.0, min(100.0, float(existing_score)))
+            except (TypeError, ValueError):
+                job["pertinence_ai"] = 0.0
+        else:
+            # Fallback sur match_score ou ml_score
+            match_score = job.get("match_score")
+            if match_score is None:
+                match_score = job.get("ml_score", 0)
+            try:
+                score = float(match_score)
+            except (TypeError, ValueError):
+                score = 0.0
+            job["pertinence_ai"] = max(0.0, min(100.0, score))
         
         # posted_date
         posted = job.get("date", "")

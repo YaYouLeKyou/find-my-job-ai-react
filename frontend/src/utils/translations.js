@@ -107,6 +107,7 @@ export const STRINGS = {
     initializing: "Initialisation...",
     ai_sorting: "Tri IA...",
     export_csv: "Exporter CSV",
+    clear_cache: "Vider le cache",
     cancel: "Annuler",
     load_more: "Charger plus de résultats",
     remaining: "restants",
@@ -127,7 +128,7 @@ export const STRINGS = {
     cause_no_text: "Le PDF ne contient pas de texte extractible",
     cause_too_short: "Le texte extrait est trop court (< 50 caractères)",
     no_ai_fallback: "⚠️ Mode Sans IA activé - Analyse par parsing regex",
-    analyzing_document: "⏳ Analyse de votre document en cours... (15-30 secondes)",
+    analyzing_document: "⏳ Analyse de votre document en cours...",
     // ResultCard
     untitled: "Sans titre",
     view_mission: "🌐 Voir la mission",
@@ -370,6 +371,7 @@ export const STRINGS = {
     initializing: "Initializing...",
     ai_sorting: "AI sorting...",
     export_csv: "Export CSV",
+    clear_cache: "Clear cache",
     cancel: "Cancel",
     load_more: "Load more results",
     remaining: "remaining",
@@ -390,7 +392,7 @@ export const STRINGS = {
     cause_no_text: "The PDF contains no extractable text",
     cause_too_short: "The extracted text is too short (< 50 characters)",
     no_ai_fallback: "⚠️ No AI Mode enabled - Regex parsing analysis",
-    analyzing_document: "⏳ Analyzing your document... (15-30 seconds)",
+    analyzing_document: "⏳ Analyzing your document...",
     // ResultCard
     untitled: "Untitled",
     view_mission: "🌐 View mission",
