@@ -432,8 +432,11 @@ def scrape_hellowork(job_title: str, location: str = "France", limit: int = 50) 
     return scraper.search(job_title, location, limit)
 
 
-def scrape_google_jobs(job_title: str, location: str = "France", limit: int = 50, serpapi_key: str = "") -> List[dict]:
-    """Scrape Google Jobs via SerpApi."""
+async def scrape_google_jobs(job_title: str, location: str = "France", limit: int = 50, serpapi_key: str = "") -> List[dict]:
+    """Scrape Google Jobs via SerpApi.
+    
+    Now fully async to avoid asyncio.run() in async contexts.
+    """
     if not serpapi_key:
         logger.warning("[WEB:GoogleJobs] skipped: no serpapi key")
         return []
@@ -448,7 +451,7 @@ def scrape_google_jobs(job_title: str, location: str = "France", limit: int = 50
         return []
     try:
         logger.info(f"[WEB:GoogleJobs] start query={job_title!r} location={location!r} limit={limit}")
-        results = asyncio.run(source.search_jobs(job_title, location, limit=limit))
+        results = await source.search_jobs(job_title, location, limit=limit)
         logger.info(f"[WEB:GoogleJobs] done jobs={len(results)}")
         return results
     except Exception as e:

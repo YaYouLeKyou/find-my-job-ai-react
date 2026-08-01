@@ -42,6 +42,7 @@ from shared.ai import call_ai_provider, analyze_cv_with_fallback, generate_cover
 from shared.utils import extract_text_from_pdf
 from app.services.chat import ChatRequest, build_system_prompt, orchestrate_chat_fallback
 import io
+import re
 
 import httpx
 
@@ -89,6 +90,17 @@ app.add_middleware(
 
 
 # ─── Helper Functions ────────────────────────────────────────────────────────
+
+def _generate_job_signature(job: dict) -> str:
+    """Generate a stable signature for a job based on title + company + link.
+    
+    This utility function is used to identify duplicate jobs across sources.
+    """
+    title = (job.get("title") or job.get("titre") or "").lower().strip()
+    company = (job.get("company") or job.get("entreprise") or "").lower().strip()
+    link = (job.get("link") or job.get("lien") or "").lower().strip()
+    return f"{title}|{company}|{link}"
+
 
 def get_source_timeout(source: str) -> float:
     """Return timeout in seconds based on source type.
@@ -194,7 +206,7 @@ def build_source_registry(selected_sources: list, cv_data: Optional[dict] = None
         async def _google_jobs_search(q: str, l: str, n: int):
             try:
                 logger.info(f"[SSE] Google Jobs search start query={q!r} location={l!r} limit={n}")
-                result = scrape_google_jobs(q, l, n, settings.SERPAPI_KEY)
+                result = await scrape_google_jobs(q, l, n, settings.SERPAPI_KEY)
                 logger.info(f"[SSE] Google Jobs returned {len(result)} jobs")
                 return result
             except Exception as e:
@@ -295,7 +307,10 @@ async def legacy_api_search_jobs_stream(
     agent_type: str = Query("job"),
     no_ai_mode: bool = Query(False),
 ):
-    """Compatibility route for the legacy frontend."""
+    """⚠️ LEGACY ROUTE - Compatibility route for the legacy frontend.
+    
+    TODO: Remove this route once all frontend clients migrate to /api/jobs/stream
+    """
     logger.info(f"[COMPAT] /api/search-jobs-stream called, forwarding to /api/jobs/stream")
     return await _stream_jobs(
         query=query,
@@ -451,7 +466,7 @@ async def _stream_jobs(
 
                         # Update the scored jobs map for the COMPLETED event
                         for job in scored_jobs:
-                            sig = f"{(job.get('title') or job.get('titre') or '').lower().strip()}|{(job.get('company') or job.get('entreprise') or '').lower().strip()}|{(job.get('link') or job.get('lien') or '').lower().strip()}"
+                            sig = _generate_job_signature(job)
                             scored_jobs_map[sig] = job
 
                         yield f"data: {json.dumps({'type': 'SCORES_UPDATED', 'jobs': scored_jobs, 'progress': progress})}\n\n"
@@ -474,7 +489,7 @@ async def _stream_jobs(
             if cv_data_dict and scored_jobs_map:
                 final_jobs = []
                 for job in all_jobs:
-                    sig = f"{(job.get('title') or job.get('titre') or '').lower().strip()}|{(job.get('company') or job.get('entreprise') or '').lower().strip()}|{(job.get('link') or job.get('lien') or '').lower().strip()}"
+                    sig = _generate_job_signature(job)
                     if sig in scored_jobs_map:
                         final_jobs.append(scored_jobs_map[sig])
                     else:

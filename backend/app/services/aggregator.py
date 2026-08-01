@@ -37,15 +37,6 @@ class SourceResult:
         }
 
 
-def _generate_job_id(job: dict) -> str:
-    """Generate a stable ID for a job based on title + company + link."""
-    title = (job.get("title") or job.get("titre") or job.get("intitule") or "").lower().strip()
-    company = (job.get("company") or job.get("entreprise") or job.get("companyName") or "N/C").lower().strip()
-    link = (job.get("link") or job.get("lien") or job.get("job_url") or job.get("url") or "#").lower().strip()
-    raw = f"{title}|{company}|{link}"
-    return hashlib.md5(raw.encode()).hexdigest()[:12]
-
-
 class SearchAggregator:
     """
     Orchestrates parallel job searches from multiple sources.
@@ -299,35 +290,27 @@ class SearchAggregator:
 def normalize_jobs_for_frontend(jobs: List[dict], search_location: str = "") -> List[dict]:
     """
     Normalize a list of jobs for the frontend.
+    Uses the same normalization logic as bypass_strategies.py for consistency.
     """
-    normalized = []
+    from app.scrapers.bypass_strategies import normalize_and_deduplicate
     
-    for job in jobs:
-        if not isinstance(job, dict):
-            continue
-        
-        norm = dict(job)  # shallow copy
-        
-        # Canonical field names
-        norm["title"] = norm.get("title") or norm.get("titre") or norm.get("intitule") or ""
-        norm["company"] = norm.get("company") or norm.get("entreprise") or norm.get("companyName") or "N/C"
-        norm["link"] = norm.get("link") or norm.get("lien") or norm.get("job_url") or norm.get("url") or "#"
-        norm["location"] = norm.get("location") or norm.get("localisation") or ""
-        norm["source"] = norm.get("source") or norm.get("site") or norm.get("source_name") or "Inconnue"
-        norm["date"] = norm.get("date") or norm.get("date_posted") or norm.get("created") or ""
-        
+    # Use the centralized normalization function
+    normalized = normalize_and_deduplicate(jobs)
+    
+    # Add frontend-specific fields
+    for job in normalized:
         # pertinence_ai
-        match_score = norm.get("match_score")
+        match_score = job.get("match_score")
         if match_score is None:
-            match_score = norm.get("ml_score", 0)
+            match_score = job.get("ml_score", 0)
         try:
             score = float(match_score)
         except (TypeError, ValueError):
             score = 0.0
-        norm["pertinence_ai"] = max(0.0, min(100.0, score))
+        job["pertinence_ai"] = max(0.0, min(100.0, score))
         
         # posted_date
-        posted = norm.get("date", "")
+        posted = job.get("date", "")
         if posted:
             date_str = str(posted).strip()
             if date_str:
@@ -336,33 +319,31 @@ def normalize_jobs_for_frontend(jobs: List[dict], search_location: str = "") -> 
                                 "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
                         try:
                             dt = datetime.strptime(date_str, fmt)
-                            norm["posted_date"] = dt.isoformat()
+                            job["posted_date"] = dt.isoformat()
                             break
                         except ValueError:
                             continue
                     else:
-                        norm["posted_date"] = date_str
+                        job["posted_date"] = date_str
                 except Exception:
-                    norm["posted_date"] = date_str
+                    job["posted_date"] = date_str
             else:
-                norm["posted_date"] = ""
+                job["posted_date"] = ""
         else:
-            norm["posted_date"] = ""
+            job["posted_date"] = ""
         
         # distance_score
         search_loc = (search_location or "").lower().strip()
-        job_loc = (norm.get("location") or "").lower().strip()
+        job_loc = (job.get("location") or "").lower().strip()
         if not search_loc or not job_loc:
-            norm["distance_score"] = 50.0
+            job["distance_score"] = 50.0
         elif search_loc in job_loc or job_loc in search_loc:
-            norm["distance_score"] = 100.0
+            job["distance_score"] = 100.0
         else:
-            norm["distance_score"] = 20.0
+            job["distance_score"] = 20.0
         
         # Generate stable ID based on title + company + link
-        id_str = f"{norm['title']}|{norm['company']}|{norm['link']}"
-        norm["id"] = hashlib.md5(id_str.encode()).hexdigest()[:12]
-        
-        normalized.append(norm)
+        id_str = f"{job.get('titre', '')}|{job.get('entreprise', '')}|{job.get('lien', '')}"
+        job["id"] = hashlib.md5(id_str.encode()).hexdigest()[:12]
     
     return normalized
