@@ -37,7 +37,7 @@ export function useJobSearch(lang, cvData) {
         body: JSON.stringify({
           query: searchQuery,
           location: globalSearch ? "" : location,
-          num_ads: numAds === 'Max' ? 9999 : numAds,
+          num_ads: numAds === 'Max' ? 120 : numAds,
           contract: contract,
           remote: remote,
           global_search: globalSearch,

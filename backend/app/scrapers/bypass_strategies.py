@@ -196,6 +196,7 @@ def get_optimal_limit(requested_limit: int, source_name: str) -> int:
     """
     Augmente la taille des pages de résultats demandées à chaque API.
     Passe de limit=10 à limit=50 ou 100 pour maximiser le volume.
+    Limite également les appels aux APIs qui ne gèrent pas bien les très grands offsets.
     """
     # Toujours demander au moins 50 résultats
     optimal = max(requested_limit, 50)
@@ -203,6 +204,9 @@ def get_optimal_limit(requested_limit: int, source_name: str) -> int:
     # Certaines APIs supportent des limites plus élevées
     if source_name in ["France Travail", "Adzuna", "Enhanced"]:
         optimal = max(optimal, 100)
+
+    # Cap à 120 pour éviter les requêtes excessives
+    optimal = min(optimal, 120)
 
     return optimal
 

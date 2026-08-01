@@ -256,7 +256,7 @@ class SearchAggregator:
                 else:
                     return asyncio.to_thread(source_fn, query, location, **kwargs)
 
-            cache_key = _make_cache_key(source_name, query, location, limit)
+            cache_key = _make_cache_key(source_name, query, location, source_limit)
             cached_jobs = _get_cached_source(cache_key)
             accumulated_jobs: List[dict] = []
             start_time = time.time()
@@ -296,7 +296,7 @@ class SearchAggregator:
                         fetched += batch_len
                         accumulated_jobs.extend(batch)
 
-                        is_partial = fetched < limit and batch_len >= fetch_limit
+                        is_partial = fetched < source_limit and batch_len >= fetch_limit
                         done = not is_partial
 
                         if done:
@@ -333,9 +333,9 @@ class SearchAggregator:
                         relaxed_q = ' '.join(query.split()[:5]) if isinstance(query, str) else query
                         logger.info(f"[SOURCE: {source_name}] performing relaxed fallback query: {relaxed_q!r}")
                         if inspect.iscoroutinefunction(source_fn):
-                            coro = source_fn(relaxed_q, location, limit)
+                            coro = source_fn(relaxed_q, location, source_limit)
                         else:
-                            coro = asyncio.to_thread(source_fn, relaxed_q, location, limit)
+                            coro = asyncio.to_thread(source_fn, relaxed_q, location, source_limit)
                         timeout = (source_timeouts or {}).get(source_name, self.timeout_per_source)
                         jobs = await asyncio.wait_for(coro, timeout=timeout)
                         duration = time.time() - start_time

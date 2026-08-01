@@ -59,6 +59,12 @@ logger = logging.getLogger(__name__)
 # Load settings
 settings = get_settings()
 
+# Limits used by search and display logic
+MAX_DISPLAY_ADS_PER_SOURCE = 120
+MIN_DISPLAY_ADS_PER_SOURCE = 5
+MAX_SEARCH_LIMIT = 120
+MIN_SEARCH_LIMIT = 50
+
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute", "10/second"])
 
@@ -450,15 +456,14 @@ async def _stream_jobs(
             pass
 
     # Handle num_ads: support "Max" for unlimited display per source, or numeric value
-    # The backend always searches with a high limit; num_ads only limits displayed results per source
     if isinstance(num_ads, str) and num_ads.lower() == "max":
-        display_limit = 9999
+        display_limit = MAX_DISPLAY_ADS_PER_SOURCE
     else:
         parsed_num_ads = int(num_ads) if isinstance(num_ads, str) else num_ads
-        display_limit = max(1, min(parsed_num_ads, 100))
+        display_limit = max(MIN_DISPLAY_ADS_PER_SOURCE, min(parsed_num_ads, MAX_DISPLAY_ADS_PER_SOURCE))
 
     # Always search with a high limit to get maximum results per source
-    search_limit = 9999
+    search_limit = MAX_SEARCH_LIMIT
 
     async def event_generator():
         try:
@@ -547,7 +552,7 @@ async def _stream_jobs(
 
                 # Limit emitted jobs per source to display_limit
                 jobs_to_emit = result.jobs or []
-                if display_limit < 9999:
+                if display_limit <= MAX_DISPLAY_ADS_PER_SOURCE:
                     emitted_so_far = emitted_counts.get(result.source_name, 0)
                     remaining = display_limit - emitted_so_far
                     if remaining <= 0:
@@ -614,7 +619,7 @@ async def _stream_jobs(
             normalized_jobs = normalize_jobs_for_frontend(final_jobs)
 
             # Limit displayed results per source to display_limit
-            if display_limit < 9999:
+            if display_limit <= MAX_DISPLAY_ADS_PER_SOURCE:
                 limited_jobs = []
                 source_display_counts = {}
                 for job in normalized_jobs:

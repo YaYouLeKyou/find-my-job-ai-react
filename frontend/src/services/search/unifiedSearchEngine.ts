@@ -309,7 +309,7 @@ export class UnifiedSearchEngine {
         const urlParams = new URLSearchParams({
             query: params.query,
             location: params.globalSearch ? '' : params.location,
-            num_ads: String(params.numAds === 'Max' ? 9999 : params.numAds),
+            num_ads: String(params.numAds === 'Max' ? 120 : params.numAds),
             contract: params.contract,
             remote: String(params.remote),
             global_search: String(params.globalSearch),
