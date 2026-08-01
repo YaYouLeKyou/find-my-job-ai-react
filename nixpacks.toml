@@ -2,7 +2,7 @@
 nixPkgs = ["python311", "nodejs_18"]
 
 [phases.install]
-cmds = ["python3 -m ensurepip --upgrade --break-system-packages", "cd backend && python3 -m pip install -r requirements.txt --break-system-packages"]
+cmds = ["python3 -m venv /app/.venv", "/app/.venv/bin/pip install -r backend/requirements.txt"]
 
 [start]
-cmd = "cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+cmd = "cd backend && /app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port $PORT"
