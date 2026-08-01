@@ -269,6 +269,26 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
         }
     };
 
+    // --- Vider le cache de recherche ---
+    const clearSearchCache = () => {
+        try {
+            let removedCount = 0;
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.includes('_cache_')) {
+                    keysToRemove.push(key);
+                    removedCount++;
+                }
+            }
+            keysToRemove.forEach(key => localStorage.removeItem(key));
+            showToast(`🗑️ ${removedCount} ${removedCount > 1 ? 'caches supprimés' : 'cache supprimé'}`, 'success');
+        } catch (e) {
+            console.error('[Cache] Erreur lors du vidage:', e);
+            showToast('❌ Erreur lors du vidage du cache', 'error');
+        }
+    };
+
     // --- Save / Unsave items ---
     const toggleSaveItem = (item) => {
         const isSaved = savedItems.some(j => j.id === item.id);
@@ -561,16 +581,6 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                 </div>
             </div>
 
-            {/* Active Sources Header */}
-            {Object.keys(sourceCounts).length > 0 && (
-                <ActiveSourcesHeader
-                    sourceCounts={sourceCounts}
-                    totalJobs={jobs.length}
-                    aiProcessing={aiProcessing}
-                    processedCount={processedCount}
-                />
-            )}
-
             {/* Direct Access Links - visible whenever there's a search query or CV metier */}
             {directLinks.length > 0 && (
                 <div className="card" style={{
@@ -648,18 +658,15 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                 }
             />
 
-            {/* Favorites Memory - entre la barre de recherche et les résultats */}
-            <FavoritesMemory
-                lang={lang}
-                favorites={savedItems}
-                onRemove={handleRemoveFavorite}
-                onClear={handleClearFavorites}
-                resultType={agentConfig.resultType}
-                cvData={cvData}
-                rankingEngine={activeModel}
-                customGeminiKey={customGeminiKey}
-                onStartInterview={handleStartInterview}
-            />
+            {/* Active Sources Header - sous la searchbar */}
+            {Object.keys(sourceCounts).length > 0 && (
+                <ActiveSourcesHeader
+                    sourceCounts={sourceCounts}
+                    totalJobs={jobs.length}
+                    aiProcessing={aiProcessing}
+                    processedCount={processedCount}
+                />
+            )}
 
             {/* Loading state */}
             {loadingJobs && (
@@ -790,6 +797,19 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                     {S.no_results}
                 </div>
             )}
+
+            {/* Favorites Memory - sous les annonces trouvées */}
+            <FavoritesMemory
+                lang={lang}
+                favorites={savedItems}
+                onRemove={handleRemoveFavorite}
+                onClear={handleClearFavorites}
+                resultType={agentConfig.resultType}
+                cvData={cvData}
+                rankingEngine={activeModel}
+                customGeminiKey={customGeminiKey}
+                onStartInterview={handleStartInterview}
+            />
 
             {/* Footer */}
             <div className="app-footer">
