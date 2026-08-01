@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["python311", "nodejs_18"]
+nixPkgs = ["python311", "nodejs_18", "gcc", "gfortran", "openblas"]
 
 [phases.install]
 cmds = ["python3 -m venv /app/.venv", "/app/.venv/bin/pip install -r backend/requirements.txt"]
