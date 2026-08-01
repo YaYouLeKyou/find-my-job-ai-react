@@ -2,7 +2,7 @@
 nixPkgs = ["python311", "nodejs_18"]
 
 [phases.install]
-cmds = ["curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py", "python3 /tmp/get-pip.py --user", "cd backend && /root/.local/bin/pip install -r requirements.txt"]
+cmds = ["python3 -m ensurepip --upgrade --break-system-packages", "cd backend && python3 -m pip install -r requirements.txt --break-system-packages"]
 
 [start]
 cmd = "cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
