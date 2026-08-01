@@ -51,6 +51,8 @@ export function useStreamSearch(apiBase, params, onSearchComplete) {
     const [totalReceived, setTotalReceived] = useState(0);
     const [sourcesDone, setSourcesDone] = useState(0);
     const [totalSources, setTotalSources] = useState(0);
+    const [sourceDiagnostics, setSourceDiagnostics] = useState({});
+    const [sourceErrors, setSourceErrors] = useState({});
 
     const eventSourceRef = useRef(null);
     const accumulatedJobsRef = useRef([]);
@@ -209,6 +211,8 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
         pendingAiChunkRef.current = [];
         aiProcessingRef.current = false;
         seenKeysRef.current = new Set();
+        setSourceDiagnostics({});
+        setSourceErrors({});
 
         const startTime = Date.now();
 
@@ -223,6 +227,8 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
 
         const es = new EventSource(streamUrl);
         eventSourceRef.current = es;
+
+        const streamCompletedRef = { current: false };
 
         es.onopen = () => {
             console.log('[Stream] Connexion SSE établie');
@@ -246,6 +252,49 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
                         const execTime = data.execution_time ? (data.execution_time * 1000).toFixed(1) : '?';
                         accumulatedSourceCountsRef.current[data.source] = count;
                         setSourceCounts({ ...accumulatedSourceCountsRef.current });
+
+                        // 📊 Diagnostic: afficher la cause du 0 résultat
+                        if (count === 0) {
+                            const diag = data.diagnostic || {};
+                            const errorMsg = diag.error || data.error || 'Aucun résultat';
+                            const hint = diag.hint || '';
+
+                            // Stocker le diagnostic pour affichage
+                            setSourceDiagnostics(prev => ({
+                                ...prev,
+                                [data.source]: {
+                                    error: errorMsg,
+                                    hint: hint,
+                                    status: data.status || 'error',
+                                    execution_time: data.execution_time,
+                                }
+                            }));
+                            setSourceErrors(prev => ({
+                                ...prev,
+                                [data.source]: errorMsg
+                            }));
+
+                            console.warn(`[Stream] ⚠️ ${data.source}: 0 offres (status=${data.status || 'unknown'})`);
+                            if (errorMsg) console.warn(`[Stream]   Cause: ${errorMsg}`);
+                            if (hint) console.warn(`[Stream]   💡 Suggestion: ${hint}`);
+                        } else {
+                            // Source OK - effacer le diagnostic si existant
+                            setSourceDiagnostics(prev => {
+                                if (prev[data.source]) {
+                                    const { [data.source]: _, ...rest } = prev;
+                                    return rest;
+                                }
+                                return prev;
+                            });
+                            setSourceErrors(prev => {
+                                if (prev[data.source]) {
+                                    const { [data.source]: _, ...rest } = prev;
+                                    return rest;
+                                }
+                                return prev;
+                            });
+                        }
+
                         console.log(`[Stream] ${data.source}: ${count} offres reçues en ${execTime}ms (status=${data.status || 'unknown'})`);
                     }
 
@@ -329,12 +378,36 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
 
                     if (data.source_status) {
                         const counts = {};
+                        const diags = {};
+                        const errs = {};
                         Object.entries(data.source_status).forEach(([source, status]) => {
                             if (status && (status.count !== undefined || status.jobs_count !== undefined)) {
                                 counts[source] = status.count !== undefined ? status.count : status.jobs_count;
                             }
+                            // Collecter les diagnostics du COMPLETED event
+                            if (status && status.diagnostic) {
+                                diags[source] = {
+                                    error: status.error || 'Aucun résultat',
+                                    hint: status.diagnostic,
+                                    status: status.status || 'error',
+                                    execution_time: status.execution_time,
+                                };
+                                errs[source] = status.error || 'Aucun résultat';
+                            } else if (status && status.count === 0) {
+                                diags[source] = {
+                                    error: status.error || 'Aucun résultat trouvé',
+                                    hint: status.diagnostic || 'Essayez d\'élargir la recherche ou de modifier la localisation.',
+                                    status: status.status || 'error',
+                                    execution_time: status.execution_time,
+                                };
+                                errs[source] = status.error || 'Aucun résultat trouvé';
+                            }
                         });
                         setSourceCounts(counts);
+                        if (Object.keys(diags).length > 0) {
+                            setSourceDiagnostics(diags);
+                            setSourceErrors(errs);
+                        }
                     }
 
                     if (pendingAiChunkRef.current.length > 0 && !aiProcessingRef.current) {
@@ -344,12 +417,15 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
 
                     setLoading(false);
                     console.log(`[Stream] Recherche terminée: ${data.jobs ? data.jobs.length : accumulatedJobsRef.current.length} offres en ${duration}s`);
+                    streamCompletedRef.current = true;
 
                     if (onSearchComplete) {
                         onSearchComplete({
                             jobs: accumulatedJobsRef.current,
                             sourceCounts: accumulatedSourceCountsRef.current,
                             duration,
+                            sourceDiagnostics: sourceDiagnostics,
+                            sourceErrors: sourceErrors,
                         });
                     }
                     return;
@@ -367,6 +443,11 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
         };
 
         es.onerror = (err) => {
+            if (streamCompletedRef.current) {
+                console.log('[Stream] Fermeture normale après COMPLETED');
+                es.close();
+                return;
+            }
             console.error('[Stream] Erreur SSE:', err);
             setError('Erreur de connexion au serveur');
             setLoading(false);
@@ -403,6 +484,8 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
         totalReceived,
         sourcesDone,
         totalSources,
+        sourceDiagnostics,
+        sourceErrors,
         search,
         cancel,
     };
