@@ -73,12 +73,10 @@ export const AGENTS = {
             },
             {
                 id: 'numAds',
-                type: 'range',
-                label: "Nombre d'annonces",
-                min: 5,
-                max: 100,
-                step: 5,
-                default: 10,
+                type: 'select',
+                label: "Nombre d'annonces affiché par source",
+                options: [5, 10, 15, 20, 25, 50, 100, "Max"],
+                default: '10',
             },
             {
                 id: 'sortOption',

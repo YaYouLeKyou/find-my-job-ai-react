@@ -322,7 +322,7 @@ async def api_jobs_stream(
     request: Request,
     query: str = Query(...),
     location: str = Query("Paris, France"),
-    num_ads: int = Query(10),
+    num_ads: str = Query("10"),
     contract: str = Query("CDI"),
     remote: bool = Query(False),
     selected_sources: str = Query(""),
@@ -353,7 +353,7 @@ async def legacy_api_search_jobs_stream(
     request: Request,
     query: str = Query(...),
     location: str = Query("Paris, France"),
-    num_ads: int = Query(10),
+    num_ads: str = Query("10"),
     contract: str = Query("CDI"),
     remote: bool = Query(False),
     selected_sources: str = Query(""),
@@ -431,7 +431,7 @@ async def post_search_jobs(request: Request):
 async def _stream_jobs(
     query: str,
     location: str,
-    num_ads: int,
+    num_ads: str,
     contract: str,
     remote: bool,
     selected_sources: str,
@@ -449,8 +449,16 @@ async def _stream_jobs(
         except Exception:
             pass
 
-    # Clamp num_ads to 5-100 per source (default 10)
-    per_source_limit = max(5, min(num_ads, 100))
+    # Handle num_ads: support "Max" for unlimited display per source, or numeric value
+    # The backend always searches with a high limit; num_ads only limits displayed results per source
+    if isinstance(num_ads, str) and num_ads.lower() == "max":
+        display_limit = 9999
+    else:
+        parsed_num_ads = int(num_ads) if isinstance(num_ads, str) else num_ads
+        display_limit = max(1, min(parsed_num_ads, 100))
+
+    # Always search with a high limit to get maximum results per source
+    search_limit = 9999
 
     async def event_generator():
         try:
@@ -482,24 +490,24 @@ async def _stream_jobs(
             scored_jobs_map = {}  # signature -> scored job (for COMPLETED event)
 
             source_timeouts = {name: get_source_timeout(name) for name in source_registry}
-            source_limits = {name: get_optimal_limit(per_source_limit, name) for name in source_registry}
+            source_limits = {name: get_optimal_limit(search_limit, name) for name in source_registry}
+            emitted_counts = {}
             async for result in aggregator.search_parallel_streaming(
                 sources=source_registry,
                 query=query,
                 location=location,
-                limit=per_source_limit,
+                limit=search_limit,
                 target_jobs=target_total,
                 source_timeouts=source_timeouts,
                 source_limits=source_limits,
             ):
-                # Accumulate jobs per source (support partial batches)
+                # Accumulate all jobs per source (support partial batches)
                 if result.jobs:
                     all_jobs.extend(result.jobs)
 
                 # Merge into source_results: append jobs and update status
                 prev = source_results.get(result.source_name)
                 if prev:
-                    # extend previous jobs
                     prev.jobs = (prev.jobs or []) + (result.jobs or [])
                     prev.success = prev.success and result.success
                     prev.execution_time = round((prev.execution_time or 0) + (result.execution_time or 0), 2)
@@ -537,8 +545,20 @@ async def _stream_jobs(
                         "hint": _get_source_diagnostic_hint(result.source_name, ""),
                     }
 
+                # Limit emitted jobs per source to display_limit
+                jobs_to_emit = result.jobs or []
+                if display_limit < 9999:
+                    emitted_so_far = emitted_counts.get(result.source_name, 0)
+                    remaining = display_limit - emitted_so_far
+                    if remaining <= 0:
+                        jobs_to_emit = []
+                    else:
+                        jobs_to_emit = (result.jobs or [])[:remaining]
+                        emitted_counts[result.source_name] = emitted_so_far + len(jobs_to_emit)
+
                 # Send PROGRESS event for partial or final batches
-                yield f"data: {json.dumps({'type': 'SOURCE_RESULT', 'progress': progress, 'total_so_far': len(all_jobs), 'target': per_source_limit, 'source': result.source_name, 'status': status, 'jobs': result.jobs, 'sources_done': sources_done, 'total_sources': total_sources, 'source_progress': source_progress, 'execution_time': result.execution_time, 'is_partial': getattr(result, 'is_partial', False), 'fallback': getattr(result, 'fallback', False), 'diagnostic': diagnostic})}\n\n"
+                total_found_by_source = len(source_results.get(result.source_name, {}).get('jobs', []) or [])
+                yield f"data: {json.dumps({'type': 'SOURCE_RESULT', 'progress': progress, 'total_so_far': len(all_jobs), 'target': display_limit, 'source': result.source_name, 'status': status, 'jobs': jobs_to_emit, 'sources_done': sources_done, 'total_sources': total_sources, 'source_progress': source_progress, 'execution_time': result.execution_time, 'is_partial': getattr(result, 'is_partial', False), 'fallback': getattr(result, 'fallback', False), 'diagnostic': diagnostic, 'total_found_by_source': total_found_by_source})}\n\n"
                 emit_count += 1
                 await asyncio.sleep(0)
 
@@ -591,6 +611,17 @@ async def _stream_jobs(
 
             # Normalize all jobs for frontend
             normalized_jobs = normalize_jobs_for_frontend(final_jobs)
+
+            # Limit displayed results per source to display_limit
+            if display_limit < 9999:
+                limited_jobs = []
+                source_display_counts = {}
+                for job in normalized_jobs:
+                    job_source = job.get('source', '')
+                    source_display_counts[job_source] = source_display_counts.get(job_source, 0) + 1
+                    if source_display_counts[job_source] <= display_limit:
+                        limited_jobs.append(job)
+                normalized_jobs = limited_jobs
 
             yield f"data: {json.dumps({'type': 'COMPLETED', 'jobs': normalized_jobs, 'source_status': source_status, 'progress': 100, 'total_jobs': len(all_jobs)})}\n\n"
             await asyncio.sleep(0)

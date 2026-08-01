@@ -28,7 +28,7 @@ export type AgentType = 'job' | 'freelance' | 'worker';
 export interface SearchParams {
     query: string;
     location: string;
-    numAds: number;
+    numAds: number | string;
     contract: string;
     remote: boolean;
     globalSearch: boolean;
@@ -309,7 +309,7 @@ export class UnifiedSearchEngine {
         const urlParams = new URLSearchParams({
             query: params.query,
             location: params.globalSearch ? '' : params.location,
-            num_ads: String(params.numAds),
+            num_ads: String(params.numAds === 'Max' ? 9999 : params.numAds),
             contract: params.contract,
             remote: String(params.remote),
             global_search: String(params.globalSearch),

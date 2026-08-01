@@ -7,8 +7,9 @@
 import React from 'react';
 import { LANGS, STRINGS } from '../utils/translations';
 
-export default function ActiveSourcesHeader({ sourceCounts, totalJobs, aiProcessing, processedCount, lang = 'Français' }) {
+export default function ActiveSourcesHeader({ sourceCounts, aiProcessing, processedCount, lang = 'Français' }) {
   const S = STRINGS[LANGS[lang]?.code || 'fr'];
+  const totalRealJobs = Object.values(sourceCounts).reduce((a, b) => a + b, 0);
   // Ne garder que les sources avec au moins 1 résultat
   const activeSources = Object.entries(sourceCounts)
     .filter(([source, count]) => count > 0)
@@ -36,7 +37,7 @@ export default function ActiveSourcesHeader({ sourceCounts, totalJobs, aiProcess
             color: 'var(--text-primary)',
             letterSpacing: '-0.02em',
           }}>
-            {totalJobs}
+            {totalRealJobs}
           </span>
           <span style={{
             fontSize: '0.9rem',
@@ -69,7 +70,7 @@ export default function ActiveSourcesHeader({ sourceCounts, totalJobs, aiProcess
               display: 'inline-block',
               animation: 'pulse-dot 1.5s ease-in-out infinite',
             }} />
-             {S.ai_sorting_in_progress}({processedCount}/{totalJobs})
+              {S.ai_sorting_in_progress}({processedCount}/{totalRealJobs})
           </div>
         )}
       </div>

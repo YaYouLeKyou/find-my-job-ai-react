@@ -248,7 +248,7 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
 
                 if (data.type === 'PROGRESS' || data.type === 'SOURCE_RESULT') {
                     if (data.source) {
-                        const count = data.jobs ? data.jobs.length : 0;
+                        const count = data.total_found_by_source !== undefined ? data.total_found_by_source : (data.jobs ? data.jobs.length : 0);
                         const execTime = data.execution_time ? (data.execution_time * 1000).toFixed(1) : '?';
                         accumulatedSourceCountsRef.current[data.source] = count;
                         setSourceCounts({ ...accumulatedSourceCountsRef.current });

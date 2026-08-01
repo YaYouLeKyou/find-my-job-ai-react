@@ -663,7 +663,6 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
             {Object.keys(sourceCounts).length > 0 && (
                 <ActiveSourcesHeader
                     sourceCounts={sourceCounts}
-                    totalJobs={jobs.length}
                     aiProcessing={aiProcessing}
                     processedCount={processedCount}
                 />
