@@ -27,6 +27,19 @@ function generateJobId(job) {
     return Math.abs(hash).toString(16).padStart(12, '0').slice(0, 12);
 }
 
+function normalizeIncomingJob(job, source = '') {
+    return {
+        ...job,
+        title: job.title || job.titre || job.intitule || job.poste || job.mission || job.name || '',
+        company: job.company || job.entreprise || job.organisme || job.client || job.employer || '',
+        link: job.link || job.lien || job.url || job.job_url || job.source_url || '#',
+        location: job.location || job.lieu || job.city || job.region || '',
+        description: job.description || job.desc || job.resume || job.summary || '',
+        source: job.source || source || job.source_name || job.origin || '',
+        ai_scored: job.ai_scored || false,
+    };
+}
+
 export function useStreamSearch(apiBase, params, onSearchComplete) {
     const [jobs, setJobs] = useState([]);
     const [sourceCounts, setSourceCounts] = useState({});
@@ -203,204 +216,166 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
         const queryParams = new URLSearchParams(searchParams);
         const streamUrl = `${apiBase}/api/search-jobs-stream?${queryParams.toString()}`;
 
-        // Créer un AbortController pour annuler la requête
-        abortControllerRef.current = new AbortController();
+        // Créer un EventSource natif pour le streaming SSE
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+        }
 
-        // Utiliser fetch avec streaming au lieu de EventSource
-        fetch(streamUrl, {
-            signal: abortControllerRef.current.signal,
-            headers: {
-                'Accept': 'text/event-stream',
-            },
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
+        const es = new EventSource(streamUrl);
+        eventSourceRef.current = es;
+
+        es.onopen = () => {
+            console.log('[Stream] Connexion SSE établie');
+        };
+
+        es.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'STARTED') {
+                    console.log(`[Stream] Recherche démarrée: ${data.query} (${data.total_sources} sources)`);
+                    if (data.total_sources !== undefined) {
+                        setTotalSources(data.total_sources);
+                    }
+                    return;
                 }
 
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
+                if (data.type === 'PROGRESS' || data.type === 'SOURCE_RESULT') {
+                    if (data.source) {
+                        const count = data.jobs ? data.jobs.length : 0;
+                        const execTime = data.execution_time ? (data.execution_time * 1000).toFixed(1) : '?';
+                        accumulatedSourceCountsRef.current[data.source] = count;
+                        setSourceCounts({ ...accumulatedSourceCountsRef.current });
+                        console.log(`[Stream] ${data.source}: ${count} offres reçues en ${execTime}ms (status=${data.status || 'unknown'})`);
+                    }
 
-                const readStream = () => {
-                    reader.read().then(({ done, value }) => {
-                        if (done) {
-                            return;
-                        }
+                    if (data.sources_done !== undefined && data.total_sources !== undefined) {
+                        setSourcesDone(data.sources_done);
+                        setTotalSources(data.total_sources);
+                    }
 
-                        buffer += decoder.decode(value, { stream: true });
+                    if (data.jobs && data.jobs.length > 0) {
+                        const normalizedJobs = data.jobs.map((job) => {
+                            const normalized = normalizeIncomingJob(job, data.source);
+                            return {
+                                ...normalized,
+                                id: job.id || normalized.id || generateJobId(normalized),
+                                source: normalized.source || data.source,
+                                receivedAt: Date.now(),
+                            };
+                        });
 
-                        // Process complete SSE events delimited by double newline
-                        let sepIndex;
-                        while ((sepIndex = buffer.indexOf('\n\n')) !== -1) {
-                            const rawEvent = buffer.slice(0, sepIndex);
-                            buffer = buffer.slice(sepIndex + 2);
+                        const deduplicatedJobs = deduplicateJobs(normalizedJobs, accumulatedJobsRef.current);
+                        accumulatedJobsRef.current = [...accumulatedJobsRef.current, ...deduplicatedJobs];
+                        setTotalReceived(prev => prev + deduplicatedJobs.length);
+                        setJobs([...accumulatedJobsRef.current]);
 
-                            // Aggregate data: lines (can be multiple) into a single string
-                            const dataLines = rawEvent.split('\n').filter(l => l.startsWith('data:'));
-                            if (dataLines.length === 0) continue;
-                            const dataStr = dataLines.map(l => l.slice(6)).join('\n');
-                            try {
-                                const data = JSON.parse(dataStr);
-
-                                // STARTED
-                                if (data.type === 'STARTED') {
-                                    console.log(`[Stream] Recherche démarrée: ${data.query} (${data.total_sources} sources)`);
-                                    if (data.total_sources !== undefined) {
-                                        setTotalSources(data.total_sources);
-                                    }
-                                }
-
-                                // PROGRESS / SOURCE_RESULT - Affichage IMMÉDIAT
-                                if (data.type === 'PROGRESS' || data.type === 'SOURCE_RESULT') {
-                                    // Mettre à jour les compteurs de sources (même si 0 résultat)
-                                    if (data.source) {
-                                        const count = data.jobs ? data.jobs.length : 0;
-                                        const execTime = data.execution_time ? (data.execution_time * 1000).toFixed(1) : '?';
-                                        accumulatedSourceCountsRef.current[data.source] = count;
-                                        setSourceCounts({ ...accumulatedSourceCountsRef.current });
-                                        console.log(`[Stream] ${data.source}: ${count} offres reçues en ${execTime}ms (status=${data.status || 'unknown'})`);
-                                    }
-
-                                    // Mettre à jour le suivi des sources
-                                    if (data['sources_done'] !== undefined && data['total_sources'] !== undefined) {
-                                        setSourcesDone(data['sources_done']);
-                                        setTotalSources(data['total_sources']);
-                                    }
-
-                                    // Ajouter les jobs à la liste accumulée
-                                    if (data.jobs && data.jobs.length > 0) {
-                                        // Ajouter un ID stable basé sur title+company+link
-                                        const jobsWithId = data.jobs.map((job, idx) => ({
-                                            ...job,
-                                            id: job.id || generateJobId(job),
-                                            source: data.source,
-                                            receivedAt: Date.now(),
-                                            // Préserver ai_scored si le backend l'a déjà envoyé
-                                            ai_scored: job.ai_scored || false,
-                                        }));
-
-                                        // Dédupliquer en temps réel
-                                        const deduplicatedJobs = deduplicateJobs(jobsWithId, accumulatedJobsRef.current);
-
-                                        // Accumuler
-                                        accumulatedJobsRef.current = [...accumulatedJobsRef.current, ...deduplicatedJobs];
-                                        setTotalReceived(prev => prev + deduplicatedJobs.length);
-
-                                        // FORCE MISE À JOUR IMMÉDIATE DE L'UI
-                                        setJobs([...accumulatedJobsRef.current]);
-
-                                        // Cacher le loader dès la première réception réelle
-                                        if (accumulatedJobsRef.current.length > 0 && loading) {
-                                            setLoading(false);
-                                        }
-
-                                        // Ajouter au chunk IA en attente (seulement si on a des jobs)
-                                        if (deduplicatedJobs.length > 0) {
-                                            pendingAiChunkRef.current = [...pendingAiChunkRef.current, ...deduplicatedJobs];
-                                        }
-
-                                        // Lancer le tri IA si on a assez de jobs (en arrière-plan, sans await)
-                                        if (pendingAiChunkRef.current.length >= AI_CHUNK_SIZE && !aiProcessingRef.current) {
-                                            const chunkToProcess = pendingAiChunkRef.current.splice(0, AI_CHUNK_SIZE);
-                                            processAiChunk(chunkToProcess, searchParams.ranking_engine, searchParams.custom_gemini_key).catch(err =>
-                                                console.error('[AI] Background scoring error:', err)
-                                            );
-                                        }
-                                    }
-                                }
-                                if (data.type === 'SCORES_UPDATED' && data.jobs) {
-                                    console.log(`[Stream] Tri IA terminé: ${data.jobs.length} offres scorées`);
-
-                                    const jobSignature = (job) =>
-                                        `${(job.title || job.titre || '').toLowerCase().trim()}|${(job.company || job.entreprise || '').toLowerCase().trim()}|${(job.link || job.lien || '').toLowerCase().trim()}`;
-
-                                    const scoredBySignature = new Map(
-                                        data.jobs.map(job => [jobSignature(job), job])
-                                    );
-
-                                    const merged = accumulatedJobsRef.current.map(job => {
-                                        const scored = scoredBySignature.get(jobSignature(job));
-                                        return scored ? { ...job, pertinence_ai: scored.pertinence_ai, ai_scored: true } : job;
-                                    });
-
-                                    // Re-sort by AI score descending
-                                    merged.sort((a, b) => (b.pertinence_ai || 0) - (a.pertinence_ai || 0));
-
-                                    accumulatedJobsRef.current = merged;
-                                    setJobs([...merged]);
-                                    setProcessedCount(data.jobs.length);
-                                }
-
-                                // COMPLETED - Fin de la recherche
-                                if (data.type === 'COMPLETED') {
-                                    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-                                    setSearchTime(duration);
-
-                                    if (data.jobs && data.jobs.length > 0) {
-                                        setJobs(data.jobs);
-                                        accumulatedJobsRef.current = data.jobs;
-                                    }
-
-                                    if (data.source_status) {
-                                        const counts = {};
-                                        Object.entries(data.source_status).forEach(([source, status]) => {
-                                            if (status && (status.count !== undefined || status.jobs_count !== undefined)) {
-                                                counts[source] = status.count !== undefined ? status.count : status.jobs_count;
-                                            }
-                                        });
-                                        setSourceCounts(counts);
-                                    }
-
-                                    // Traiter le dernier chunk IA en attente
-                                    if (pendingAiChunkRef.current.length > 0 && !aiProcessingRef.current) {
-                                        processAiChunk(pendingAiChunkRef.current, searchParams.ranking_engine, searchParams.custom_gemini_key);
-                                        pendingAiChunkRef.current = [];
-                                    }
-
-                                    setLoading(false);
-                                    console.log(`[Stream] Recherche terminée: ${data.jobs ? data.jobs.length : accumulatedJobsRef.current.length} offres en ${duration}s`);
-
-                                    if (onSearchComplete) {
-                                        onSearchComplete({
-                                            jobs: accumulatedJobsRef.current,
-                                            sourceCounts: accumulatedSourceCountsRef.current,
-                                            duration,
-                                        });
-                                    }
-                                }
-
-                                // ERROR
-                                if (data.type === 'ERROR') {
-                                    console.error('[Stream] Erreur:', data.message);
-                                    setError(data.message || 'Erreur de connexion au flux');
-                                    setLoading(false);
-                                }
-                            } catch (err) {
-                                console.error('[Stream] Erreur de parsing JSON:', err, dataStr);
-                            }
-                        }
-
-                        // Continue reading
-                        readStream();
-                    }).catch(err => {
-                        if (err.name !== 'AbortError') {
-                            console.error('[Stream] Erreur de lecture:', err);
-                            setError('Erreur de connexion au serveur');
+                        if (accumulatedJobsRef.current.length > 0 && loading) {
                             setLoading(false);
                         }
-                    });
-                };
 
-                readStream();
-            })
-            .catch(err => {
-                if (err.name !== 'AbortError') {
-                    console.error('[Stream] Erreur de connexion:', err);
-                    setError('Erreur de connexion au serveur');
-                    setLoading(false);
+                        if (deduplicatedJobs.length > 0) {
+                            pendingAiChunkRef.current = [...pendingAiChunkRef.current, ...deduplicatedJobs];
+                        }
+
+                        if (pendingAiChunkRef.current.length >= AI_CHUNK_SIZE && !aiProcessingRef.current) {
+                            const chunkToProcess = pendingAiChunkRef.current.splice(0, AI_CHUNK_SIZE);
+                            processAiChunk(chunkToProcess, searchParams.ranking_engine, searchParams.custom_gemini_key).catch(err =>
+                                console.error('[AI] Background scoring error:', err)
+                            );
+                        }
+                    }
+                    return;
                 }
-            });
+
+                if (data.type === 'SCORES_UPDATED' && data.jobs) {
+                    console.log(`[Stream] Tri IA terminé: ${data.jobs.length} offres scorées`);
+
+                    const jobSignature = (job) =>
+                        `${(job.title || job.titre || '').toLowerCase().trim()}|${(job.company || job.entreprise || '').toLowerCase().trim()}|${(job.link || job.lien || '').toLowerCase().trim()}`;
+
+                    const scoredBySignature = new Map(
+                        data.jobs.map(job => [jobSignature(job), job])
+                    );
+
+                    const merged = accumulatedJobsRef.current.map(job => {
+                        const scored = scoredBySignature.get(jobSignature(job));
+                        return scored ? { ...job, pertinence_ai: scored.pertinence_ai, ai_scored: true } : job;
+                    });
+
+                    merged.sort((a, b) => (b.pertinence_ai || 0) - (a.pertinence_ai || 0));
+                    accumulatedJobsRef.current = merged;
+                    setJobs([...merged]);
+                    setProcessedCount(data.jobs.length);
+                    return;
+                }
+
+                if (data.type === 'COMPLETED') {
+                    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+                    setSearchTime(duration);
+
+                    if (data.jobs && data.jobs.length > 0) {
+                        const normalizedJobs = data.jobs.map((job) => {
+                            const normalized = normalizeIncomingJob(job, job.source || job.source_name || '');
+                            return {
+                                ...normalized,
+                                id: job.id || normalized.id || generateJobId(normalized),
+                                source: normalized.source || job.source || job.source_name || '',
+                            };
+                        });
+                        setJobs(normalizedJobs);
+                        accumulatedJobsRef.current = normalizedJobs;
+                    }
+
+                    if (data.source_status) {
+                        const counts = {};
+                        Object.entries(data.source_status).forEach(([source, status]) => {
+                            if (status && (status.count !== undefined || status.jobs_count !== undefined)) {
+                                counts[source] = status.count !== undefined ? status.count : status.jobs_count;
+                            }
+                        });
+                        setSourceCounts(counts);
+                    }
+
+                    if (pendingAiChunkRef.current.length > 0 && !aiProcessingRef.current) {
+                        processAiChunk(pendingAiChunkRef.current, searchParams.ranking_engine, searchParams.custom_gemini_key);
+                        pendingAiChunkRef.current = [];
+                    }
+
+                    setLoading(false);
+                    console.log(`[Stream] Recherche terminée: ${data.jobs ? data.jobs.length : accumulatedJobsRef.current.length} offres en ${duration}s`);
+
+                    if (onSearchComplete) {
+                        onSearchComplete({
+                            jobs: accumulatedJobsRef.current,
+                            sourceCounts: accumulatedSourceCountsRef.current,
+                            duration,
+                        });
+                    }
+                    return;
+                }
+
+                if (data.type === 'ERROR') {
+                    console.error('[Stream] Erreur:', data.message);
+                    setError(data.message || 'Erreur de connexion au flux');
+                    setLoading(false);
+                    return;
+                }
+            } catch (err) {
+                console.error('[Stream] Erreur de parsing JSON:', err, event.data);
+            }
+        };
+
+        es.onerror = (err) => {
+            console.error('[Stream] Erreur SSE:', err);
+            setError('Erreur de connexion au serveur');
+            setLoading(false);
+            es.close();
+        };
+
+        return () => {
+            es.close();
+        };
     }, [apiBase, processAiChunk, onSearchComplete, deduplicateJobs]);
 
     // Annuler la recherche
@@ -408,6 +383,10 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
             abortControllerRef.current = null;
+        }
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
         }
         setLoading(false);
         setAiProcessing(false);

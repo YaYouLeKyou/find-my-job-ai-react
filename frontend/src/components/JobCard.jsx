@@ -102,10 +102,10 @@ export default function JobCard({
 
       <div className="job-card-header">
         <div className="job-info">
-          <h3>{job?.title || "Poste sans titre"}</h3>
+          <h3>{job?.title || job?.titre || "Poste sans titre"}</h3>
           <div className="job-company" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-color)' }}>
             <Building2 size={16} />
-            <strong>{job?.company || "Entreprise confidentielle"}</strong>
+            <strong>{job?.company || job?.entreprise || "Entreprise confidentielle"}</strong>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>

@@ -8,7 +8,7 @@ import hashlib
 import inspect
 import json
 import time
-from typing import Dict, List, Optional, Any, Callable
+from typing import Dict, List, Optional, Any, Callable, Tuple
 from datetime import datetime
 
 import logging
@@ -16,20 +16,59 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger(__name__)
 
+_SOURCE_CACHE: Dict[str, Tuple[float, List[dict]]] = {}
+_SOURCE_CACHE_TTL = 180.0  # seconds
+
+
+def _make_cache_key(source_name: str, query: str, location: str, limit: int) -> str:
+    return f"{source_name}|{query}|{location}|{limit}"
+
+
+def _get_cached_source(cache_key: str) -> Optional[List[dict]]:
+    entry = _SOURCE_CACHE.get(cache_key)
+    if not entry:
+        return None
+    timestamp, jobs = entry
+    if time.time() - timestamp > _SOURCE_CACHE_TTL:
+        _SOURCE_CACHE.pop(cache_key, None)
+        return None
+    return jobs
+
+
+def _set_cached_source(cache_key: str, jobs: List[dict]) -> None:
+    _SOURCE_CACHE[cache_key] = (time.time(), jobs)
+
+
+def _normalize_job_signature(job: dict) -> str:
+    title = (job.get('title') or job.get('titre') or '').lower().strip()
+    company = (job.get('company') or job.get('entreprise') or '').lower().strip()
+    location = (job.get('location') or job.get('lieu') or '').lower().strip()
+    link = (job.get('link') or job.get('lien') or job.get('url') or '').lower().strip()
+    return f"{title}|{company}|{location}|{link}"
+
 
 class SourceResult:
     """Result from a single source."""
     
-    def __init__(self, source_name: str, jobs: List[dict], success: bool, error: str = "", execution_time: float = 0, is_partial: bool = False, done: bool = True):
+    def __init__(
+        self,
+        source_name: str,
+        jobs: List[dict],
+        success: bool,
+        error: str = "",
+        execution_time: float = 0,
+        is_partial: bool = False,
+        done: bool = True,
+        fallback: bool = False,
+    ): 
         self.source_name = source_name
         self.jobs = jobs
         self.success = success
         self.error = error
         self.execution_time = execution_time
-        # is_partial: True if this result is a partial page from the source
         self.is_partial = is_partial
-        # done: True when the source has finished sending pages
         self.done = done
+        self.fallback = fallback
     
     def to_dict(self) -> dict:
         return {
@@ -37,7 +76,10 @@ class SourceResult:
             "jobs": self.jobs,
             "success": self.success,
             "error": self.error,
-            "execution_time": self.execution_time
+            "execution_time": self.execution_time,
+            "is_partial": self.is_partial,
+            "done": self.done,
+            "fallback": self.fallback,
         }
 
 
@@ -143,6 +185,7 @@ class SearchAggregator:
         limit: int,
         target_jobs: int = 0,
         source_timeouts: Optional[Dict[str, float]] = None,
+        source_limits: Optional[Dict[str, int]] = None,
     ):
         """Search multiple sources in parallel and stream results progressively.
 
@@ -179,9 +222,11 @@ class SearchAggregator:
             - Fetch first small page quickly (per_page_fast), yield partial result.
             - If batch == per_page_fast, attempt subsequent pages until limit reached or fewer results.
             - Apply retries with exponential backoff on transient errors.
+            - Emit cached fallback quickly when available while the real source is still loading.
             """
-            per_page_fast = min(10, max(5, limit // 2))
-            per_page = min(20, limit)
+            source_limit = (source_limits or {}).get(source_name, limit)
+            per_page_fast = min(10, max(5, source_limit // 2))
+            per_page = min(20, source_limit)
             fetched = 0
             page = 0
             sig = None
@@ -191,7 +236,6 @@ class SearchAggregator:
                 sig = None
 
             def _call_source(page_arg, fetch_limit):
-                # Build kwargs according to signature if possible
                 kwargs = {}
                 if sig and 'page' in sig.parameters:
                     kwargs['page'] = page_arg
@@ -201,15 +245,18 @@ class SearchAggregator:
                     kwargs['limit'] = fetch_limit
                 else:
                     kwargs['limit'] = fetch_limit
-                # Some source functions are blocking; run in thread
                 if inspect.iscoroutinefunction(source_fn):
                     return source_fn(query, location, **kwargs)
                 else:
                     return asyncio.to_thread(source_fn, query, location, **kwargs)
 
+            cache_key = _make_cache_key(source_name, query, location, limit)
+            cached_jobs = _get_cached_source(cache_key)
+            accumulated_jobs: List[dict] = []
             start_time = time.time()
+            fast_start_timeout = 1.5
 
-            while fetched < limit:
+            while fetched < source_limit:
                 fetch_limit = per_page_fast if page == 0 else per_page
                 attempt = 0
                 max_attempts = 3
@@ -217,29 +264,51 @@ class SearchAggregator:
                 last_exc = None
                 while attempt < max_attempts:
                     try:
-                        coro = _call_source(page, fetch_limit)
+                        task = asyncio.create_task(_call_source(page, fetch_limit))
+                        done, pending = await asyncio.wait({task}, timeout=fast_start_timeout)
+                        if task not in done and cached_jobs and page == 0:
+                            fallback_batch = cached_jobs[:fetch_limit]
+                            await queue.put(SourceResult(
+                                source_name,
+                                fallback_batch,
+                                True,
+                                execution_time=0.0,
+                                is_partial=True,
+                                done=False,
+                                fallback=True,
+                            ))
+
                         timeout = (source_timeouts or {}).get(source_name, self.timeout_per_source)
-                        jobs = await asyncio.wait_for(coro, timeout=timeout)
+                        jobs = await asyncio.wait_for(task, timeout=timeout)
                         duration = time.time() - start_time
                         if not jobs:
-                            # yield empty partial (no results) and finish
                             await queue.put(SourceResult(source_name, [], True, execution_time=round(duration, 2), is_partial=True, done=True))
                             return
-                        # Normal batch
+
                         batch = jobs if isinstance(jobs, list) else list(jobs)
                         batch_len = len(batch)
                         fetched += batch_len
+                        accumulated_jobs.extend(batch)
 
                         is_partial = fetched < limit and batch_len >= fetch_limit
                         done = not is_partial
 
-                        await queue.put(SourceResult(source_name, batch, True, execution_time=round(duration, 2), is_partial=is_partial, done=done))
+                        if done:
+                            _set_cached_source(cache_key, accumulated_jobs)
 
-                        # If this batch indicates no more pages, finish
+                        await queue.put(SourceResult(
+                            source_name,
+                            batch,
+                            True,
+                            execution_time=round(duration, 2),
+                            is_partial=is_partial,
+                            done=done,
+                            fallback=False,
+                        ))
+
                         if not is_partial:
                             return
 
-                        # else continue to next page
                         page += 1
                         break
                     except asyncio.TimeoutError as e:
@@ -253,9 +322,7 @@ class SearchAggregator:
                         logger.warning(f"[SOURCE: {source_name}] transient error attempt {attempt}/{max_attempts}: {e}")
                         await asyncio.sleep(backoff * attempt)
 
-                # if we exit attempts loop with exception
                 if last_exc is not None and attempt >= max_attempts:
-                    # Final relaxed attempt: try with a relaxed query (shortened)
                     try:
                         relaxed_q = ' '.join(query.split()[:5]) if isinstance(query, str) else query
                         logger.info(f"[SOURCE: {source_name}] performing relaxed fallback query: {relaxed_q!r}")
@@ -268,13 +335,32 @@ class SearchAggregator:
                         duration = time.time() - start_time
                         if jobs:
                             batch = jobs if isinstance(jobs, list) else list(jobs)
-                            await queue.put(SourceResult(source_name, batch, True, execution_time=round(duration, 2), is_partial=False, done=True))
+                            accumulated_jobs.extend(batch)
+                            _set_cached_source(cache_key, accumulated_jobs)
+                            await queue.put(SourceResult(
+                                source_name,
+                                batch,
+                                True,
+                                execution_time=round(duration, 2),
+                                is_partial=False,
+                                done=True,
+                                fallback=False,
+                            ))
                             return
                     except Exception:
                         pass
 
                     duration = time.time() - start_time
-                    await queue.put(SourceResult(source_name, [], False, error=str(last_exc)[:200], execution_time=round(duration, 2), is_partial=False, done=True))
+                    await queue.put(SourceResult(
+                        source_name,
+                        [],
+                        False,
+                        error=str(last_exc)[:200],
+                        execution_time=round(duration, 2),
+                        is_partial=False,
+                        done=True,
+                        fallback=False,
+                    ))
                     return
 
         # Launch one task per source that will push partial batches into queue
@@ -320,6 +406,14 @@ def normalize_jobs_for_frontend(jobs: List[dict], search_location: str = "") -> 
     
     # Add frontend-specific fields
     for job in normalized:
+        # Map French-normalized fields to frontend-friendly keys
+        job["title"] = job.get("title") or job.get("titre") or job.get("poste") or job.get("mission") or job.get("name") or ""
+        job["company"] = job.get("company") or job.get("entreprise") or job.get("client") or job.get("employer") or ""
+        job["link"] = job.get("link") or job.get("lien") or job.get("url") or job.get("job_url") or job.get("source_url") or "#"
+        job["location"] = job.get("location") or job.get("lieu") or job.get("city") or job.get("region") or ""
+        job["description"] = job.get("description") or job.get("resume") or job.get("summary") or job.get("desc") or ""
+        job["source"] = job.get("source") or job.get("source_name") or job.get("origin") or ""
+
         # pertinence_ai - PRÉSERVER le score AI existant s'il est déjà présent
         existing_score = job.get("pertinence_ai")
         if existing_score is not None:

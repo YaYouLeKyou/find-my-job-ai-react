@@ -28,6 +28,7 @@ from app.services.aggregator import SearchAggregator, normalize_jobs_for_fronten
 
 # Import scrapers
 from app.scrapers.api_sources import get_france_travail_source, get_france_travail_rss_source, get_adzuna_source, get_google_jobs_source, get_jooble_source, get_apify_source
+from app.scrapers.bypass_strategies import get_optimal_limit
 from app.scrapers.web_sources import (
     scrape_indeed,
     scrape_linkedin,
@@ -422,6 +423,7 @@ async def _stream_jobs(
             scored_jobs_map = {}  # signature -> scored job (for COMPLETED event)
 
             source_timeouts = {name: get_source_timeout(name) for name in source_registry}
+            source_limits = {name: get_optimal_limit(per_source_limit, name) for name in source_registry}
             async for result in aggregator.search_parallel_streaming(
                 sources=source_registry,
                 query=query,
@@ -429,6 +431,7 @@ async def _stream_jobs(
                 limit=per_source_limit,
                 target_jobs=target_total,
                 source_timeouts=source_timeouts,
+                source_limits=source_limits,
             ):
                 # Accumulate jobs per source (support partial batches)
                 if result.jobs:
@@ -461,7 +464,7 @@ async def _stream_jobs(
                     logger.info(f"[SSE] source={result.source_name} sample_job={result.jobs[0].get('titre', 'N/A')}")
 
                 # Send PROGRESS event for partial or final batches
-                yield f"data: {json.dumps({'type': 'PROGRESS', 'progress': progress, 'total_so_far': len(all_jobs), 'target': per_source_limit, 'source': result.source_name, 'status': status, 'jobs': result.jobs, 'sources_done': sources_done, 'total_sources': total_sources, 'source_progress': source_progress, 'execution_time': result.execution_time, 'is_partial': getattr(result, 'is_partial', False)})}\n\n"
+                yield f"data: {json.dumps({'type': 'SOURCE_RESULT', 'progress': progress, 'total_so_far': len(all_jobs), 'target': per_source_limit, 'source': result.source_name, 'status': status, 'jobs': result.jobs, 'sources_done': sources_done, 'total_sources': total_sources, 'source_progress': source_progress, 'execution_time': result.execution_time, 'is_partial': getattr(result, 'is_partial', False), 'fallback': getattr(result, 'fallback', False)})}\n\n"
                 emit_count += 1
                 await asyncio.sleep(0)
 

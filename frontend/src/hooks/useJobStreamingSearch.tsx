@@ -4,7 +4,7 @@ import type { Job } from '../../../../streaming_service/src/types';
 type SourceStatus = 'idle' | 'loading' | 'streaming' | 'success' | 'error';
 
 type State = {
-  sources: Record<string, { status: SourceStatus; count: number }>; 
+  sources: Record<string, { status: SourceStatus; count: number }>;
   liveMap: Record<string, Job>; // id -> job
   liveOrder: string[]; // order of arrival (ids)
   sortedOrder: string[]; // worker-provided order
@@ -16,17 +16,48 @@ type Action =
   | { type: 'applySorted'; order: string[] }
   | { type: 'reset' };
 
+function normalizeText(value?: string) {
+  return (value || '').toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+function createJobFingerprint(job: Partial<Job>) {
+  const title = normalizeText(job.title);
+  const company = normalizeText(job.company);
+  const location = normalizeText(job.location);
+  const url = normalizeText(job.url);
+  return `${title}|${company}|${location}|${url}`;
+}
+
+function createStableJobId(job: Partial<Job>) {
+  const fingerprint = createJobFingerprint(job);
+  let hash = 0;
+  for (let i = 0; i < fingerprint.length; i += 1) {
+    hash = (hash << 5) - hash + fingerprint.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(36).padStart(8, '0');
+}
+
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'sourceStatus':
-      return { ...state, sources: { ...state.sources, [action.source]: { ...(state.sources[action.source] || { status: 'idle', count: 0 }), status: action.status } } };
+      return {
+        ...state,
+        sources: {
+          ...state.sources,
+          [action.source]: {
+            ...(state.sources[action.source] || { status: 'idle', count: 0 }),
+            status: action.status,
+          },
+        },
+      };
     case 'addJobs': {
       const liveMap = { ...state.liveMap };
       const liveOrder = [...state.liveOrder];
-      for (const j of action.jobs) {
-        const id = j.id || `${j.source}::${j.url || j.title}`;
+      for (const job of action.jobs) {
+        const id = createStableJobId(job);
         if (!liveMap[id]) {
-          liveMap[id] = { ...j, id } as Job;
+          liveMap[id] = { ...job, id } as Job;
           liveOrder.push(id);
         }
       }
@@ -53,59 +84,95 @@ export function useJobStreamingSearch(q: string, options?: { autoApplySortedDela
   const deferredSortedOrder = useDeferredValue(state.sortedOrder);
 
   useEffect(() => {
-    // init worker (Vite/Webpack: new URL(..., import.meta.url))
     try {
       // @ts-ignore
       workerRef.current = new Worker(new URL('../workers/ranker.worker.ts', import.meta.url), { type: 'module' });
     } catch (e) {
-      // Fallback: try relative path (depends on bundler)
       workerRef.current = new Worker('/src/workers/ranker.worker.js');
     }
 
-    const w = workerRef.current;
-    w?.addEventListener('message', (ev: MessageEvent) => {
-      const data = ev.data;
-      if (data?.type === 'sorted') {
-        // schedule apply after brief delay to avoid layout shift
+    const worker = workerRef.current;
+    worker?.addEventListener('message', (ev: MessageEvent) => {
+      const payload = ev.data;
+      if (payload?.type === 'sorted') {
         if (applyTimeout.current) window.clearTimeout(applyTimeout.current);
         applyTimeout.current = window.setTimeout(() => {
-          dispatch({ type: 'applySorted', order: data.order });
+          dispatch({ type: 'applySorted', order: payload.order });
         }, autoApplyDelay);
       }
     });
 
     return () => {
-      w?.terminate();
+      worker?.terminate();
     };
   }, [autoApplyDelay]);
 
   useEffect(() => {
-    // connect SSE
-    const url = `/sse/search?q=${encodeURIComponent(q)}`;
+    if (!q) {
+      dispatch({ type: 'reset' });
+      return;
+    }
+
     dispatch({ type: 'reset' });
+    const url = `/api/jobs/stream?query=${encodeURIComponent(q)}`;
     const es = new EventSource(url);
     esRef.current = es;
 
     es.onopen = () => {
-      // status unknown per-source until events arrive
+      // nothing to do yet
     };
 
-    es.onmessage = (ev) => {
+    es.onmessage = (event) => {
       try {
-        const payload = JSON.parse(ev.data);
-        const { source, isPartial, jobs } = payload;
-        dispatch({ type: 'sourceStatus', source, status: 'streaming' });
-        dispatch({ type: 'addJobs', jobs });
-        // forward to worker for dedupe + ranking
-        workerRef.current?.postMessage({ type: 'add', q, jobs });
-      } catch (err) {
-        console.error('SSE parse error', err);
+        const data = JSON.parse(event.data);
+        const source = data.source || 'unknown';
+
+        if (data.type === 'STARTED') {
+          dispatch({ type: 'sourceStatus', source: 'global', status: 'loading' });
+          return;
+        }
+
+        if (data.type === 'SOURCE_RESULT') {
+          dispatch({ type: 'sourceStatus', source, status: data.is_partial ? 'streaming' : 'success' });
+
+          const jobs: Job[] = (data.jobs || []).map((job: Job) => ({
+            ...job,
+            source,
+            id: createStableJobId({ ...job, source }),
+          }));
+
+          dispatch({ type: 'addJobs', jobs });
+          workerRef.current?.postMessage({ type: 'add', q, jobs });
+          return;
+        }
+
+        if (data.type === 'SCORES_UPDATED') {
+          if (data.jobs && Array.isArray(data.jobs)) {
+            const jobsWithIds = data.jobs.map((job: Job) => ({
+              ...job,
+              id: createStableJobId(job),
+            }));
+            workerRef.current?.postMessage({ type: 'recompute', q, jobs: jobsWithIds });
+          }
+          return;
+        }
+
+        if (data.type === 'COMPLETED') {
+          dispatch({ type: 'sourceStatus', source: 'global', status: 'success' });
+          if (data.jobs && Array.isArray(data.jobs)) {
+            const jobs: Job[] = data.jobs.map((job: Job) => ({
+              ...job,
+              id: createStableJobId(job),
+            }));
+            dispatch({ type: 'addJobs', jobs });
+            workerRef.current?.postMessage({ type: 'recompute', q, jobs });
+          }
+          return;
+        }
+      } catch (error) {
+        console.error('SSE parse error', error);
       }
     };
-
-    es.addEventListener('end', () => {
-      // all done
-    });
 
     es.onerror = (err) => {
       console.error('SSE error', err);
@@ -117,15 +184,21 @@ export function useJobStreamingSearch(q: string, options?: { autoApplySortedDela
     };
   }, [q]);
 
-  const liveItems = useMemo(() => state.liveOrder.map((id) => state.liveMap[id]), [state.liveOrder, state.liveMap]);
-  const sortedItems = useMemo(() => deferredSortedOrder.map((id) => state.liveMap[id]).filter(Boolean), [deferredSortedOrder, state.liveMap]);
+  const liveItems = useMemo(
+    () => state.liveOrder.map((id) => state.liveMap[id]),
+    [state.liveOrder, state.liveMap]
+  );
+
+  const sortedItems = useMemo(
+    () => deferredSortedOrder.map((id) => state.liveMap[id]).filter(Boolean),
+    [deferredSortedOrder, state.liveMap]
+  );
 
   return {
     liveItems,
     sortedItems,
     sources: state.sources,
     refresh: () => {
-      // re-run worker ranking on current items
       workerRef.current?.postMessage({ type: 'recompute', q, jobs: Object.values(state.liveMap) });
     },
     close: () => {

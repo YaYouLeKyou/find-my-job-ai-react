@@ -43,11 +43,11 @@ function ResultCard({
     const [letterError, setLetterError] = useState('');
     const [copied, setCopied] = useState(false);
 
-    const title = item.title || item.poste || item.mission || item.name || S.untitled;
-    const company = item.company || item.organisme || item.client || item.employer || '';
+    const title = item.title || item.titre || item.poste || item.mission || item.name || S.untitled;
+    const company = item.company || item.entreprise || item.organisme || item.client || item.employer || '';
     const location = item.location || item.lieu || item.city || item.region || '';
-    const description = item.description || item.resume || item.summary || item.desc || '';
-    const link = item.link || item.url || item.source_url || '#';
+    const description = item.description || item.desc || item.resume || item.summary || '';
+    const link = item.link || item.lien || item.url || item.source_url || '#';
     const date = item.date || item.published_date || item.created_at || '';
     const contract = item.contract || item.contract_type || item.type_contrat || '';
     const salary = item.salary || item.salaire || '';
