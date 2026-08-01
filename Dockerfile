@@ -19,4 +19,4 @@ COPY shared ./shared
 WORKDIR /app
 
 EXPOSE 8080
-CMD ["bash", "-lc", "cd /app/backend && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT"]
+CMD ["bash", "-lc", "python -m uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"]
