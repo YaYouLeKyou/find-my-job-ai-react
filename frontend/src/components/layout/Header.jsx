@@ -7,13 +7,14 @@
  *   - Bouton retour au hub central (Job Bridge)
  */
 import React from 'react';
-import { Cpu, ArrowLeft, Sparkles, Sun, Moon, Globe } from 'lucide-react';
+import { Cpu, ArrowLeft, Sparkles, Sun, Moon, Globe, Mail } from 'lucide-react';
 import { useAgent } from '../../context/AgentContext';
-import { LANGS } from '../../utils/translations';
+import { LANGS, STRINGS } from '../../utils/translations';
 
 export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkMode, darkMode, lang, setLang }) {
     const { noAiMode, setNoAiMode, agentConfig } = useAgent();
     const theme = agentConfig.theme;
+    const S = STRINGS[LANGS[lang]?.code || 'fr'];
 
     return (
         <header style={{
@@ -67,11 +68,11 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                 e.currentTarget.style.background = 'var(--color-surface)';
                                 e.currentTarget.style.borderColor = 'var(--color-border)';
                             }}
-                            title="Retour à Job Bridge"
-                            aria-label="Retour au hub"
+                            title={S.back_to_hub}
+                            aria-label={S.back_to_hub_aria}
                         >
                             <ArrowLeft size={16} />
-                            <span style={{ display: 'none' }} className="back-text">Back to Hub</span>
+                            <span style={{ display: 'none' }} className="back-text">{S.back_to_hub}</span>
                         </button>
                     )}
 
@@ -93,6 +94,38 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                     alignItems: 'center',
                     gap: '8px',
                 }}>
+                    {/* Feedback Button */}
+                    <a
+                        href="mailto:findmyworkai@gmail.com"
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 14px',
+                            fontSize: '0.875rem',
+                            fontWeight: 600,
+                            color: 'var(--color-text-primary)',
+                            background: 'var(--color-surface)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            textDecoration: 'none',
+                            transition: 'all 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'var(--color-surface-hover)';
+                            e.currentTarget.style.borderColor = 'var(--color-text-muted)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'var(--color-surface)';
+                            e.currentTarget.style.borderColor = 'var(--color-border)';
+                        }}
+                        title={S.feedback}
+                    >
+                        <Mail size={16} />
+                        <span className="feedback-text">{S.feedback}</span>
+                    </a>
+
                     {/* Language Selector */}
                     {setLang && (
                         <select
@@ -118,7 +151,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                 e.currentTarget.style.borderColor = 'var(--color-border)';
                                 e.currentTarget.style.boxShadow = 'none';
                             }}
-                            aria-label="Sélectionner la langue"
+                            aria-label={S.language_aria}
                         >
                             {Object.keys(LANGS).map((key) => (
                                 <option key={key} value={key}>
@@ -152,8 +185,8 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                 e.currentTarget.style.background = 'var(--color-surface)';
                                 e.currentTarget.style.borderColor = 'var(--color-border)';
                             }}
-                            title={darkMode ? 'Mode Clair' : 'Mode Sombre'}
-                            aria-label="Basculer le mode sombre/clair"
+                            title={darkMode ? S.light_mode : S.dark_mode}
+                            aria-label={S.dark_mode_aria}
                         >
                             {darkMode ? <Sun size={18} /> : <Moon size={18} />}
                         </button>
@@ -196,18 +229,18 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                     e.currentTarget.style.borderColor = 'var(--color-border)';
                                 }
                             }}
-                            title={noAiMode ? 'Désactiver le Mode IA' : 'Activer le Mode IA'}
+                            title={noAiMode ? S.disable_ai : S.enable_ai}
                             aria-pressed={noAiMode}
                         >
                             {noAiMode ? (
                                 <>
                                     <Cpu size={16} />
-                                    <span>Mode Sans IA</span>
+                                    <span>{S.no_ai_mode}</span>
                                 </>
                             ) : (
                                 <>
                                     <Sparkles size={16} />
-                                    <span>Mode IA Actif</span>
+                                    <span>{S.ai_mode_active}</span>
                                 </>
                             )}
                         </button>

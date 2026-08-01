@@ -195,3 +195,39 @@
     padding: 3px 8px;
   }
 }
+
+/* ─── AI Chat Drawer Animations ─────────────────────────────────────────── */
+
+/* Pulsation du FAB */
+@keyframes chatPulse {
+  0%, 100% {
+    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+  }
+  50% {
+    box-shadow: 0 4px 28px rgba(99, 102, 241, 0.6);
+  }
+}
+
+/* Slide up du drawer */
+@keyframes chatSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Fade in des messages */
+@keyframes chatFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

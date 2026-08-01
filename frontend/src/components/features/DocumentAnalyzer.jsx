@@ -11,7 +11,7 @@
  * Lorsqu'il est activé, force_fallback_mode est envoyé au backend.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload, AlertCircle, FileText, CheckCircle2, Loader2 } from 'lucide-react';
 import { LANGS, STRINGS } from '../../utils/translations';
 import { useAgent } from '../../context/AgentContext';
@@ -21,7 +21,7 @@ import AdComponent from '../AdComponent';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-function DocumentAnalyzer({ lang, onAnalysisSuccess }) {
+function DocumentAnalyzer({ lang, onAnalysisSuccess, cvData: externalCvData }) {
     const S = STRINGS[LANGS[lang].code];
     const { noAiMode } = useAgent();
     const { activeModel } = useAI();
@@ -32,6 +32,18 @@ function DocumentAnalyzer({ lang, onAnalysisSuccess }) {
     const [fileName, setFileName] = useState('');
     const [cvData, setCvData] = useState(null);
     const fileInputRef = useRef(null);
+
+    // Sync external cvData changes (e.g. from history reload)
+    useEffect(() => {
+        try {
+            if (externalCvData && typeof externalCvData === 'object') {
+                setCvData(externalCvData);
+                setFileName(externalCvData.fileName || externalCvData.nom_complet || 'CV');
+            }
+        } catch (err) {
+            console.error('[DocumentAnalyzer] Error syncing external cvData:', err);
+        }
+    }, [externalCvData]);
 
     const handleDrag = (e) => {
         e.preventDefault();
@@ -46,7 +58,7 @@ function DocumentAnalyzer({ lang, onAnalysisSuccess }) {
     const processFile = async (file) => {
         if (!file) return;
         if (file.type !== 'application/pdf') {
-            setError('Seuls les fichiers PDF sont supportés.');
+            setError(S.pdf_only);
             return;
         }
 
@@ -71,7 +83,7 @@ function DocumentAnalyzer({ lang, onAnalysisSuccess }) {
             const responseText = await response.text();
 
             if (!response.ok) {
-                let errorMessage = `Erreur HTTP ${response.status}`;
+                let errorMessage = `${S.http_error} ${response.status}`;
                 if (contentType && contentType.includes('application/json')) {
                     try {
                         const errorData = JSON.parse(responseText);
@@ -80,7 +92,7 @@ function DocumentAnalyzer({ lang, onAnalysisSuccess }) {
                         console.error('[DocumentAnalyzer] Error parsing error response:', e);
                     }
                 } else if (responseText.includes('<!doctype') || responseText.includes('<html')) {
-                    errorMessage = "Le backend n'est pas accessible. Vérifiez que le serveur est démarré sur " + API_BASE;
+                    errorMessage = `${S.backend_not_accessible} ${API_BASE}`;
                 }
 
                 if (response.status === 400) {
@@ -91,7 +103,7 @@ function DocumentAnalyzer({ lang, onAnalysisSuccess }) {
             }
 
             if (!contentType || !contentType.includes('application/json')) {
-                throw new Error("Le serveur a retourné une réponse invalide. Vérifiez que le backend est bien configuré.");
+                throw new Error(S.invalid_response);
             }
 
             const data = JSON.parse(responseText);
@@ -177,7 +189,7 @@ function DocumentAnalyzer({ lang, onAnalysisSuccess }) {
                         {fileName ? fileName : S.upload}
                     </h3>
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                        {loading ? S.analyze : "Les fichiers PDF sont supportés jusqu'à 10MB"}
+                        {loading ? S.analyze : S.pdf_supported}
                     </p>
                 </div>
 
@@ -195,7 +207,7 @@ function DocumentAnalyzer({ lang, onAnalysisSuccess }) {
                         alignItems: 'center',
                         gap: '4px',
                     }}>
-                        ⚠️ Mode Sans IA activé - Analyse par parsing regex
+                        {S.no_ai_fallback}
                     </div>
                 )}
             </div>
@@ -228,7 +240,7 @@ function DocumentAnalyzer({ lang, onAnalysisSuccess }) {
                         fontWeight: '600',
                         fontSize: '0.95rem',
                     }}>
-                        ⏳ Analyse de votre document en cours... (15-30 secondes)
+                        {S.analyzing_document}
                     </div>
                     <AdComponent />
                 </div>

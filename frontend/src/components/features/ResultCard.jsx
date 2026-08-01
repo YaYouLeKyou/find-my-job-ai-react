@@ -43,7 +43,7 @@ function ResultCard({
     const [letterError, setLetterError] = useState('');
     const [copied, setCopied] = useState(false);
 
-    const title = item.title || item.poste || item.mission || item.name || 'Sans titre';
+    const title = item.title || item.poste || item.mission || item.name || S.untitled;
     const company = item.company || item.organisme || item.client || item.employer || '';
     const location = item.location || item.lieu || item.city || item.region || '';
     const description = item.description || item.resume || item.summary || item.desc || '';
@@ -110,6 +110,12 @@ function ResultCard({
         document.body.appendChild(element);
         element.click();
         document.body.removeChild(element);
+    };
+
+    const handleDeleteSource = () => {
+        if (onDelete) {
+            onDelete(item);
+        }
     };
 
     const renderTypeSpecificFields = () => {
@@ -223,10 +229,6 @@ function ResultCard({
                 fontSize: '0.8rem',
                 fontWeight: 700,
                 border: `1px solid ${scoreColor}30`,
-                position: 'absolute',
-                top: '16px',
-                right: '16px',
-                zIndex: 1,
             }}>
                 <span>🎯</span>
                 <span>{scoreNum}%</span>
@@ -274,16 +276,56 @@ function ResultCard({
                 e.currentTarget.style.borderColor = 'var(--color-border)';
             }}
         >
-            {/* AI Score badge (top-right) */}
-            {renderAiScore()}
+            {/* Favorite star button - top right */}
+            {onSave && (
+                <div style={{
+                    position: 'absolute',
+                    top: '16px',
+                    right: '16px',
+                    zIndex: 2,
+                }}>
+                    <button
+                        onClick={() => onSave(item)}
+                        style={{
+                            padding: '8px',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid var(--color-border)',
+                            background: 'var(--color-surface)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s ease',
+                            color: isSaved ? primaryColor : 'var(--color-text-muted)',
+                            flexShrink: 0,
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'var(--color-surface-hover)';
+                            e.currentTarget.style.borderColor = isSaved ? primaryColor : 'var(--color-text-muted)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'var(--color-surface)';
+                            e.currentTarget.style.borderColor = 'var(--color-border)';
+                        }}
+                        title={isSaved ? S.remove_favorite : S.add_favorite}
+                    >
+                        <Star
+                            size={18}
+                            fill={isSaved ? primaryColor : 'none'}
+                            color={isSaved ? primaryColor : 'currentColor'}
+                        />
+                    </button>
+                </div>
+            )}
 
-            {/* Header: Title + Company + Save */}
+            {/* Header: Title + Company + AI Score */}
             <div style={{
                 display: 'flex',
                 alignItems: 'flex-start',
                 justifyContent: 'space-between',
                 gap: '12px',
-                paddingRight: aiProcessed ? '80px' : '0',
+                paddingRight: onSave ? '40px' : '0',
+                marginTop: '8px',
             }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                     <h3 style={{
@@ -316,41 +358,10 @@ function ResultCard({
                         </div>
                     )}
                 </div>
-
-                {/* Save button */}
-                {onSave && (
-                    <button
-                        onClick={() => onSave(item)}
-                        style={{
-                            padding: '8px',
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid var(--color-border)',
-                            background: 'var(--color-surface)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.2s ease',
-                            color: isSaved ? primaryColor : 'var(--color-text-muted)',
-                            flexShrink: 0,
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'var(--color-surface-hover)';
-                            e.currentTarget.style.borderColor = isSaved ? primaryColor : 'var(--color-text-muted)';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'var(--color-surface)';
-                            e.currentTarget.style.borderColor = 'var(--color-border)';
-                        }}
-                        title={isSaved ? 'Retirer des favoris' : 'Ajouter aux favoris'}
-                    >
-                        <Star
-                            size={18}
-                            fill={isSaved ? primaryColor : 'none'}
-                            color={isSaved ? primaryColor : 'currentColor'}
-                        />
-                    </button>
-                )}
+                {/* AI Score - inline with title */}
+                <div style={{ flexShrink: 0, marginTop: '2px' }}>
+                    {renderAiScore()}
+                </div>
             </div>
 
             {/* Meta info with chips */}
@@ -381,7 +392,7 @@ function ResultCard({
                             <button
                                 className="btn btn-delete-sm"
                                 onClick={handleDeleteSource}
-                                title="Supprimer cette source"
+                                 title={S.delete_source}
                                 style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#999' }}
                             >
                                 <Trash2 size={14} />
@@ -410,7 +421,7 @@ function ResultCard({
                         onMouseLeave={(e) => {
                             e.currentTarget.style.background = 'var(--color-surface)';
                         }}
-                        title="Supprimer cette offre"
+                         title={S.delete_offer}
                     >
                         <Trash2 size={18} />
                     </button>
@@ -515,7 +526,7 @@ function ResultCard({
                             e.currentTarget.style.boxShadow = '0 4px 14px rgba(99, 102, 241, 0.25)';
                             e.currentTarget.style.transform = 'translateY(0)';
                         }}
-                        title="Lettre de motivation IA"
+                         title={S.ai_letter_title}
                     >
                         <FileText size={16} />
                         <span>Lettre IA</span>
@@ -551,7 +562,7 @@ function ResultCard({
                             e.currentTarget.style.background = 'var(--color-surface)';
                             e.currentTarget.style.borderColor = 'var(--color-border)';
                         }}
-                        title="Simuler un entretien"
+                         title={S.simulate_interview}
                     >
                         <MessageSquare size={16} />
                         <span>Entretien</span>
@@ -639,7 +650,7 @@ function ResultCard({
                                                 transition: 'all 0.2s ease',
                                             }}
                                             onClick={handleCopyLetter}
-                                            title="Copier la lettre"
+                                            title={S.copy_letter}
                                         >
                                             {copied ? <Check size={16} /> : <Copy size={16} />}
                                         </button>
@@ -660,7 +671,7 @@ function ResultCard({
                                                 transition: 'all 0.2s ease',
                                             }}
                                             onClick={handleDownload}
-                                            title="Télécharger la lettre"
+                                            title={S.download_letter_btn}
                                         >
                                             <Download size={16} />
                                         </button>

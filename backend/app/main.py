@@ -40,6 +40,7 @@ from app.scrapers.web_sources import (
 
 from shared.ai import call_ai_provider, analyze_cv_with_fallback, generate_cover_letter
 from shared.utils import extract_text_from_pdf
+from app.services.chat import ChatRequest, build_system_prompt, orchestrate_chat_fallback
 import io
 
 import httpx
@@ -685,6 +686,58 @@ async def ai_call(request: Request):
     except Exception as e:
         logger.error(f"[AI_CALL] Error: {str(e)}")
         return {"error": str(e)}
+
+
+# ─── AI Copilot Chat Endpoint ─────────────────────────────────────────────────
+
+@app.post("/api/chat")
+async def ai_copilot_chat(request: Request):
+    """Context-Aware AI Copilot chat endpoint.
+
+    Accepts a JSON body with `message` and `context` (agent_type, system_status,
+    user_profile, displayed_jobs_summary).
+
+    Reads user API keys from HTTP headers (never from the body):
+    - X-User-Gemini-Key: User's personal Gemini API key
+    - X-User-Groq-Key: User's personal Groq API key
+
+    Fallback priority: User Gemini > User Groq > Server Groq > Support Alert.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return {"error": "Invalid JSON body"}
+
+    # Read API keys from HTTP headers (security: never in body)
+    user_gemini_key = (request.headers.get("X-User-Gemini-Key") or "").strip()
+    user_groq_key = (request.headers.get("X-User-Groq-Key") or "").strip()
+    server_groq_key = (settings.GROQ_API_KEY or "").strip()
+
+    # Validate request with Pydantic
+    try:
+        chat_req = ChatRequest(**body)
+    except Exception as e:
+        logger.warning(f"[CHAT] Validation error: {e}")
+        return {"error": f"Invalid request: {str(e)}"}
+
+    # Build the dynamic system prompt with XML-isolated context
+    system_prompt = build_system_prompt(chat_req.context)
+    logger.info(f"[CHAT] message={chat_req.message[:80]!r} agent={chat_req.context.agent_type} jobs={len(chat_req.context.displayed_jobs_summary)} gemini={'Y' if user_gemini_key else 'N'} groq_user={'Y' if user_groq_key else 'N'} groq_srv={'Y' if server_groq_key else 'N'}")
+
+    # Orchestrate fallback
+    result = await orchestrate_chat_fallback(
+        message=chat_req.message,
+        system_prompt=system_prompt,
+        user_gemini_key=user_gemini_key,
+        user_groq_key=user_groq_key,
+        server_groq_key=server_groq_key,
+    )
+
+    return {
+        "response": result["response"],
+        "provider_used": result["provider_used"],
+        "quota_exhausted": result["quota_exhausted"],
+    }
 
 
 # ─── Health Check ─────────────────────────────────────────────────────────────

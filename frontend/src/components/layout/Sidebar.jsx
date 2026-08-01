@@ -22,7 +22,7 @@ import { useAgent } from '../../context/AgentContext';
 import { useAI } from '../../context/AIContext';
 import { AI_MODELS } from '../../config/aiProviders';
 import { APIKeyManager } from '../APIKeyManager';
-import { LANGS } from '../../utils/translations';
+import { LANGS, STRINGS } from '../../utils/translations';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -46,6 +46,7 @@ export default function Sidebar({
 
     const theme = agentConfig.theme;
     const primaryColor = theme.primary;
+    const S = STRINGS[LANGS[lang]?.code || 'fr'];
 
     // Close mobile sidebar on window resize above breakpoint
     useEffect(() => {
@@ -265,7 +266,7 @@ export default function Sidebar({
                 className="sidebar-toggle-mobile"
                 onClick={() => setMobileOpen(!mobileOpen)}
                 aria-label="Toggle sidebar"
-                title={mobileOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+                title={mobileOpen ? S.close_menu : S.open_menu}
             >
                 {mobileOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
@@ -322,7 +323,7 @@ export default function Sidebar({
                             alignItems: 'center',
                             justifyContent: 'center',
                         }}
-                        title={collapsed ? 'Développer' : 'Réduire'}
+                        title={collapsed ? S.expand : S.collapse}
                     >
                         {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
                     </button>
@@ -596,7 +597,7 @@ export default function Sidebar({
                                                     gap: '4px',
                                                     cursor: 'pointer',
                                                 }}
-                                                title="Vider l'historique"
+                                                 title={S.clear_history}
                                             >
                                                 <Trash2 size={12} /> Vider
                                             </button>
@@ -613,7 +614,7 @@ export default function Sidebar({
                                                     gap: '4px',
                                                     cursor: 'pointer',
                                                 }}
-                                                title="Vider le cache des résultats"
+                                                 title={S.clear_results_cache}
                                             >
                                                 <Trash2 size={12} /> Cache
                                             </button>
@@ -698,7 +699,7 @@ export default function Sidebar({
                                                 gap: '4px',
                                                 cursor: 'pointer',
                                             }}
-                                            title="Vider les éléments sauvegardés"
+                                             title={S.clear_saved_items}
                                         >
                                             <Trash2 size={12} /> Vider
                                         </button>
@@ -949,7 +950,7 @@ export default function Sidebar({
                                 {onToggleDarkMode && (
                                     <button
                                         onClick={onToggleDarkMode}
-                                        title="Basculer mode sombre/clair"
+                                         title={S.toggle_dark_mode}
                                         style={{
                                             background: 'none',
                                             border: 'none',
@@ -972,10 +973,10 @@ export default function Sidebar({
                         gap: '16px',
                         marginTop: '16px',
                     }}>
-                        <Globe size={20} style={{ color: 'var(--text-secondary)' }} title="Language" />
-                        <Zap size={20} style={{ color: 'var(--text-secondary)' }} title="Traitement & Analyse IA" />
-                        <Key size={20} style={{ color: 'var(--text-secondary)' }} title="Clé API" />
-                        <Filter size={20} style={{ color: primaryColor }} title="Filtres" />
+                         <Globe size={20} style={{ color: 'var(--text-secondary)' }} title={S.language} />
+                         <Zap size={20} style={{ color: 'var(--text-secondary)' }} title={S.ai_processing} />
+                         <Key size={20} style={{ color: 'var(--text-secondary)' }} title={S.api_key} />
+                         <Filter size={20} style={{ color: primaryColor }} title={S.filters} />
                     </div>
                 )}
             </aside>

@@ -21,12 +21,15 @@ import LandingHub from './components/LandingHub';
 import AppLayout from './components/layout/AppLayout';
 import AISettings from './components/features/AISettings';
 import DocumentAnalyzer from './components/features/DocumentAnalyzer';
+import AnalyzedCvMemory from './components/features/AnalyzedCvMemory';
+import FavoritesMemory from './components/features/FavoritesMemory';
 import SearchBar from './components/features/SearchBar';
 import ResultCard from './components/features/ResultCard';
 import ActiveSourcesHeader from './components/ActiveSourcesHeader';
 import AdComponent from './components/AdComponent';
 import SEO from './components/SEO';
 import SearchProgressBar from './components/SearchProgressBar';
+import AIChatDrawer from './components/AIChatDrawer';
 
 import { Loader2 } from 'lucide-react';
 import './styles/streaming.css';
@@ -64,6 +67,14 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
     const customGeminiKey = getActiveApiKey() || '';
 
     const [cvData, setCvData] = useState(null);
+    const [analyzedCvs, setAnalyzedCvs] = useState(() => {
+        try {
+            const raw = localStorage.getItem('analyzed_cvs');
+            return raw ? JSON.parse(raw) : [];
+        } catch {
+            return [];
+        }
+    });
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedSources, setSelectedSources] = useState(agentConfig.sources);
     const [excludedSources, setExcludedSources] = useState([]);
@@ -100,6 +111,9 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
 
         const savedItemsData = localStorage.getItem('savedItems');
         if (savedItemsData) setSavedItems(JSON.parse(savedItemsData));
+
+        const analyzedCvsData = localStorage.getItem('analyzed_cvs');
+        if (analyzedCvsData) setAnalyzedCvs(JSON.parse(analyzedCvsData));
     }, []);
 
     // --- Sync selectedSources when agent changes ---
@@ -111,6 +125,52 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
     const handleCvAnalysisSuccess = (data) => {
         setCvData(data);
         if (data.metier) setSearchQuery(data.metier);
+
+        const entry = {
+            id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+            ...data,
+            analyzedAt: Date.now(),
+        };
+        setAnalyzedCvs(prev => {
+            const updated = [entry, ...prev.filter(c => c.nom_complet !== data.nom_complet)].slice(0, 20);
+            localStorage.setItem('analyzed_cvs', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
+    const handleRemoveAnalyzedCv = (id) => {
+        setAnalyzedCvs(prev => {
+            const updated = prev.filter(c => c.id !== id);
+            localStorage.setItem('analyzed_cvs', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
+    const handleClearAnalyzedCvs = () => {
+        setAnalyzedCvs([]);
+        localStorage.setItem('analyzed_cvs', JSON.stringify([]));
+        showToast(S.clear_history || 'Historique CV effacé', 'info');
+    };
+
+    const handleReanalyzeCv = (cv) => {
+        if (cv.fileName) {
+            setCvData(cv);
+            if (cv.metier) setSearchQuery(cv.metier);
+        }
+    };
+
+    const handleRemoveFavorite = (id) => {
+        setSavedItems(prev => {
+            const updated = prev.filter(j => j.id !== id);
+            localStorage.setItem('savedItems', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
+    const handleClearFavorites = () => {
+        setSavedItems([]);
+        localStorage.setItem('savedItems', JSON.stringify([]));
+        showToast(S.cleared_favorites || 'Favoris effacés', 'info');
     };
 
     const handleSelectJobQuery = (query) => {
@@ -155,7 +215,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                     if (cacheAge < 30 * 60 * 1000) {
                         const results = sortJobs(cached.results || [], effectiveSortOption);
                         const sourceCounts = cached.source_counts || {};
-                        showToast(`⚡ ${results.length} résultats depuis le cache (${(cacheAge / 1000).toFixed(0)}s)`, 'success');
+                        showToast(`⚡ ${results.length} ${S.results_from_cache} (${(cacheAge / 1000).toFixed(0)}s)`, 'success');
                         return;
                     }
                 } catch (e) {
@@ -218,13 +278,15 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
             : [...savedItems, item];
         setSavedItems(updated);
         localStorage.setItem('savedItems', JSON.stringify(updated));
-        showToast(isSaved ? '💾 Retiré des favoris' : '✅ Sauvegardé dans les favoris', isSaved ? 'info' : 'success');
+        showToast(isSaved ? `💾 ${S.removed_from_favorites}` : `✅ ${S.saved_to_favorites}`, isSaved ? 'info' : 'success');
     };
 
     // --- Export to CSV ---
     const exportToCSV = () => {
         if (!displayedJobs.length) return;
-        const headers = ['Titre', 'Entreprise', 'Localisation', 'Source', 'Date', 'Score IA', 'URL'];
+        const headers = currentLangCode === 'en'
+            ? ['Title', 'Company', 'Location', 'Source', 'Date', 'AI Score', 'URL']
+            : ['Titre', 'Entreprise', 'Localisation', 'Source', 'Date', 'Score IA', 'URL'];
         const rows = displayedJobs.map(job => [
             job.title || '',
             job.company || '',
@@ -241,7 +303,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
         link.download = `jobs_${new Date().toISOString().slice(0, 10)}.csv`;
         link.click();
         URL.revokeObjectURL(link.href);
-        showToast('📊 Export CSV réussi !', 'success');
+        showToast(`📊 ${S.csv_export_success}`, 'success');
     };
 
     // --- Start Interview ---
@@ -294,7 +356,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                     ['Glassdoor Global', `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${q}`],
                     ['LinkedIn Global', `https://www.linkedin.com/jobs/search/?keywords=${q}`],
                 ],
-                'Tech & Cadres': [
+                'Tech & Professionals': [
                     ['Reed.co.uk', `https://www.reed.co.uk/jobs/${qSlug}-jobs`],
                     ['Dice (Tech US)', `https://www.dice.com/jobs?q=${q}`],
                     ['LinkedIn US', `https://www.linkedin.com/jobs/search/?keywords=${q}`],
@@ -339,7 +401,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
         if (agentType === 'freelance') {
             allLinks.push({ category: '🚀 Freelance', links: Object.entries(freelanceLinks) });
         } else if (agentType === 'recruiter') {
-            allLinks.push({ category: '👷 Recrutement', links: Object.entries(recruiterLinks) });
+            allLinks.push({ category: '👷 Recruitment', links: Object.entries(recruiterLinks) });
         }
 
         return allLinks;
@@ -355,9 +417,9 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
 
     // --- Result type label ---
     const resultTypeLabel = agentConfig.resultType === 'mission'
-        ? S.mission_results || '🎯 Missions recommandées'
+        ? S.mission_results
         : agentConfig.resultType === 'candidate'
-            ? '🎯 Candidats recommandés'
+            ? `🎯 ${S.recommended_candidates}`
             : S.top_matches;
 
     return (
@@ -381,27 +443,37 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
             )}
 
             {/* AI Settings - Configuration IA au-dessus de l'analyzer */}
-            <AISettings />
+            <AISettings lang={lang} />
 
             {/* Document Analyzer (CV / Fiche de poste) - IDENTIQUE pour tous les agents */}
             <DocumentAnalyzer
                 lang={lang}
                 onAnalysisSuccess={handleCvAnalysisSuccess}
+                cvData={cvData}
+            />
+
+            {/* Analyzed CV Memory - sous l'analyzer */}
+            <AnalyzedCvMemory
+                lang={lang}
+                cvs={analyzedCvs}
+                onRemove={handleRemoveAnalyzedCv}
+                onClear={handleClearAnalyzedCvs}
+                onReanalyze={handleReanalyzeCv}
             />
 
             {/* ─── Quick Filters (in body, under DocumentAnalyzer) ─────────── */}
             <div className="card" style={{ marginTop: '16px', background: 'var(--color-surface)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                     <span style={{ fontSize: '1rem' }}>🎛️</span>
-                    <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>Filtres rapides</h3>
+                    <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>{S.quick_filters}</h3>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-end' }}>
                     {agentConfig.filters.map((filter) => {
                         const value = activeFilters[filter.id];
 
                         if (filter.type === 'select') {
                             return (
-                                <div key={filter.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <div key={filter.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', flex: '1 1 160px' }}>
                                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                         {filter.label}
                                     </label>
@@ -409,7 +481,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                                         value={value || ''}
                                         onChange={(e) => updateFilter(filter.id, e.target.value)}
                                         className="select-control"
-                                        style={{ padding: '8px 12px', fontSize: '0.875rem' }}
+                                        style={{ padding: '8px 12px', fontSize: '0.875rem', width: '100%', height: '38px', boxSizing: 'border-box' }}
                                     >
                                         {filter.placeholder && <option value="">{filter.placeholder}</option>}
                                         {filter.options.map((opt) => (
@@ -422,7 +494,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
 
                         if (filter.type === 'text') {
                             return (
-                                <div key={filter.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <div key={filter.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', flex: '1 1 160px' }}>
                                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                         {filter.label}
                                     </label>
@@ -432,7 +504,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                                         value={value || ''}
                                         onChange={(e) => updateFilter(filter.id, e.target.value)}
                                         className="input-control"
-                                        style={{ padding: '8px 12px', fontSize: '0.875rem', minWidth: '150px' }}
+                                        style={{ padding: '8px 12px', fontSize: '0.875rem', width: '100%', height: '38px', boxSizing: 'border-box' }}
                                     />
                                 </div>
                             );
@@ -457,6 +529,12 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                                         background: value ? `${agentConfig.theme.primary}15` : 'var(--color-surface)',
                                         color: value ? agentConfig.theme.primary : 'var(--text-primary)',
                                         transition: 'all 0.2s',
+                                        minHeight: '38px',
+                                        boxSizing: 'border-box',
+                                        whiteSpace: 'normal',
+                                        minWidth: '160px',
+                                        flex: '1 1 160px',
+                                        lineHeight: '1.3',
                                     }}
                                 >
                                     <input
@@ -472,12 +550,12 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
 
                         if (filter.type === 'range') {
                             return (
-                                <div key={filter.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '120px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div key={filter.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', flex: '1 1 160px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
                                         <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                             {filter.label}
                                         </label>
-                                        <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-primary-500)' }}>
+                                        <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-primary-500)', minWidth: '32px', textAlign: 'right' }}>
                                             {value || filter.default}
                                         </span>
                                     </div>
@@ -488,7 +566,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                                         step={filter.step}
                                         value={value || filter.default}
                                         onChange={(e) => updateFilter(filter.id, parseInt(e.target.value))}
-                                        style={{ width: '100%', accentColor: 'var(--color-primary-500)', cursor: 'pointer' }}
+                                        style={{ width: '100%', accentColor: 'var(--color-primary-500)', cursor: 'pointer', height: '38px', boxSizing: 'border-box' }}
                                     />
                                 </div>
                             );
@@ -496,7 +574,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
 
                         if (filter.type === 'number') {
                             return (
-                                <div key={filter.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <div key={filter.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', flex: '1 1 160px' }}>
                                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                         {filter.label}
                                     </label>
@@ -508,7 +586,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                                         min={filter.min}
                                         step={filter.step}
                                         className="input-control"
-                                        style={{ padding: '8px 12px', fontSize: '0.875rem', minWidth: '100px' }}
+                                        style={{ padding: '8px 12px', fontSize: '0.875rem', width: '100%', height: '38px', boxSizing: 'border-box' }}
                                     />
                                 </div>
                             );
@@ -641,11 +719,25 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                 loading={loadingJobs}
                 chips={chips}
                 onSelectChip={handleSelectJobQuery}
+                lang={lang}
                 placeholder={
                     agentConfig.resultType === 'mission'
                         ? S.mission_search_placeholder
                         : S.search_placeholder
                 }
+            />
+
+            {/* Favorites Memory - entre la barre de recherche et les résultats */}
+            <FavoritesMemory
+                lang={lang}
+                favorites={savedItems}
+                onRemove={handleRemoveFavorite}
+                onClear={handleClearFavorites}
+                resultType={agentConfig.resultType}
+                cvData={cvData}
+                rankingEngine={activeModel}
+                customGeminiKey={customGeminiKey}
+                onStartInterview={handleStartInterview}
             />
 
             {/* Loading state */}
@@ -663,7 +755,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                         style={{ animation: 'spin 1.5s linear infinite', color: 'var(--primary-color)' }}
                     />
                     <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                        Scan global des plateformes en cours...
+                        {S.scanning_platforms}
                     </span>
                     <span style={{
                         fontSize: '0.8rem',
@@ -674,8 +766,8 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                         borderRadius: '9999px',
                         fontWeight: 500,
                     }}>
-                        {totalSources > 0 ? `Source ${sourcesDone}/${totalSources}` : 'Initialisation...'}
-                        {aiProcessing && ' · Tri IA...'}
+                        {totalSources > 0 ? `${S.source_progress} ${sourcesDone}/${totalSources}` : S.initializing}
+                        {aiProcessing && ` · ${S.ai_sorting}`}
                     </span>
                     <AdComponent style={{ marginTop: '24px' }} />
                 </div>
@@ -722,14 +814,14 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                                 className="btn btn-secondary"
                                 style={{ fontSize: '0.85rem' }}
                             >
-                                📊 Exporter CSV
+                                📊 {S.export_csv}
                             </button>
                             <button
                                 onClick={cancelSearch}
                                 className="btn btn-secondary"
                                 style={{ fontSize: '0.85rem' }}
                             >
-                                Annuler
+                                {S.cancel}
                             </button>
                         </div>
                     </div>
@@ -764,7 +856,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                                 onClick={handleLoadMore}
                                 style={{ padding: '12px 32px', fontSize: '1rem' }}
                             >
-                                Charger plus de résultats ({displayedJobs.length - visibleCount} restants)
+                                {S.load_more} ({displayedJobs.length - visibleCount} {S.remaining})
                             </button>
                         </div>
                     )}
@@ -787,11 +879,22 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                         <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Groq</span>
                         <span style={{ opacity: 0.4 }}>·</span>
                         <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Llama</span>
+                        <span style={{ opacity: 0.4 }}>·</span>
+                        <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Mistral</span>
                     </span>
                     <span style={{ opacity: 0.3, fontWeight: '900' }}>|</span>
                     <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>by Yanès Hadiouche</span>
                 </div>
             </div>
+
+            {/* AI Copilot Chat - Floating Context-Aware Assistant */}
+            <AIChatDrawer
+                jobs={displayedJobs}
+                cvData={cvData}
+                agentType={activeAgent}
+                noAiMode={noAiMode}
+                lang={lang}
+            />
         </AppLayout>
     );
 }

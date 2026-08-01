@@ -384,6 +384,8 @@ export default function LandingHub({ onSelectApp, lang, setLang, onToggleDarkMod
             <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Groq</span>
             <span style={{ opacity: 0.5 }}>·</span>
             <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Llama</span>
+            <span style={{ opacity: 0.5 }}>·</span>
+            <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Mistral</span>
           </span>
           <span style={{ opacity: 0.3, fontWeight: '900' }}>|</span>
           <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>by Yanès Hadiouche</span>

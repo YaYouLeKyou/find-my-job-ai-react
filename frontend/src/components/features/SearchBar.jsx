@@ -22,9 +22,11 @@ function SearchBar({
     chips = [],
     onSelectChip,
     placeholder,
+    lang = 'Français',
 }) {
     const { agentConfig } = useAgent();
-    const S = STRINGS[LANGS[Object.keys(LANGS).find(k => LANGS[k].code === 'fr') || 'Français'].code];
+    const currentLangCode = LANGS[lang].code;
+    const S = STRINGS[currentLangCode];
     const primaryColor = agentConfig.theme.primary;
 
     const handleKeyDown = (e) => {
@@ -34,19 +36,19 @@ function SearchBar({
     };
 
     const getTitle = () => {
-        if (agentConfig.resultType === 'mission') return 'Recherche de missions';
-        if (agentConfig.resultType === 'candidate') return 'Rechercher des candidats';
-        return 'Recherche d\'opportunités';
+        if (agentConfig.resultType === 'mission') return S.mission_search;
+        if (agentConfig.resultType === 'candidate') return S.candidate_search;
+        return S.opportunity_search;
     };
 
     const getDescription = () => {
         if (agentConfig.resultType === 'mission') {
-            return 'Décrivez votre expertise ou le type de mission recherché.';
+            return S.mission_search_desc;
         }
         if (agentConfig.resultType === 'candidate') {
-            return 'Décrivez le poste à pourvoir ou le profil recherché.';
+            return S.candidate_search_desc;
         }
-        return 'Modifiez l\'intitulé ci-dessous pour lancer une recherche personnalisée.';
+        return S.search_info;
     };
 
     return (
@@ -243,7 +245,7 @@ function SearchBar({
                     {loading ? (
                         <>
                             <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-                            Recherche...
+                            {S.searching}
                         </>
                     ) : (
                         <>

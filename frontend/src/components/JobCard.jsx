@@ -165,7 +165,7 @@ export default function JobCard({
           <button 
             className="btn btn-secondary"
             onClick={() => onStartInterview(job)}
-            title="Simuler un entretien"
+            title={S.simulate_interview}
             style={{ flex: '0.5', padding: '12px' }}
           >
             <MessageSquare size={20} />
@@ -213,7 +213,7 @@ export default function JobCard({
                     <button 
                       className="btn btn-secondary"
                       onClick={handleCopyLetter}
-                      title="Copier la lettre"
+                      title={S.copy_letter}
                     >
                       {copied ? <Check size={16} /> : <Copy size={16} />}
                     </button>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ExternalLink, FileText, ChevronDown, ChevronUp, Download, Loader2, Copy, Check, Clock, Wifi, DollarSign, BarChart3 } from 'lucide-react';
+import { LANGS, STRINGS } from '../utils/translations';
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -12,6 +13,7 @@ export default function FreelanceMissionCard({
   isSaved,
   lang = "Français"
 }) {
+  const S = STRINGS[LANGS[lang]?.code || 'fr'];
   const [expanded, setExpanded] = useState(false);
   const [proposalLoading, setProposalLoading] = useState(false);
   const [proposalContent, setProposalContent] = useState("");
@@ -251,7 +253,7 @@ export default function FreelanceMissionCard({
           <button
             className="btn btn-secondary"
             onClick={() => onSaveMission(mission)}
-            title={isSaved ? "Retirer des favoris" : "Sauvegarder la mission"}
+            title={isSaved ? S.remove_favorite : S.save_mission}
             style={{ flexGrow: 0, padding: '8px 12px' }}
           >
             {isSaved ? '⭐' : '☆'}
@@ -261,7 +263,7 @@ export default function FreelanceMissionCard({
           className="btn btn-secondary"
           style={{ flexGrow: 0, padding: '8px 12px' }}
           onClick={handleEstimateWorkload}
-          title="Estimer la charge de travail"
+          title={S.estimate_workload}
           disabled={workloadLoading}
         >
           {workloadLoading ? <Loader2 size={16} className="spin" style={{ animation: 'spin 1s linear infinite' }} /> : <BarChart3 size={16} />}
@@ -386,7 +388,7 @@ export default function FreelanceMissionCard({
                     <button
                       className="btn btn-secondary"
                       onClick={handleCopyProposal}
-                      title="Copier la proposition"
+                      title={S.copy_proposal}
                     >
                       {copied ? <Check size={16} /> : <Copy size={16} />}
                     </button>

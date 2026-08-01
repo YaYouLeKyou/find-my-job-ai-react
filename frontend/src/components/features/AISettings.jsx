@@ -11,8 +11,10 @@ import { useAI } from '../../context/AIContext';
 import { AI_MODELS, getApiKeyUrl, getProviderLabel, PROVIDER_COLORS } from '../../config/aiProviders';
 import { APIKeyManager } from '../APIKeyManager';
 import { Cpu, Key, Info, ExternalLink, Zap, AlertTriangle, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { LANGS, STRINGS } from '../../utils/translations';
 
-export default function AISettings() {
+export default function AISettings({ lang }) {
+    const S = STRINGS[LANGS[lang]?.code || 'fr'];
     const { activeModel, setActiveModel, activeModelConfig, isUsingPersonalKey, modelStatus } = useAI();
     const [showApiInfo, setShowApiInfo] = useState(false);
 
@@ -89,7 +91,7 @@ export default function AISettings() {
                         e.currentTarget.style.background = 'var(--color-surface-secondary)';
                         e.currentTarget.style.color = 'var(--color-text-secondary)';
                     }}
-                    title="Informations sur les clés API"
+                    title={S.api_info_title}
                 >
                     <Info size={18} />
                 </button>
@@ -133,7 +135,7 @@ export default function AISettings() {
                                     margin: 0,
                                     marginBottom: '6px',
                                 }}>
-                                    Mode par défaut : Groq (ressource partagée)
+                                    {S.default_mode_groq}
                                 </p>
                                 <p style={{
                                     fontSize: '0.8rem',
@@ -141,7 +143,7 @@ export default function AISettings() {
                                     margin: 0,
                                     lineHeight: '1.6',
                                 }}>
-                                    Vous utilisez le quota partagé de l'application. Les performances peuvent être limitées selon le trafic. Pour une meilleure expérience, sélectionnez un modèle IA et ajoutez votre propre clé API dans l'emplacement prévu à cet effet (ou activez le <strong style={{ color: 'var(--color-text-primary)' }}>Mode Sans IA</strong>).
+                                    {S.default_mode_desc}
                                 </p>
                             </>
                         ) : (
@@ -153,7 +155,7 @@ export default function AISettings() {
                                     margin: 0,
                                     marginBottom: '6px',
                                 }}>
-                                    Modèle personnel actif
+                                    {S.personal_model_active}
                                 </p>
                                 <p style={{
                                     fontSize: '0.8rem',
@@ -161,7 +163,7 @@ export default function AISettings() {
                                     margin: 0,
                                     lineHeight: '1.6',
                                 }}>
-                                    Vous utilisez votre propre clé API. Merci de votre soutien ! 🎉
+                                    {S.personal_model_desc}
                                 </p>
                             </>
                         )}
@@ -187,7 +189,7 @@ export default function AISettings() {
                         fontWeight: 700,
                     }}>
                         <Key size={16} />
-                        <span style={{ fontSize: '0.85rem' }}>Comment obtenir une clé API personnelle ?</span>
+                        <span style={{ fontSize: '0.85rem' }}>{S.how_to_get_key}</span>
                     </div>
                     <ol style={{
                         fontSize: '0.8rem',
@@ -198,11 +200,11 @@ export default function AISettings() {
                         flexDirection: 'column',
                         gap: '6px',
                     }}>
-                        <li>Choisissez un fournisseur IA ci-dessous (Gemini, OpenAI, etc.)</li>
-                        <li>Cliquez sur le lien pour créer un compte sur le site du fournisseur</li>
-                        <li>Générez une clé API dans votre tableau de bord</li>
-                        <li>Collez votre clé dans le champ "Clé API personnelle" ci-dessous</li>
-                        <li>Votre clé est stockée localement dans votre navigateur (jamais envoyée à nos serveurs)</li>
+                        <li>{S.step_choose_provider}</li>
+                        <li>{S.step_create_account}</li>
+                        <li>{S.step_generate_key}</li>
+                        <li>{S.step_paste_key}</li>
+                        <li>{S.step_local_storage}</li>
                     </ol>
                     <div style={{
                         marginTop: '12px',
@@ -213,7 +215,7 @@ export default function AISettings() {
                         fontSize: '0.8rem',
                         color: 'var(--color-text-secondary)',
                     }}>
-                        <strong>💡 Astuce :</strong> Sans clé personnelle, l'application utilise Groq en mode partagé (limité). Pour des performances optimales, ajoutez votre clé Gemini (gratuit) ou OpenAI.
+                        {S.tip_no_key}
                     </div>
                 </div>
             )}
@@ -227,7 +229,7 @@ export default function AISettings() {
                     color: 'var(--color-text-primary)',
                     marginBottom: '10px',
                 }}>
-                    🧠 Modèle IA
+                    🧠 {S.ai_model}
                 </label>
                 <select
                     value={activeModel}
@@ -245,7 +247,7 @@ export default function AISettings() {
                         const isActive = modelStatus[model.id];
                         return (
                             <option key={model.id} value={model.id}>
-                                {model.label} {model.requiresPersonalKey ? '🔑' : '🚀'} {!model.requiresPersonalKey && !isActive ? '(partagé)' : ''}
+                                {model.label} {model.requiresPersonalKey ? '🔑' : '🚀'} {!model.requiresPersonalKey && !isActive ? `(${S.shared})` : ''}
                             </option>
                         );
                     })}
@@ -271,7 +273,7 @@ export default function AISettings() {
                             {activeModelConfig.description}
                             {!activeModelConfig.requiresPersonalKey && (
                                 <span style={{ color: 'var(--color-text-muted)', marginLeft: '4px' }}>
-                                    — Quota partagé de l'application - Aucune clé requise
+                                    — {S.shared_quota}
                                 </span>
                             )}
                         </span>

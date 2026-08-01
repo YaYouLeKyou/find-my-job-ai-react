@@ -5,8 +5,10 @@
  */
 
 import React from 'react';
+import { LANGS, STRINGS } from '../utils/translations';
 
-export default function ActiveSourcesHeader({ sourceCounts, totalJobs, aiProcessing, processedCount }) {
+export default function ActiveSourcesHeader({ sourceCounts, totalJobs, aiProcessing, processedCount, lang = 'Français' }) {
+  const S = STRINGS[LANGS[lang]?.code || 'fr'];
   // Ne garder que les sources avec au moins 1 résultat
   const activeSources = Object.entries(sourceCounts)
     .filter(([source, count]) => count > 0)
@@ -41,7 +43,7 @@ export default function ActiveSourcesHeader({ sourceCounts, totalJobs, aiProcess
             color: 'var(--text-secondary)',
             fontWeight: '500',
           }}>
-            annonces trouvées
+             {S.jobs_found}
           </span>
         </div>
 
@@ -67,7 +69,7 @@ export default function ActiveSourcesHeader({ sourceCounts, totalJobs, aiProcess
               display: 'inline-block',
               animation: 'pulse-dot 1.5s ease-in-out infinite',
             }} />
-            Tri IA en cours... ({processedCount}/{totalJobs})
+             {S.ai_sorting_in_progress}({processedCount}/{totalJobs})
           </div>
         )}
       </div>

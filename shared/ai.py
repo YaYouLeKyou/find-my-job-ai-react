@@ -5,6 +5,44 @@ import logging
 import re
 from typing import Optional, List, Dict, Any
 
+FALLBACK_STRINGS = {
+    "fr": {
+        "resume": "Analyse en mode secours : métier détecté automatiquement à partir du CV.",
+        "suggestions": [
+            "Passez votre souris sur une offre pour générer une lettre de motivation personnalisée.",
+            "Utilisez les filtres pour affiner vos sources et votre type de contrat.",
+            "Téléversez un CV plus complet pour obtenir une analyse plus précise.",
+        ],
+    },
+    "en": {
+        "resume": "Fallback analysis: job detected automatically from the CV.",
+        "suggestions": [
+            "Hover over an offer to generate a personalized cover letter.",
+            "Use filters to refine your sources and contract type.",
+            "Upload a more complete CV for a more accurate analysis.",
+        ],
+    },
+    "es": {
+        "resume": "Análisis en modo de respaldo: puesto detectado automáticamente desde el CV.",
+        "suggestions": [
+            "Pasa el cursor sobre una oferta para generar una carta de presentación personalizada.",
+            "Usa filtros para refinar tus fuentes y tipo de contrato.",
+            "Sube un CV más completo para obtener un análisis más preciso.",
+        ],
+    },
+}
+
+
+def _get_fallback_strings(target_lang: str) -> dict:
+    lang_key = "fr"
+    if target_lang:
+        lower = target_lang.lower()
+        if "anglais" in lower or "english" in lower:
+            lang_key = "en"
+        elif "espagnol" in lower or "español" in lower:
+            lang_key = "es"
+    return FALLBACK_STRINGS.get(lang_key, FALLBACK_STRINGS["fr"])
+
 import requests
 from groq import Groq
 
@@ -572,15 +610,11 @@ def analyze_cv_with_fallback(
         "contact": "",
         "metier": metier,
         "mots_cles": keywords,
-        "resume": "Analyse en mode secours : métier détecté automatiquement à partir du CV.",
+        "resume": _get_fallback_strings(target_lang)["resume"],
         "annees_experience": 0,
         "recommandations_metiers": [metier],
         "metiers_alternatifs": [],
-        "suggestions_amelioration": [
-            "Passez votre souris sur une offre pour générer une lettre de motivation personnalisée.",
-            "Utilisez les filtres pour affiner vos sources et votre type de contrat.",
-            "Téléversez un CV plus complet pour obtenir une analyse plus précise.",
-        ],
+        "suggestions_amelioration": _get_fallback_strings(target_lang)["suggestions"],
         "is_fallback": fallback_used,
     }
 
