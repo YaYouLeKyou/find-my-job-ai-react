@@ -560,6 +560,7 @@ def scrape_enhanced(job_title: str, location: str = "France", limit: int = 50) -
     results = []
     
     # 🔀 Stratégie 4: Exécution parallèle non-bloquante avec gestion d'erreurs
+    # ✅ AMÉLIORATION: Ajouter JobSpy comme source supplémentaire pour maximiser les résultats
     try:
         results.extend(scrape_indeed(job_title, location, limit=optimal_limit))
     except Exception as e:
@@ -576,6 +577,16 @@ def scrape_enhanced(job_title: str, location: str = "France", limit: int = 50) -
         results.extend(scrape_hellowork(job_title, location, limit=optimal_limit))
     except Exception as e:
         logger.error(f"[WEB:Enhanced] hellowork error: {e}")
+    
+    # ✅ AMÉLIORATION: Si les scrapers web n'ont rien trouvé, essayer JobSpy
+    if len(results) < optimal_limit // 2:
+        try:
+            logger.info(f"[WEB:Enhanced] web scrapers returned only {len(results)} jobs, trying JobSpy fallback...")
+            jobspy_results = scrape_jobspy(job_title, location, limit=optimal_limit)
+            results.extend(jobspy_results)
+            logger.info(f"[WEB:Enhanced] JobSpy fallback added {len(jobspy_results)} jobs")
+        except Exception as e:
+            logger.error(f"[WEB:Enhanced] jobspy fallback error: {e}")
     
     # 🧹 Stratégie 5: Normalisation et déduplication intelligente
     results = normalize_and_deduplicate(results)

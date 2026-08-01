@@ -243,8 +243,14 @@ class SearchAggregator:
                 elif sig and 'offset' in sig.parameters:
                     kwargs['offset'] = page_arg * fetch_limit
                     kwargs['limit'] = fetch_limit
-                else:
+                elif sig and 'limit' in sig.parameters:
                     kwargs['limit'] = fetch_limit
+                else:
+                    # Function doesn't accept 'limit' as keyword (e.g. uses 'n') - pass as positional
+                    if inspect.iscoroutinefunction(source_fn):
+                        return source_fn(query, location, fetch_limit)
+                    else:
+                        return asyncio.to_thread(source_fn, query, location, fetch_limit)
                 if inspect.iscoroutinefunction(source_fn):
                     return source_fn(query, location, **kwargs)
                 else:

@@ -134,6 +134,53 @@ def log_source_diagnostic(source: str, status: str, detail: str = ""):
     logger.info(f"{prefix} {source}: {detail}")
 
 
+def _get_source_diagnostic_hint(source: str, error: str = "") -> str:
+    """Return a human-readable diagnostic hint for a source that returned 0 results."""
+    error_lower = (error or "").lower()
+    
+    # Quota / rate limit
+    if "429" in error_lower or "quota" in error_lower or "rate limit" in error_lower:
+        return "Quota API dépassé (HTTP 429). Attendez la réinitialisation du quota ou augmentez votre plan."
+    
+    # Auth errors
+    if "401" in error_lower or "auth" in error_lower or "invalid" in error_lower:
+        return "Clé API invalide ou expirée (HTTP 401). Vérifiez vos identifiants dans les variables d'environnement."
+    
+    # Forbidden
+    if "403" in error_lower or "forbidden" in error_lower or "permission" in error_lower:
+        return "Accès refusé (HTTP 403). Vérifiez les permissions de votre compte API."
+    
+    # Timeout
+    if "timeout" in error_lower or "timed out" in error_lower:
+        return "Timeout de la source. Le site/API met trop de temps à répondre. Réessayez ou réduisez le nombre de sources."
+    
+    # Source-specific hints
+    source_lower = source.lower()
+    if "adzuna" in source_lower:
+        return "Vérifiez ADZUNA_APP_ID et ADZUNA_APP_KEY dans .env. Le quota gratuit est limité à 100 requêtes/jour."
+    if "google" in source_lower:
+        return "Vérifiez SERPAPI_KEY dans .env. Le plan gratuit SerpApi est limité à 100 recherches/mois."
+    if "enhanced" in source_lower:
+        return "La source Enhanced agrège Indeed, LinkedIn, Monster et HelloWork. Ces sites bloquent souvent les scrapers. Essayez de réduire le nombre de sources simultanées."
+    if "jobspy" in source_lower:
+        return "JobSpy scrape Indeed et Glassdoor. Ces sites peuvent bloquer les requêtes automatisées. Réessayez plus tard."
+    if "linkedin" in source_lower:
+        return "LinkedIn bloque agressivement les scrapers. Essayez la source 'LinkedIn (Apify)' avec une clé API Apify."
+    if "indeed" in source_lower:
+        return "Indeed bloque les scrapers avec des CAPTCHAs. Essayez la source JobSpy qui utilise une approche différente."
+    if "france travail" in source_lower:
+        return "Vérifiez FRANCE_TRAVAIL_CLIENT_ID et FRANCE_TRAVAIL_CLIENT_SECRET. Le scope 'o2dsoffre' est requis pour la recherche d'offres."
+    if "jooble" in source_lower:
+        return "Vérifiez JOOBLE_API_KEY dans .env."
+    if "apify" in source_lower:
+        return "Vérifiez APIFY_API_KEY dans .env. Le scraper LinkedIn d'Apify peut être lent ou nécessiter un quota."
+    
+    # Generic
+    if not error:
+        return "Aucun résultat trouvé pour cette requête. Essayez d'élargir la recherche ou de modifier la localisation."
+    return f"Erreur: {error[:200]}"
+
+
 # ─── Source Registry Builder ─────────────────────────────────────────────────
 
 def build_source_registry(selected_sources: list, cv_data: Optional[dict] = None) -> dict:
@@ -182,8 +229,12 @@ def build_source_registry(selected_sources: list, cv_data: Optional[dict] = None
             async def _adzuna_search(q: str, l: str, n: int):
                 try:
                     logger.info(f"[SSE] Adzuna search start query={q!r} location={l!r} limit={n}")
-                    result = await asyncio.to_thread(adzuna_source.search_jobs, q, l, n)
+                    # ✅ CORRECTION: search_jobs est async, on l'await directement (pas asyncio.to_thread)
+                    result = await adzuna_source.search_jobs(q, l, n)
                     logger.info(f"[SSE] Adzuna returned {len(result)} jobs")
+                    # Attacher le diagnostic d'erreur aux résultats
+                    if not result and adzuna_source.last_error:
+                        logger.warning(f"[SSE] Adzuna diagnostic: {adzuna_source.last_error} - {adzuna_source.last_error_detail}")
                     return result
                 except Exception as e:
                     logger.error(f"[SSE] Adzuna search error: {e}", exc_info=True)
@@ -209,6 +260,11 @@ def build_source_registry(selected_sources: list, cv_data: Optional[dict] = None
                 logger.info(f"[SSE] Google Jobs search start query={q!r} location={l!r} limit={n}")
                 result = await scrape_google_jobs(q, l, n, settings.SERPAPI_KEY)
                 logger.info(f"[SSE] Google Jobs returned {len(result)} jobs")
+                # Attacher le diagnostic d'erreur aux résultats
+                if not result:
+                    gj_source = get_google_jobs_source()
+                    if gj_source and gj_source.last_error:
+                        logger.warning(f"[SSE] Google Jobs diagnostic: {gj_source.last_error} - {gj_source.last_error_detail}")
                 return result
             except Exception as e:
                 logger.error(f"[SSE] Google Jobs search error: {e}", exc_info=True)
@@ -231,6 +287,7 @@ def build_source_registry(selected_sources: list, cv_data: Optional[dict] = None
         async def _enhanced_search(q: str, l: str, n: int):
             try:
                 logger.info(f"[SSE] Enhanced search start query={q!r} location={l!r} limit={n}")
+                # ✅ CORRECTION: scrape_enhanced est synchrone, on utilise asyncio.to_thread correctement
                 result = await asyncio.to_thread(scrape_enhanced, q, l, n)
                 logger.info(f"[SSE] Enhanced returned {len(result)} jobs")
                 return result
@@ -243,14 +300,16 @@ def build_source_registry(selected_sources: list, cv_data: Optional[dict] = None
         jooble_source = get_jooble_source()
         if jooble_source:
             async def _jooble_search(q, l, n):
-                return await asyncio.to_thread(jooble_source.search_jobs, q, l, n)
+                # ✅ CORRECTION: search_jobs est async, on l'await directement
+                return await jooble_source.search_jobs(q, l, n)
             source_registry['Jooble'] = _jooble_search
 
     if "Apify" in selected_sources:
         apify_source = get_apify_source()
         if apify_source:
             async def _apify_search(q, l, n):
-                return await asyncio.to_thread(apify_source.search_jobs, q, l, n)
+                # ✅ CORRECTION: search_jobs est async, on l'await directement
+                return await apify_source.search_jobs(q, l, n)
             source_registry['Apify'] = _apify_search
 
     return source_registry
@@ -463,8 +522,23 @@ async def _stream_jobs(
                 if result.jobs and jobs_count > 0:
                     logger.info(f"[SSE] source={result.source_name} sample_job={result.jobs[0].get('titre', 'N/A')}")
 
+                # Build diagnostic info for sources that returned 0 jobs
+                diagnostic = None
+                if jobs_count == 0 and not result.success:
+                    diagnostic = {
+                        "source": result.source_name,
+                        "error": result.error or "Aucun résultat",
+                        "hint": _get_source_diagnostic_hint(result.source_name, result.error),
+                    }
+                elif jobs_count == 0 and result.success:
+                    diagnostic = {
+                        "source": result.source_name,
+                        "error": "Aucun résultat trouvé",
+                        "hint": _get_source_diagnostic_hint(result.source_name, ""),
+                    }
+
                 # Send PROGRESS event for partial or final batches
-                yield f"data: {json.dumps({'type': 'SOURCE_RESULT', 'progress': progress, 'total_so_far': len(all_jobs), 'target': per_source_limit, 'source': result.source_name, 'status': status, 'jobs': result.jobs, 'sources_done': sources_done, 'total_sources': total_sources, 'source_progress': source_progress, 'execution_time': result.execution_time, 'is_partial': getattr(result, 'is_partial', False), 'fallback': getattr(result, 'fallback', False)})}\n\n"
+                yield f"data: {json.dumps({'type': 'SOURCE_RESULT', 'progress': progress, 'total_so_far': len(all_jobs), 'target': per_source_limit, 'source': result.source_name, 'status': status, 'jobs': result.jobs, 'sources_done': sources_done, 'total_sources': total_sources, 'source_progress': source_progress, 'execution_time': result.execution_time, 'is_partial': getattr(result, 'is_partial', False), 'fallback': getattr(result, 'fallback', False), 'diagnostic': diagnostic})}\n\n"
                 emit_count += 1
                 await asyncio.sleep(0)
 
@@ -499,6 +573,7 @@ async def _stream_jobs(
                     "status": "completed" if sresult.success else "error",
                     "error": sresult.error,
                     "execution_time": sresult.execution_time,
+                    "diagnostic": _get_source_diagnostic_hint(sname, sresult.error) if (not sresult.success or (sresult.jobs is None or len(sresult.jobs) == 0)) else None,
                 }
 
             # Build final jobs list with scores (if CV data was provided)

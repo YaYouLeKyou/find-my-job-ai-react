@@ -259,6 +259,9 @@ class AdzunaSource:
         """
         self.app_id = app_id
         self.app_key = app_key
+        self.last_error: str = ""
+        self.last_status_code: Optional[int] = None
+        self.last_error_detail: str = ""
 
     async def search_jobs(
         self,
@@ -329,10 +332,20 @@ class AdzunaSource:
 
                         # Handle quota / rate limiting gracefully
                         if response.status_code in (429, 403):
-                            logger.warning(f"⚠️ Adzuna quota/rate limit exceeded (HTTP {response.status_code})")
+                            self.last_status_code = response.status_code
+                            if response.status_code == 429:
+                                self.last_error = "quota_exceeded"
+                                self.last_error_detail = "Quota API Adzuna dépassé (HTTP 429). Attendez la réinitialisation du quota ou augmentez votre plan."
+                            else:
+                                self.last_error = "auth_error"
+                                self.last_error_detail = "Authentification Adzuna refusée (HTTP 403). Vérifiez votre APP_ID et APP_KEY."
+                            logger.warning(f"⚠️ Adzuna quota/rate limit exceeded (HTTP {response.status_code}): {self.last_error_detail}")
                             return []
 
                         if response.status_code != 200:
+                            self.last_status_code = response.status_code
+                            self.last_error = "http_error"
+                            self.last_error_detail = f"Erreur HTTP {response.status_code} de l'API Adzuna"
                             logger.error(f"❌ Adzuna API error: HTTP {response.status_code}")
                             return []
 
@@ -363,9 +376,13 @@ class AdzunaSource:
                 return result if result else []
 
             except httpx.TimeoutException:
+                self.last_error = "timeout"
+                self.last_error_detail = "Timeout de l'API Adzuna (10s dépassé)"
                 logger.warning("⚠️ Adzuna API timeout - returning empty list")
                 return []
             except Exception as e:
+                self.last_error = "exception"
+                self.last_error_detail = f"Exception Adzuna: {str(e)[:200]}"
                 logger.error(f"❌ Adzuna search error: {e}")
                 return []
 
@@ -517,6 +534,9 @@ class GoogleJobsSource:
 
     def __init__(self, api_key: str):
         self.api_key = api_key
+        self.last_error: str = ""
+        self.last_status_code: Optional[int] = None
+        self.last_error_detail: str = ""
 
     async def search_jobs(
         self,
@@ -570,7 +590,26 @@ class GoogleJobsSource:
                     logger.info(f"   Google Jobs response status: {response.status_code}")
 
                     if response.status_code != 200:
-                        logger.error(f"[API:GoogleJobs] HTTP {response.status_code}: {response.text[:200]}")
+                        self.last_status_code = response.status_code
+                        try:
+                            error_data = response.json()
+                            error_msg = error_data.get("error", "") or error_data.get("error_message", "") or response.text[:200]
+                        except Exception:
+                            error_msg = response.text[:200]
+                        
+                        if response.status_code == 429:
+                            self.last_error = "quota_exceeded"
+                            self.last_error_detail = f"Quota SerpApi dépassé (HTTP 429): {error_msg}"
+                        elif response.status_code == 401:
+                            self.last_error = "auth_error"
+                            self.last_error_detail = f"Clé API SerpApi invalide (HTTP 401): {error_msg}"
+                        elif response.status_code == 403:
+                            self.last_error = "forbidden"
+                            self.last_error_detail = f"Accès refusé SerpApi (HTTP 403): {error_msg}"
+                        else:
+                            self.last_error = "http_error"
+                            self.last_error_detail = f"Erreur HTTP {response.status_code} SerpApi: {error_msg}"
+                        logger.error(f"[API:GoogleJobs] HTTP {response.status_code}: {self.last_error_detail}")
                         return []
 
                     data = response.json()
@@ -601,6 +640,8 @@ class GoogleJobsSource:
                 return result if result else []
 
             except Exception as e:
+                self.last_error = "exception"
+                self.last_error_detail = f"Exception Google Jobs: {str(e)[:200]}"
                 logger.error(f"[API:GoogleJobs] error: {e}")
                 return []
 
