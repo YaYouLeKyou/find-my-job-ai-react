@@ -430,13 +430,25 @@ async def _stream_jobs(
                 target_jobs=target_total,
                 source_timeouts=source_timeouts,
             ):
+                # Accumulate jobs per source (support partial batches)
                 if result.jobs:
                     all_jobs.extend(result.jobs)
 
-                source_results[result.source_name] = result
-                sources_done += 1
+                # Merge into source_results: append jobs and update status
+                prev = source_results.get(result.source_name)
+                if prev:
+                    # extend previous jobs
+                    prev.jobs = (prev.jobs or []) + (result.jobs or [])
+                    prev.success = prev.success and result.success
+                    prev.execution_time = round((prev.execution_time or 0) + (result.execution_time or 0), 2)
+                else:
+                    source_results[result.source_name] = result
 
-                status = "completed" if result.success else "error"
+                # Only count source as done when result.done is True
+                if getattr(result, 'done', True):
+                    sources_done += 1
+
+                status = "completed" if result.success and getattr(result, 'done', True) else ("streaming" if getattr(result, 'is_partial', False) else "error")
                 jobs_count = len(result.jobs) if result.jobs else 0
                 progress = min(100, int(sources_done / total_sources * 100)) if total_sources > 0 else 100
                 source_progress = min(100, int(sources_done / total_sources * 100)) if total_sources > 0 else 100
@@ -448,7 +460,8 @@ async def _stream_jobs(
                 if result.jobs and jobs_count > 0:
                     logger.info(f"[SSE] source={result.source_name} sample_job={result.jobs[0].get('titre', 'N/A')}")
 
-                yield f"data: {json.dumps({'type': 'PROGRESS', 'progress': progress, 'total_so_far': len(all_jobs), 'target': per_source_limit, 'source': result.source_name, 'status': status, 'jobs': result.jobs, 'sources_done': sources_done, 'total_sources': total_sources, 'source_progress': source_progress, 'execution_time': result.execution_time})}\n\n"
+                # Send PROGRESS event for partial or final batches
+                yield f"data: {json.dumps({'type': 'PROGRESS', 'progress': progress, 'total_so_far': len(all_jobs), 'target': per_source_limit, 'source': result.source_name, 'status': status, 'jobs': result.jobs, 'sources_done': sources_done, 'total_sources': total_sources, 'source_progress': source_progress, 'execution_time': result.execution_time, 'is_partial': getattr(result, 'is_partial', False)})}\n\n"
                 emit_count += 1
                 await asyncio.sleep(0)
 

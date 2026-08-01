@@ -20,12 +20,16 @@ logger = logging.getLogger(__name__)
 class SourceResult:
     """Result from a single source."""
     
-    def __init__(self, source_name: str, jobs: List[dict], success: bool, error: str = "", execution_time: float = 0):
+    def __init__(self, source_name: str, jobs: List[dict], success: bool, error: str = "", execution_time: float = 0, is_partial: bool = False, done: bool = True):
         self.source_name = source_name
         self.jobs = jobs
         self.success = success
         self.error = error
         self.execution_time = execution_time
+        # is_partial: True if this result is a partial page from the source
+        self.is_partial = is_partial
+        # done: True when the source has finished sending pages
+        self.done = done
     
     def to_dict(self) -> dict:
         return {
@@ -164,124 +168,141 @@ class SearchAggregator:
             f"Starting progressive streaming parallel search with {len(sources)} sources, target={target_jobs or limit}"
         )
 
-        # Launch all sources in parallel (single pass)
-        pending_tasks: Dict[asyncio.Task, str] = {}
+        # Use an internal queue to receive per-source batches (partial + final)
+        queue: asyncio.Queue = asyncio.Queue()
 
-        for source_name, source_fn in sources.items():
+        async def _run_source_paged(source_name: str, source_fn: Callable):
+            """Run a source with progressive pagination and retries.
+
+            Pseudocode:
+            - Try to detect pagination params (page/offset) via signature.
+            - Fetch first small page quickly (per_page_fast), yield partial result.
+            - If batch == per_page_fast, attempt subsequent pages until limit reached or fewer results.
+            - Apply retries with exponential backoff on transient errors.
+            """
+            per_page_fast = min(10, max(5, limit // 2))
+            per_page = min(20, limit)
+            fetched = 0
+            page = 0
+            sig = None
+            try:
+                sig = inspect.signature(source_fn)
+            except Exception:
+                sig = None
+
+            def _call_source(page_arg, fetch_limit):
+                # Build kwargs according to signature if possible
+                kwargs = {}
+                if sig and 'page' in sig.parameters:
+                    kwargs['page'] = page_arg
+                    kwargs['limit'] = fetch_limit
+                elif sig and 'offset' in sig.parameters:
+                    kwargs['offset'] = page_arg * fetch_limit
+                    kwargs['limit'] = fetch_limit
+                else:
+                    kwargs['limit'] = fetch_limit
+                # Some source functions are blocking; run in thread
+                if inspect.iscoroutinefunction(source_fn):
+                    return source_fn(query, location, **kwargs)
+                else:
+                    return asyncio.to_thread(source_fn, query, location, **kwargs)
+
             start_time = time.time()
-            source_start_times[source_name] = start_time
-            remaining = max(1, (target_jobs - len(all_jobs)) if target_jobs > 0 else limit)
 
-            logger.info(
-                f"[SOURCE: {source_name}] start search, remaining target={remaining}"
-            )
+            while fetched < limit:
+                fetch_limit = per_page_fast if page == 0 else per_page
+                attempt = 0
+                max_attempts = 3
+                backoff = 0.5
+                last_exc = None
+                while attempt < max_attempts:
+                    try:
+                        coro = _call_source(page, fetch_limit)
+                        timeout = (source_timeouts or {}).get(source_name, self.timeout_per_source)
+                        jobs = await asyncio.wait_for(coro, timeout=timeout)
+                        duration = time.time() - start_time
+                        if not jobs:
+                            # yield empty partial (no results) and finish
+                            await queue.put(SourceResult(source_name, [], True, execution_time=round(duration, 2), is_partial=True, done=True))
+                            return
+                        # Normal batch
+                        batch = jobs if isinstance(jobs, list) else list(jobs)
+                        batch_len = len(batch)
+                        fetched += batch_len
 
-            source_timeout = (source_timeouts or {}).get(source_name, self.timeout_per_source)
-            if inspect.iscoroutinefunction(source_fn):
-                coro = source_fn(query, location, remaining)
-                task = asyncio.create_task(
-                    asyncio.wait_for(coro, timeout=source_timeout)
-                )
-            else:
-                task = asyncio.create_task(
-                    asyncio.wait_for(
-                        asyncio.to_thread(source_fn, query, location, remaining),
-                        timeout=source_timeout,
-                    )
-                )
-            pending_tasks[task] = source_name
+                        is_partial = fetched < limit and batch_len >= fetch_limit
+                        done = not is_partial
 
-        if not pending_tasks:
-            logger.info("[STREAM] No sources to search")
-            return
+                        await queue.put(SourceResult(source_name, batch, True, execution_time=round(duration, 2), is_partial=is_partial, done=done))
 
-        # Process results as they complete
-        while pending_tasks:
-            done, pending = await asyncio.wait(
-                pending_tasks.keys(),
-                return_when=asyncio.FIRST_COMPLETED,
-            )
+                        # If this batch indicates no more pages, finish
+                        if not is_partial:
+                            return
 
-            for task in done:
-                source_name = pending_tasks.pop(task)
-                start_time = source_start_times.get(source_name, time.time())
-                completed_sources.add(source_name)
+                        # else continue to next page
+                        page += 1
+                        break
+                    except asyncio.TimeoutError as e:
+                        last_exc = e
+                        attempt += 1
+                        logger.warning(f"[SOURCE: {source_name}] timeout attempt {attempt}/{max_attempts}")
+                        await asyncio.sleep(backoff * attempt)
+                    except Exception as e:
+                        last_exc = e
+                        attempt += 1
+                        logger.warning(f"[SOURCE: {source_name}] transient error attempt {attempt}/{max_attempts}: {e}")
+                        await asyncio.sleep(backoff * attempt)
 
-                try:
-                    jobs = task.result()
+                # if we exit attempts loop with exception
+                if last_exc is not None and attempt >= max_attempts:
+                    # Final relaxed attempt: try with a relaxed query (shortened)
+                    try:
+                        relaxed_q = ' '.join(query.split()[:5]) if isinstance(query, str) else query
+                        logger.info(f"[SOURCE: {source_name}] performing relaxed fallback query: {relaxed_q!r}")
+                        if inspect.iscoroutinefunction(source_fn):
+                            coro = source_fn(relaxed_q, location, limit)
+                        else:
+                            coro = asyncio.to_thread(source_fn, relaxed_q, location, limit)
+                        timeout = (source_timeouts or {}).get(source_name, self.timeout_per_source)
+                        jobs = await asyncio.wait_for(coro, timeout=timeout)
+                        duration = time.time() - start_time
+                        if jobs:
+                            batch = jobs if isinstance(jobs, list) else list(jobs)
+                            await queue.put(SourceResult(source_name, batch, True, execution_time=round(duration, 2), is_partial=False, done=True))
+                            return
+                    except Exception:
+                        pass
+
                     duration = time.time() - start_time
+                    await queue.put(SourceResult(source_name, [], False, error=str(last_exc)[:200], execution_time=round(duration, 2), is_partial=False, done=True))
+                    return
 
-                    result = SourceResult(
-                        source_name=source_name,
-                        jobs=jobs if jobs else [],
-                        success=True,
-                        execution_time=round(duration, 2),
-                    )
+        # Launch one task per source that will push partial batches into queue
+        tasks = [asyncio.create_task(_run_source_paged(sname, sfn)) for sname, sfn in sources.items()]
 
-                    source_results[source_name] = result
+        total_sources = len(tasks)
+        finished_sources = 0
 
-                    if jobs:
-                        all_jobs.extend(jobs)
-                        logger.info(
-                            f"[SOURCE: {source_name}] success: {len(jobs)} jobs found in {duration:.2f}s"
-                        )
-                    else:
-                        logger.info(f"[SOURCE: {source_name}] returned 0 jobs after {duration:.2f}s")
-
-                    yield result
-                    await asyncio.sleep(0)
-
-                except asyncio.TimeoutError:
-                    duration = time.time() - start_time
-                    logger.error(
-                        f"[SOURCE: {source_name}] timeout after {duration:.2f}s"
-                    )
-                    result = SourceResult(
-                        source_name=source_name,
-                        jobs=[],
-                        success=False,
-                        error=f"Timeout after {self.timeout_per_source}s",
-                        execution_time=round(duration, 2),
-                    )
-                    source_results[source_name] = result
-                    yield result
-                    await asyncio.sleep(0)
-
-                except Exception as e:
-                    duration = time.time() - start_time
-                    error_msg = str(e)
-
-                    if "401" in error_msg or "403" in error_msg:
-                        logger.error(
-                            f"[SOURCE: {source_name}] quota/auth: {error_msg[:100]}"
-                        )
-                    else:
-                        logger.error(
-                            f"[SOURCE: {source_name}] error: {error_msg[:100]}"
-                        )
-
-                    result = SourceResult(
-                        source_name=source_name,
-                        jobs=[],
-                        success=False,
-                        error=error_msg[:100],
-                        execution_time=round(duration, 2),
-                    )
-                    source_results[source_name] = result
-                    yield result
-                    await asyncio.sleep(0)
-
-                # Check if target is reached — cancel remaining tasks
-                if target_jobs > 0 and len(all_jobs) >= target_jobs:
-                    logger.info(
-                        f"[STREAM] Target reached: {len(all_jobs)} jobs, cancelling remaining tasks"
-                    )
-                    for remaining_task in list(pending):
-                        remaining_task.cancel()
-                    if pending:
-                        await asyncio.gather(*pending, return_exceptions=True)
+        # Drain queue until all source tasks complete and queue is empty
+        while finished_sources < total_sources or not queue.empty():
+            try:
+                result: SourceResult = await asyncio.wait_for(queue.get(), timeout=1.0)
+            except asyncio.TimeoutError:
+                # allow checking if tasks finished
+                if all(t.done() for t in tasks) and queue.empty():
                     break
+                continue
 
+            # If this result signals done for a source, increase finished_sources
+            if result.done:
+                finished_sources += 1
+
+            yield result
+            await asyncio.sleep(0)
+
+        # Ensure all tasks complete
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
         logger.info(
             f"Streaming search complete: {len(all_jobs)} jobs from {len(source_results)} sources"
         )

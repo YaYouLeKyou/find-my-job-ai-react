@@ -10,7 +10,7 @@
  * Les chips (suggestions depuis le CV) sont passés en prop.
  */
 import React from 'react';
-import { Search, Loader2, Sparkles } from 'lucide-react';
+import { Search, Loader2, Sparkles, Trash2 } from 'lucide-react';
 import { LANGS, STRINGS } from '../../utils/translations';
 import { useAgent } from '../../context/AgentContext';
 
@@ -23,6 +23,7 @@ function SearchBar({
     onSelectChip,
     placeholder,
     lang = 'Français',
+    onClearCache,
 }) {
     const { agentConfig } = useAgent();
     const currentLangCode = LANGS[lang].code;
@@ -254,6 +255,34 @@ function SearchBar({
                         </>
                     )}
                 </button>
+                {onClearCache && (
+                    <button
+                        onClick={onClearCache}
+                        title={S.clear_results_cache}
+                        style={{
+                            padding: '14px 14px',
+                            background: 'var(--color-surface)',
+                            color: 'var(--color-text-muted)',
+                            border: '2px solid var(--color-border)',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--color-text-muted)';
+                            e.currentTarget.style.color = 'var(--color-text-primary)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--color-border)';
+                            e.currentTarget.style.color = 'var(--color-text-muted)';
+                        }}
+                    >
+                        <Trash2 size={18} />
+                    </button>
+                )}
             </div>
         </div>
     );

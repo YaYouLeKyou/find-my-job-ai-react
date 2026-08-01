@@ -651,6 +651,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                 chips={chips}
                 onSelectChip={handleSelectJobQuery}
                 lang={lang}
+                onClearCache={clearSearchCache}
                 placeholder={
                     agentConfig.resultType === 'mission'
                         ? S.mission_search_placeholder
