@@ -557,7 +557,8 @@ async def _stream_jobs(
                         emitted_counts[result.source_name] = emitted_so_far + len(jobs_to_emit)
 
                 # Send PROGRESS event for partial or final batches
-                total_found_by_source = len(source_results.get(result.source_name, {}).get('jobs', []) or [])
+                source_result = source_results.get(result.source_name)
+                total_found_by_source = len(source_result.jobs) if source_result and source_result.jobs else 0
                 yield f"data: {json.dumps({'type': 'SOURCE_RESULT', 'progress': progress, 'total_so_far': len(all_jobs), 'target': display_limit, 'source': result.source_name, 'status': status, 'jobs': jobs_to_emit, 'sources_done': sources_done, 'total_sources': total_sources, 'source_progress': source_progress, 'execution_time': result.execution_time, 'is_partial': getattr(result, 'is_partial', False), 'fallback': getattr(result, 'fallback', False), 'diagnostic': diagnostic, 'total_found_by_source': total_found_by_source})}\n\n"
                 emit_count += 1
                 await asyncio.sleep(0)
