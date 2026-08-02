@@ -562,7 +562,7 @@ export default function Sidebar({
                                                 <div style={{ marginBottom: '8px' }}>🔑</div>
                                                 <div>Aucun modèle personnel configuré</div>
                                                 <div style={{ fontSize: '0.75rem', marginTop: '4px' }}>
-                                                    Ajoutez une clé API pour utiliser Gemini, OpenAI, etc.
+                                                    Ajoutez une clé API pour utiliser Gemini, Mistral, etc.
                                                 </div>
                                             </div>
                                         )}
