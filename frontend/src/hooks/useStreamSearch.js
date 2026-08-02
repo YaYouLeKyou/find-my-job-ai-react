@@ -473,6 +473,37 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
         setAiProcessing(false);
     }, []);
 
+    // Réinitialiser tous les résultats
+    const reset = () => {
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+        }
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+        }
+
+        setJobs([]);
+        setSourceCounts({});
+        setLoading(false);
+        setError(null);
+        setSearchTime(null);
+        setAiProcessing(false);
+        setProcessedCount(0);
+        setTotalReceived(0);
+        setSourcesDone(0);
+        setTotalSources(0);
+        setSourceDiagnostics({});
+        setSourceErrors({});
+
+        accumulatedJobsRef.current = [];
+        accumulatedSourceCountsRef.current = {};
+        pendingAiChunkRef.current = [];
+        aiProcessingRef.current = false;
+        seenKeysRef.current = new Set();
+    };
+
     return {
         jobs,
         sourceCounts,
@@ -488,5 +519,6 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
         sourceErrors,
         search,
         cancel,
+        reset,
     };
 }

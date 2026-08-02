@@ -23,6 +23,8 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
   const [darkMode, setDarkMode] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState(null);
   const [questionCount, setQuestionCount] = useState(0);
+  const [interviewStage, setInterviewStage] = useState('débutant');
+  const [questionType, setQuestionType] = useState('technique');
 
   const recognitionRef = useRef(null);
   const synthesisRef = useRef(null);

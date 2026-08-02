@@ -97,6 +97,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
         techStack: [],
         sources: []
     });
+    const [hiddenSources, setHiddenSources] = useState([]);
 
     const currentLangCode = LANGS[lang].code;
     const S = STRINGS[currentLangCode];
@@ -115,6 +116,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
         totalSources,
         search: searchStream,
         cancel: cancelSearch,
+        reset: resetSearch,
     } = useStreamSearch(API_BASE, activeAgent, noAiMode, (result) => {
         console.log('[App] Recherche terminée:', result);
     });
@@ -292,6 +294,14 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
         }
     };
 
+    const toggleSourceVisibility = (source) => {
+        if (hiddenSources.includes(source)) {
+            setHiddenSources(hiddenSources.filter(s => s !== source));
+        } else {
+            setHiddenSources([...hiddenSources, source]);
+        }
+    };
+
     // --- Vider le cache de recherche ---
     const clearSearchCache = () => {
         try {
@@ -305,6 +315,15 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                 }
             }
             keysToRemove.forEach(key => localStorage.removeItem(key));
+
+            // Reset search results to 0 (except favorites)
+            setHiddenSources([]);
+            setExcludedSources([]);
+            setVisibleCount(20);
+            
+            // Reset the search stream state
+            resetSearch();
+
             showToast(`🗑️ ${removedCount} ${removedCount > 1 ? 'caches supprimés' : 'cache supprimé'}`, 'success');
         } catch (e) {
             console.error('[Cache] Erreur lors du vidage:', e);
@@ -375,7 +394,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
 
     // Apply advanced filters using useMemo
     const filteredJobs = useFilteredJobs(jobs, advancedFilters);
-    const displayedJobs = filteredJobs.filter(job => !excludedSources.includes(job.source));
+    const displayedJobs = filteredJobs.filter(job => !excludedSources.includes(job.source) && !hiddenSources.includes(job.source));
     const visibleJobs = displayedJobs.slice(0, visibleCount);
     const hasMoreJobs = visibleCount < displayedJobs.length;
     const handleLoadMore = () => {
@@ -697,6 +716,19 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                         : S.search_placeholder
                 }
             />
+             {/* Favorites Memory - sous les annonces trouvées */}
+            <FavoritesMemory
+                lang={lang}
+                favorites={savedItems}
+                onRemove={handleRemoveFavorite}
+                onClear={handleClearFavorites}
+                resultType={agentConfig.resultType}
+                cvData={cvData}
+                rankingEngine={activeModel}
+                customGeminiKey={customGeminiKey}
+                onStartInterview={handleStartInterview}
+            />
+
 
             {/* Active Sources Header - sous la searchbar */}
             {Object.keys(sourceCounts).length > 0 && (
@@ -704,6 +736,9 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                     sourceCounts={sourceCounts}
                     aiProcessing={aiProcessing}
                     processedCount={processedCount}
+                    onToggleSource={toggleSourceVisibility}
+                    hiddenSources={hiddenSources}
+                    lang={lang}
                 />
             )}
 
@@ -837,19 +872,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                 </div>
             )}
 
-            {/* Favorites Memory - sous les annonces trouvées */}
-            <FavoritesMemory
-                lang={lang}
-                favorites={savedItems}
-                onRemove={handleRemoveFavorite}
-                onClear={handleClearFavorites}
-                resultType={agentConfig.resultType}
-                cvData={cvData}
-                rankingEngine={activeModel}
-                customGeminiKey={customGeminiKey}
-                onStartInterview={handleStartInterview}
-            />
-
+           
             {/* Footer */}
             <div className="app-footer">
                 <div className="app-footer-inner">

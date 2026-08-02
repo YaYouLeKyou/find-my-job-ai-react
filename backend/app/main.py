@@ -25,6 +25,9 @@ from app.config import get_settings
 # Import services
 from app.services.scorer import score_jobs
 from app.services.aggregator import SearchAggregator, normalize_jobs_for_frontend
+from app.services.cache import cache_service
+from app.services.llm_service import llm_service
+from app.api.cache import router as cache_router
 
 # Import scrapers
 from app.scrapers.api_sources import get_france_travail_source, get_france_travail_rss_source, get_adzuna_source, get_google_jobs_source, get_jooble_source, get_apify_source
@@ -94,6 +97,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include cache routes
+app.include_router(cache_router)
+
+# Initialize cache service with Redis if configured
+if hasattr(settings, 'REDIS_URL') and settings.REDIS_URL:
+    from app.services.cache import CacheService
+    cache_service = CacheService(settings.REDIS_URL)
+    logger.info(f"[CACHE] Initialized with Redis: {settings.REDIS_URL}")
+else:
+    logger.warning("[CACHE] No Redis configuration found, cache service will be limited")
+
+# Initialize LLM service
+llm_service.initialize_clients()
+logger.info("[LLM] LLM service initialized with available providers")
 
 
 # ─── Helper Functions ────────────────────────────────────────────────────────
