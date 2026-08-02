@@ -31,6 +31,10 @@ import AdComponent from './components/AdComponent';
 import SEO from './components/SEO';
 import SearchProgressBar from './components/SearchProgressBar';
 import AIChatDrawer from './components/AIChatDrawer';
+import AdvancedFilters from './components/AdvancedFilters';
+import AdvancedFiltersHeader from './components/AdvancedFiltersHeader';
+import AdvancedFiltersDrawer from './components/AdvancedFiltersDrawer';
+import useFilteredJobs from './hooks/useFilteredJobs';
 
 import { Loader2 } from 'lucide-react';
 import './styles/streaming.css';
@@ -83,6 +87,16 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
     const [savedItems, setSavedItems] = useState([]);
     const [toast, setToast] = useState(null);
     const [visibleCount, setVisibleCount] = useState(20);
+    const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
+    const [advancedFilters, setAdvancedFilters] = useState({
+        searchQuery: '',
+        minMatchScore: 0,
+        companyTypes: [],
+        workModes: [],
+        minSalary: 0,
+        techStack: [],
+        sources: []
+    });
 
     const currentLangCode = LANGS[lang].code;
     const S = STRINGS[currentLangCode];
@@ -170,6 +184,15 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
         setSavedItems([]);
         localStorage.setItem('savedItems', JSON.stringify([]));
         showToast(S.cleared_favorites || 'Favoris effacés', 'info');
+    };
+
+    const handleApplyAdvancedFilters = (filters) => {
+        setAdvancedFilters(filters);
+        setAdvancedFiltersOpen(false);
+    };
+
+    const handleToggleAdvancedFilters = () => {
+        setAdvancedFiltersOpen(prev => !prev);
     };
 
     const handleSelectJobQuery = (query) => {
@@ -349,7 +372,10 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
     }
 
     const directLinks = searchQuery ? generateSearchLinks(searchQuery, currentLangCode, activeAgent) : [];
-    const displayedJobs = jobs.filter(job => !excludedSources.includes(job.source));
+
+    // Apply advanced filters using useMemo
+    const filteredJobs = useFilteredJobs(jobs, advancedFilters);
+    const displayedJobs = filteredJobs.filter(job => !excludedSources.includes(job.source));
     const visibleJobs = displayedJobs.slice(0, visibleCount);
     const hasMoreJobs = visibleCount < displayedJobs.length;
     const handleLoadMore = () => {
@@ -371,6 +397,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
             onToggleDarkMode={onToggleDarkMode}
             darkMode={darkMode}
         >
+
             <SEO
                 title={`${agentConfig.title} - ${agentConfig.subtitle}`}
                 description={agentConfig.description}
@@ -405,7 +432,6 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
             {/* ─── Quick Filters (in body, under DocumentAnalyzer) ─────────── */}
             <div className="card" style={{ marginTop: '16px', background: 'var(--color-surface)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                    <span style={{ fontSize: '1rem' }}>🎛️</span>
                     <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>{S.quick_filters}</h3>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-end' }}>
@@ -579,6 +605,19 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                         return null;
                     })}
                 </div>
+            </div>
+
+            {/* Advanced Filters - directly below quick filters */}
+            <div className="card" style={{ marginTop: '16px', background: 'var(--color-surface)' }}>
+                <AdvancedFiltersHeader onToggle={handleToggleAdvancedFilters} />
+                <AdvancedFiltersDrawer
+                    activeAgent={activeAgent}
+                    isOpen={advancedFiltersOpen}
+                    onClose={handleToggleAdvancedFilters}
+                    onApplyFilters={handleApplyAdvancedFilters}
+                    currentFilters={advancedFilters}
+                    cvData={cvData}
+                />
             </div>
 
             {/* Direct Access Links - visible whenever there's a search query or CV metier */}

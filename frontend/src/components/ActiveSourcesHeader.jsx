@@ -7,7 +7,7 @@
 import React from 'react';
 import { LANGS, STRINGS } from '../utils/translations';
 
-export default function ActiveSourcesHeader({ sourceCounts, aiProcessing, processedCount, lang = 'Français' }) {
+export default function ActiveSourcesHeader({ sourceCounts, aiProcessing, processedCount, lang = 'Français', onToggleSource }) {
   const S = STRINGS[LANGS[lang]?.code || 'fr'];
   const totalRealJobs = Object.values(sourceCounts).reduce((a, b) => a + b, 0);
   // Ne garder que les sources avec au moins 1 résultat
