@@ -23,3 +23,6 @@ audit_app.py
 audit_jobfilters.py
 fix_enhanced_scrapers.py
 fix_scrapers.py
+
+# Local Netlify folder
+.netlify
