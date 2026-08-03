@@ -2,9 +2,9 @@
  * Header - En-tête pour tous les agents
  *
  * Structure :
- *   - Ligne 1 : Bouton flèche (gauche) + Titre (centré, plus grand) + Dark mode (droite)
- *   - Ligne 2 : Feedback (avec texte) + Langue + Toggle AI (même hauteur)
- *   - Non flottant, aligné avec le contenu en dessous
+ *   - Ligne 1 : Bouton flèche (gauche, aligné bord) + Titre (centré, plus grand) + Dark mode (droite, aligné bord)
+ *   - Ligne 2 : Feedback + Langue + Toggle AI (même largeur, texte centré)
+ *   - Position fixe (non flottant)
  */
 import React from 'react';
 import { Cpu, ArrowLeft, Sparkles, Sun, Moon, Mail } from 'lucide-react';
@@ -18,26 +18,29 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
 
     return (
         <header style={{
+            position: 'relative', // Fixed position, not sticky
             width: '100%',
             borderBottom: '1px solid var(--color-border)',
             background: 'var(--color-glass-bg)',
             backdropFilter: 'blur(12px)',
-            // Removed sticky positioning to make header non-floating
+            zIndex: 50,
         }}>
             <div style={{
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '8px',
-                padding: '12px 24px',
+                padding: '12px 0', // Reduced padding to align buttons to edges
                 maxWidth: '1280px',
                 margin: '0 auto',
+                width: '100%',
             }}>
-                {/* Row 1: Arrow (left) + Title (center, larger) + Dark Mode (right) */}
+                {/* Row 1: Arrow (left, aligned to edge) + Title (center, larger) + Dark Mode (right, aligned to edge) */}
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: '8px',
+                    padding: '0 24px', // Padding only for the buttons, not the full width
                 }}>
                     {onBackToHub && (
                         <button
@@ -55,7 +58,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                 borderRadius: 'var(--radius-sm)',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s ease',
-                                height: '40px', // Match height with box below
+                                height: '40px',
                                 boxSizing: 'border-box',
                             }}
                             onMouseEnter={(e) => {
@@ -75,7 +78,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                     )}
 
                     <h1 style={{
-                        fontSize: 'clamp(1.3rem, 3vw, 1.8rem)', // Larger title on laptop
+                        fontSize: 'clamp(1.3rem, 3vw, 1.8rem)',
                         fontWeight: 700,
                         color: 'var(--color-text-primary)',
                         overflow: 'hidden',
@@ -103,7 +106,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 flexShrink: 0,
-                                height: '40px', // Match height with box below
+                                height: '40px',
                                 boxSizing: 'border-box',
                             }}
                             onMouseEnter={(e) => {
@@ -122,20 +125,22 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                     )}
                 </div>
 
-                {/* Row 2: Feedback (with text) + Language (center) + AI Toggle (right) - All same height */}
+                {/* Row 2: Feedback + Language + AI Toggle - All same width with centered text */}
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: '8px',
                     flexWrap: 'wrap',
+                    padding: '0 24px', // Align to edges like row 1
                 }}>
-                    {/* Feedback Button - Envelope icon with "feedbacks" text */}
+                    {/* Feedback Button - Same width as others, centered text */}
                     <a
                         href="mailto:findmyworkai@gmail.com"
                         style={{
                             display: 'inline-flex',
                             alignItems: 'center',
+                            justifyContent: 'center',
                             gap: '6px',
                             padding: '8px 12px',
                             borderRadius: 'var(--radius-sm)',
@@ -145,7 +150,8 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                             cursor: 'pointer',
                             textDecoration: 'none',
                             transition: 'all 0.2s ease',
-                            flexShrink: 0,
+                            flex: '1 1 120px', // Equal width distribution
+                            minWidth: '120px', // Minimum width for consistency
                             height: '38px',
                             boxSizing: 'border-box',
                         }}
@@ -164,8 +170,8 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                         <span className="feedback-text">feedbacks</span>
                     </a>
 
-                    {/* Language Selector - Centered */}
-                    <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+                    {/* Language Selector - Same width as others, centered */}
+                    <div style={{ flex: '1 1 120px', minWidth: '120px', display: 'flex', justifyContent: 'center' }}>
                     {setLang && (
                         <select
                             value={lang}
@@ -183,6 +189,8 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                 transition: 'all 0.2s',
                                 height: '38px',
                                 boxSizing: 'border-box',
+                                width: '100%', // Full width of container
+                                textAlign: 'center', // Centered text
                             }}
                             onFocus={(e) => {
                                 e.currentTarget.style.borderColor = 'var(--color-primary-500)';
@@ -203,14 +211,15 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                     )}
                     </div>
 
-                    {/* AI Toggle - Right aligned */}
-                    <div style={{ flexShrink: 0 }}>
+                    {/* AI Toggle - Same width as others, centered text */}
+                    <div style={{ flex: '1 1 120px', minWidth: '120px', display: 'flex', justifyContent: 'center' }}>
                     {showAiToggle && (
                         <button
                             onClick={() => setNoAiMode(!noAiMode)}
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
+                                justifyContent: 'center',
                                 gap: '8px',
                                 padding: '8px 16px',
                                 borderRadius: 'var(--radius-sm)',
@@ -226,6 +235,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                 boxShadow: noAiMode ? 'none' : '0 1px 3px rgba(99, 102, 241, 0.25)',
                                 height: '38px',
                                 boxSizing: 'border-box',
+                                width: '100%', // Full width of container
                             }}
                             onMouseEnter={(e) => {
                                 if (noAiMode) {
