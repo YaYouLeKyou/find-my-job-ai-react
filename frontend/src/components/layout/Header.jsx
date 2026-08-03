@@ -134,14 +134,14 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                     gap: '8px',
                     flexWrap: 'wrap',
                 }}>
-                    {/* Feedback Button - Icon only (envelope) */}
+                    {/* Feedback Button - Envelope icon + "feedbacks" text */}
                     <a
                         href="mailto:findmyworkai@gmail.com"
                         style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '8px',
+                            gap: '6px',
+                            padding: '8px 12px',
                             borderRadius: 'var(--radius-sm)',
                             color: 'var(--color-text-primary)',
                             background: 'var(--color-surface)',
@@ -163,6 +163,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                         aria-label={S.feedback}
                     >
                         <Mail size={16} />
+                        <span className="feedback-text">feedbacks</span>
                     </a>
 
                     {/* Language Selector */}
