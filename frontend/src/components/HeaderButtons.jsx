@@ -3,10 +3,9 @@ import React from 'react';
 export default function HeaderButtons({ onToggleDarkMode }) {
   return (
     <div className="header-buttons-container">
-      {/* Feedback Button - Top Right */}
-      <a
-        href="mailto:findmyworkai@gmail.com"
-        className="feedback-button"
+      {/* Copilot Button - Top Right */}
+      <button
+        className="copilot-button"
         style={{
           position: 'fixed',
           top: '20px',
@@ -36,11 +35,12 @@ export default function HeaderButtons({ onToggleDarkMode }) {
           e.currentTarget.style.transform = 'translateY(0)';
           e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
         }}
+        aria-label="Copilot AI"
       >
-        💬 <span>Feedback</span>
-      </a>
+        🤖 <span>Copilot AI</span>
+      </button>
 
-      {/* Dark Mode Button - Top Right, next to Feedback */}
+      {/* Dark Mode Button - Top Right, next to Copilot */}
       <button
         onClick={onToggleDarkMode}
         className="dark-mode-button"

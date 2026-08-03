@@ -1453,19 +1453,19 @@ label {
 
 /* Header Buttons (LandingHub) - Mobile */
 @media (max-width: 767px) {
-  .header-buttons-container .feedback-button,
+  .header-buttons-container .copilot-button,
   .header-buttons-container .dark-mode-button {
     padding: 8px 10px !important;
     font-size: 0.75rem !important;
     top: 12px !important;
   }
-  .header-buttons-container .feedback-button {
+  .header-buttons-container .copilot-button {
     right: 56px !important;
   }
   .header-buttons-container .dark-mode-button {
     right: 12px !important;
   }
-  .header-buttons-container .feedback-button span,
+  .header-buttons-container .copilot-button span,
   .header-buttons-container .dark-mode-button span {
     display: none !important;
   }
@@ -1475,19 +1475,11 @@ label {
 @media (max-width: 767px) {
   header > div {
     padding: 8px 12px !important;
-    gap: 8px !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
+    gap: 6px !important;
   }
   .back-text {
     display: inline !important;
     font-size: 0.8rem !important;
-  }
-  .feedback-text {
-    display: none !important;
-  }
-  .ai-toggle-text {
-    display: none !important;
   }
   header h1 {
     font-size: 1.1rem !important;
@@ -1495,7 +1487,6 @@ label {
     overflow: visible !important;
     text-overflow: clip !important;
     text-align: center !important;
-    margin-bottom: 8px !important;
   }
   header select {
     padding: 6px 8px !important;
@@ -1508,6 +1499,14 @@ label {
   header > div > div:last-child {
     justify-content: center !important;
     flex-wrap: wrap !important;
+  }
+  .feedback-text {
+    display: inline !important;
+    font-size: 0.8rem !important;
+  }
+  .ai-toggle-text {
+    display: inline !important;
+    font-size: 0.8rem !important;
   }
 }
 
