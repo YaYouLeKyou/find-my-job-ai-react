@@ -229,7 +229,7 @@ export default function AISettings({ lang }) {
                     color: 'var(--color-text-primary)',
                     marginBottom: '10px',
                 }}>
-                    🧠 {S.ai_model}
+                    {S.ai_model}
                 </label>
                 <select
                     value={activeModel}
