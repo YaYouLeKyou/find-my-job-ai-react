@@ -2,8 +2,9 @@
  * Header - En-tête pour tous les agents
  *
  * Structure :
- *   - Ligne 1 : Bouton flèche (gauche) + Titre (centré) + Dark mode (droite)
+ *   - Ligne 1 : Bouton flèche (gauche) + Titre (centré, plus grand) + Dark mode (droite)
  *   - Ligne 2 : Feedback (avec texte) + Langue + Toggle AI (même hauteur)
+ *   - Non flottant, aligné avec le contenu en dessous
  */
 import React from 'react';
 import { Cpu, ArrowLeft, Sparkles, Sun, Moon, Mail } from 'lucide-react';
@@ -17,13 +18,11 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
 
     return (
         <header style={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 50,
             width: '100%',
             borderBottom: '1px solid var(--color-border)',
             background: 'var(--color-glass-bg)',
             backdropFilter: 'blur(12px)',
+            // Removed sticky positioning to make header non-floating
         }}>
             <div style={{
                 display: 'flex',
@@ -33,7 +32,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                 maxWidth: '1280px',
                 margin: '0 auto',
             }}>
-                {/* Row 1: Arrow (left) + Title (center) + Dark Mode (right) */}
+                {/* Row 1: Arrow (left) + Title (center, larger) + Dark Mode (right) */}
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -56,6 +55,8 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                 borderRadius: 'var(--radius-sm)',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s ease',
+                                height: '40px', // Match height with box below
+                                boxSizing: 'border-box',
                             }}
                             onMouseEnter={(e) => {
                                 e.currentTarget.style.background = 'var(--color-surface-hover)';
@@ -74,7 +75,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                     )}
 
                     <h1 style={{
-                        fontSize: 'clamp(1.1rem, 2vw, 1.5rem)',
+                        fontSize: 'clamp(1.3rem, 3vw, 1.8rem)', // Larger title on laptop
                         fontWeight: 700,
                         color: 'var(--color-text-primary)',
                         overflow: 'hidden',
@@ -102,6 +103,8 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 flexShrink: 0,
+                                height: '40px', // Match height with box below
+                                boxSizing: 'border-box',
                             }}
                             onMouseEnter={(e) => {
                                 e.currentTarget.style.background = 'var(--color-surface-hover)';
