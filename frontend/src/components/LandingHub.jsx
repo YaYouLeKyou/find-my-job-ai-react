@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import HeaderButtons from './HeaderButtons';
+import AIChatDrawer from './AIChatDrawer';
 import { LANGS, STRINGS } from '../utils/translations';
 
 const APPS = [
@@ -431,6 +432,15 @@ export default function LandingHub({ onSelectApp, lang, setLang, onToggleDarkMod
           <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>by Yanès Hadiouche</span>
         </div>
       </div>
+
+      {/* AI Copilot Chat - Floating Context-Aware Assistant (Hub) */}
+      <AIChatDrawer
+        jobs={[]}
+        cvData={null}
+        agentType="job"
+        noAiMode={false}
+        lang={lang}
+      />
 
       <style>{`
         @keyframes pulse-dot {
