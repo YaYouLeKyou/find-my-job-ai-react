@@ -149,7 +149,7 @@ export default function LandingHub({ onSelectApp, lang, setLang, onToggleDarkMod
             gap: '10px',
             background: 'rgba(255, 255, 255, 0.15)',
             border: '2px solid rgba(124, 77, 255, 0.3)',
-            borderRadius: '9999px',
+            borderRadius: 'var(--radius-sm)',
             padding: '8px 20px',
             fontSize: '0.85rem',
             fontWeight: '800',
@@ -295,7 +295,7 @@ export default function LandingHub({ onSelectApp, lang, setLang, onToggleDarkMod
                     color: app.accentColor,
                     background: app.tagBg,
                     border: `2px solid ${app.badgeBorder}`,
-                    borderRadius: '9999px',
+                    borderRadius: 'var(--radius-sm)',
                     padding: '6px 14px',
                     display: 'inline-block',
                   }}

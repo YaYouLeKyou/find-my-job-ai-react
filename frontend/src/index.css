@@ -1476,7 +1476,8 @@ label {
   header > div {
     padding: 8px 12px !important;
     gap: 8px !important;
-    flex-wrap: wrap !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
   }
   .back-text {
     display: inline !important;
@@ -1489,10 +1490,12 @@ label {
     display: none !important;
   }
   header h1 {
-    font-size: 1rem !important;
+    font-size: 1.1rem !important;
     white-space: normal !important;
     overflow: visible !important;
     text-overflow: clip !important;
+    text-align: center !important;
+    margin-bottom: 8px !important;
   }
   header select {
     padding: 6px 8px !important;
@@ -1501,6 +1504,33 @@ label {
   }
   header button {
     padding: 6px !important;
+  }
+  header > div > div:last-child {
+    justify-content: center !important;
+    flex-wrap: wrap !important;
+  }
+}
+
+/* AnalyzedCvMemory - Mobile */
+@media (max-width: 767px) {
+  .analyzed-cv-item {
+    flex-wrap: wrap !important;
+    position: relative !important;
+  }
+  .analyzed-cv-item > div:nth-child(2) {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+    padding-right: 50px !important;
+  }
+  .analyzed-cv-item > div:last-child {
+    position: absolute !important;
+    top: 8px !important;
+    right: 8px !important;
+    gap: 4px !important;
+  }
+  .analyzed-cv-item > div:first-child {
+    width: 32px !important;
+    height: 32px !important;
   }
 }
 

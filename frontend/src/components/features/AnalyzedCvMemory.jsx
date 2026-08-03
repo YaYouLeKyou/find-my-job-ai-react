@@ -106,7 +106,7 @@ export default function AnalyzedCvMemory({ lang, cvs, onRemove, onClear, onReana
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {displayCvs.map((cv) => (
-                    <div key={cv.id} style={{
+                    <div key={cv.id} className="analyzed-cv-item" style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: '12px',
