@@ -915,6 +915,12 @@ async def health_check():
     }
 
 
+@app.get("/health")
+async def health_check_light():
+    """Lightweight health check endpoint for server wake-up."""
+    return {"status": "ok"}
+
+
 # ─── Diagnostic Endpoint ──────────────────────────────────────────────────────
 
 @app.get("/api/diagnostic")
