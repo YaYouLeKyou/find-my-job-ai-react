@@ -34,8 +34,8 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                 maxWidth: '1280px',
                 margin: '0 auto',
             }}>
-                {/* Row 1: Title only (centered) */}
-                <div style={{
+                {/* Row 1: Title only (centered) - hidden on mobile */}
+                <div className="header-title-row" style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -54,13 +54,27 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                     </h1>
                 </div>
 
-                {/* Row 2: Back to Hub (left) + Dark Mode (right) */}
+                {/* Row 2: Back to Hub (left) + Title (center, mobile) + Dark Mode (right) */}
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: '8px',
                 }}>
+                    <h1 className="header-title-mobile" style={{
+                        display: 'none',
+                        fontSize: 'clamp(1.1rem, 2vw, 1.5rem)',
+                        fontWeight: 700,
+                        color: 'var(--color-text-primary)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        textAlign: 'center',
+                        flex: 1,
+                        minWidth: 0,
+                    }}>
+                        {agentConfig.title}
+                    </h1>
                     {onBackToHub && (
                         <button
                             onClick={onBackToHub}

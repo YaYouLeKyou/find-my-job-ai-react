@@ -1471,10 +1471,15 @@ label {
     gap: 6px !important;
   }
   .back-text {
-    display: inline !important;
-    font-size: 0.8rem !important;
+    display: none !important;
   }
-  header h1 {
+  /* Hide title row 1 on mobile */
+  .header-title-row {
+    display: none !important;
+  }
+  /* Show mobile title in row 2 (center) */
+  .header-title-mobile {
+    display: block !important;
     font-size: 1.1rem !important;
     white-space: normal !important;
     overflow: visible !important;
@@ -1500,6 +1505,19 @@ label {
   .ai-toggle-text {
     display: inline !important;
     font-size: 0.8rem !important;
+  }
+  /* Row 2: Back arrow (left) + Title (center) + Dark mode (right) */
+  header > div > div:nth-child(2) {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+  }
+  /* Feedback button same height as others */
+  header a[href^="mailto"] {
+    padding: 8px 12px !important;
+    min-height: 34px !important;
+    box-sizing: border-box !important;
   }
 }
 
