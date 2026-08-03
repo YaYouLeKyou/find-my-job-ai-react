@@ -150,7 +150,8 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                             cursor: 'pointer',
                             textDecoration: 'none',
                             transition: 'all 0.2s ease',
-                            width: '110px', // Width based on longest word "feedbacks"
+                            width: '120px', // Fixed width to accommodate "AI désactivé"
+                            minWidth: '120px', // Minimum width for consistency
                             height: '34px', // Smaller height
                             boxSizing: 'border-box',
                         }}
@@ -191,7 +192,8 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                     : 'linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%)',
                                 color: noAiMode ? 'var(--color-text-primary)' : '#ffffff',
                                 boxShadow: noAiMode ? 'none' : '0 1px 3px rgba(99, 102, 241, 0.25)',
-                                width: '110px', // Same width as feedback
+                                width: '120px', // Fixed width to accommodate "AI désactivé"
+                                minWidth: '120px', // Minimum width for consistency
                                 height: '34px', // Smaller height
                                 boxSizing: 'border-box',
                             }}
@@ -246,10 +248,13 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                 cursor: 'pointer',
                                 outline: 'none',
                                 transition: 'all 0.2s',
-                                width: '110px', // Same width as others
+                                width: '120px', // Fixed width to match others
+                                minWidth: '120px', // Minimum width for consistency
                                 height: '34px', // Smaller height
                                 boxSizing: 'border-box',
                                 textAlign: 'center', // Centered text
+                                textOverflow: 'ellipsis', // Handle overflow
+                                whiteSpace: 'nowrap', // Prevent wrapping
                             }}
                             onFocus={(e) => {
                                 e.currentTarget.style.borderColor = 'var(--color-primary-500)';
