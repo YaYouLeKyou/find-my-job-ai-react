@@ -63,12 +63,7 @@ export default function LandingHub({ onSelectApp, lang, setLang, onToggleDarkMod
   useEffect(() => {
     const wakeUpServer = async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || '';
-        if (!apiUrl) {
-          // Pas d'URL backend configurée, pas besoin de réveiller
-          setServerAwake(true);
-          return;
-        }
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
         // Timeout de 8 secondes pour ne pas bloquer l'interface
         const controller = new AbortController();

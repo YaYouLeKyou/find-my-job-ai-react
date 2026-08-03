@@ -20,7 +20,7 @@ import { MessageCircle, X, Send, Bot, User, Loader2, Sparkles } from 'lucide-rea
 import { useAI } from '../context/AIContext';
 import { LANGS, STRINGS } from '../utils/translations';
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // ─── Quick suggestion prompts ─────────────────────────────────────────────────
 const QUICK_PROMPTS = [

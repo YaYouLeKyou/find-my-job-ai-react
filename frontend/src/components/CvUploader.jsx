@@ -3,7 +3,7 @@ import { Upload, AlertCircle, FileText, CheckCircle2 } from 'lucide-react';
 import { LANGS, STRINGS } from '../utils/translations';
 import AdComponent from './AdComponent';
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export default function CvUploader({
   lang,

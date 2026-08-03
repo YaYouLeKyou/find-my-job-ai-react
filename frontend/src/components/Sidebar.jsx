@@ -15,7 +15,7 @@ import { useAI } from '../context/AIContext';
 import { AI_MODELS } from '../config/aiProviders';
 import { APIKeyManager } from './APIKeyManager';
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export default function Sidebar({
   lang,

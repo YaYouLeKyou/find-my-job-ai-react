@@ -19,7 +19,7 @@ import { useAI } from '../../context/AIContext';
 import CvProfile from '../CvProfile';
 import AdComponent from '../AdComponent';
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 function DocumentAnalyzer({ lang, onAnalysisSuccess, cvData: externalCvData }) {
     const S = STRINGS[LANGS[lang].code];

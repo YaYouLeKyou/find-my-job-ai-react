@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ExternalLink, FileText, ChevronDown, ChevronUp, Download, Loader2, Copy, Check, Clock, Wifi, DollarSign, BarChart3 } from 'lucide-react';
 import { LANGS, STRINGS } from '../utils/translations';
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export default function FreelanceMissionCard({
   mission,

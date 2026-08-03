@@ -15,7 +15,7 @@ import {
 import { useAgent } from '../../context/AgentContext';
 import { LANGS, STRINGS } from '../../utils/translations';
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 function ResultCard({
     item,

@@ -39,7 +39,7 @@ import useFilteredJobs from './hooks/useFilteredJobs';
 import { Loader2 } from 'lucide-react';
 import './styles/streaming.css';
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // ─── Client-side sorting helper ──────────────────────────────────────────────
 function sortJobs(jobs, sortOption) {

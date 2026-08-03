@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings, Cpu, Key, Save, ExternalLink, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Wifi, WifiOff, Globe, DollarSign, Briefcase, Trash2 } from 'lucide-react';
 import { LANGS } from '../utils/translations';
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export default function FreelanceSidebar({
   lang,

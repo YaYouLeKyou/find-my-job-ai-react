@@ -8,7 +8,7 @@
  * Supprime définitivement le support des modèles locaux (Ollama).
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // =============================================================================
 // CONFIGURATION DES ENDPOINTS PAR FOURNISSEUR

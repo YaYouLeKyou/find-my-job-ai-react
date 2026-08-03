@@ -4,7 +4,7 @@ import { ExternalLink, FileText, ChevronDown, ChevronUp, Download, Loader2, Copy
 import JobSchema from './JobSchema';
 import AdComponent from './AdComponent';
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export default function JobCard({
   lang,
