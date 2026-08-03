@@ -1453,19 +1453,12 @@ label {
 
 /* Header Buttons (LandingHub) - Mobile */
 @media (max-width: 767px) {
-  .header-buttons-container .copilot-button,
   .header-buttons-container .dark-mode-button {
     padding: 8px 10px !important;
     font-size: 0.75rem !important;
     top: 12px !important;
-  }
-  .header-buttons-container .copilot-button {
-    right: 56px !important;
-  }
-  .header-buttons-container .dark-mode-button {
     right: 12px !important;
   }
-  .header-buttons-container .copilot-button span,
   .header-buttons-container .dark-mode-button span {
     display: none !important;
   }

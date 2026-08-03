@@ -3,44 +3,7 @@ import React from 'react';
 export default function HeaderButtons({ onToggleDarkMode }) {
   return (
     <div className="header-buttons-container">
-      {/* Copilot Button - Top Right */}
-      <button
-        className="copilot-button"
-        style={{
-          position: 'fixed',
-          top: '20px',
-          right: '120px',
-          zIndex: '1000',
-          background: 'var(--primary-gradient)',
-          color: 'white',
-          padding: '12px 20px',
-          borderRadius: 'var(--radius-full)',
-          textDecoration: 'none',
-          fontWeight: '700',
-          fontSize: '0.9rem',
-          boxShadow: 'var(--shadow-lg)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          transition: 'transform var(--transition-fast), box-shadow var(--transition-fast)',
-          border: 'none',
-          cursor: 'pointer',
-          fontFamily: 'var(--font-sans)'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'translateY(-2px)';
-          e.currentTarget.style.boxShadow = 'var(--shadow-xl)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'translateY(0)';
-          e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-        }}
-        aria-label="Copilot AI"
-      >
-        🤖 <span>Copilot AI</span>
-      </button>
-
-      {/* Dark Mode Button - Top Right, next to Copilot */}
+      {/* Dark Mode Button - Top Right */}
       <button
         onClick={onToggleDarkMode}
         className="dark-mode-button"
