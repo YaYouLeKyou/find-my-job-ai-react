@@ -3,7 +3,7 @@
  *
  * Structure :
  *   - Ligne 1 : Bouton flèche (gauche, aligné bord) + Titre (centré, plus grand) + Dark mode (droite, aligné bord)
- *   - Ligne 2 : Feedback + Langue + Toggle AI (même largeur, texte centré)
+ *   - Ligne 2 : Feedback (gauche) + AI Mode (milieu) + Langue (droite) - même largeur basée sur mot le plus long
  *   - Position fixe (non flottant)
  */
 import React from 'react';
@@ -125,7 +125,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                     )}
                 </div>
 
-                {/* Row 2: Feedback + Language + AI Toggle - All same width with centered text */}
+                {/* Row 2: Feedback (left) + AI Mode (middle) + Language (right) - Same width based on longest word */}
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -134,7 +134,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                     flexWrap: 'wrap',
                     padding: '0 24px', // Align to edges like row 1
                 }}>
-                    {/* Feedback Button - Same width as others, centered text */}
+                    {/* Feedback Button (left) - Width based on "feedbacks" */}
                     <a
                         href="mailto:findmyworkai@gmail.com"
                         style={{
@@ -142,7 +142,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: '6px',
-                            padding: '8px 12px',
+                            padding: '6px 12px', // Less padding for smaller size
                             borderRadius: 'var(--radius-sm)',
                             color: 'var(--color-text-primary)',
                             background: 'var(--color-surface)',
@@ -150,9 +150,8 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                             cursor: 'pointer',
                             textDecoration: 'none',
                             transition: 'all 0.2s ease',
-                            flex: '1 1 120px', // Equal width distribution
-                            minWidth: '120px', // Minimum width for consistency
-                            height: '38px',
+                            width: '110px', // Width based on longest word "feedbacks"
+                            height: '34px', // Smaller height
                             boxSizing: 'border-box',
                         }}
                         onMouseEnter={(e) => {
@@ -166,53 +165,12 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                         title={S.feedback}
                         aria-label={S.feedback}
                     >
-                        <Mail size={16} />
+                        <Mail size={14} /> {/* Smaller icon */}
                         <span className="feedback-text">feedbacks</span>
                     </a>
 
-                    {/* Language Selector - Same width as others, centered */}
-                    <div style={{ flex: '1 1 120px', minWidth: '120px', display: 'flex', justifyContent: 'center' }}>
-                    {setLang && (
-                        <select
-                            value={lang}
-                            onChange={(e) => setLang(e.target.value)}
-                            style={{
-                                padding: '8px 12px',
-                                fontSize: '0.875rem',
-                                fontWeight: 600,
-                                color: 'var(--color-text-primary)',
-                                background: 'var(--color-surface)',
-                                border: '1px solid var(--color-border)',
-                                borderRadius: 'var(--radius-sm)',
-                                cursor: 'pointer',
-                                outline: 'none',
-                                transition: 'all 0.2s',
-                                height: '38px',
-                                boxSizing: 'border-box',
-                                width: '100%', // Full width of container
-                                textAlign: 'center', // Centered text
-                            }}
-                            onFocus={(e) => {
-                                e.currentTarget.style.borderColor = 'var(--color-primary-500)';
-                                e.currentTarget.style.boxShadow = '0 0 0 2px rgba(99, 102, 241, 0.15)';
-                            }}
-                            onBlur={(e) => {
-                                e.currentTarget.style.borderColor = 'var(--color-border)';
-                                e.currentTarget.style.boxShadow = 'none';
-                            }}
-                            aria-label={S.language_aria}
-                        >
-                            {Object.keys(LANGS).map((key) => (
-                                <option key={key} value={key}>
-                                    {LANGS[key].label}
-                                </option>
-                            ))}
-                        </select>
-                    )}
-                    </div>
-
-                    {/* AI Toggle - Same width as others, centered text */}
-                    <div style={{ flex: '1 1 120px', minWidth: '120px', display: 'flex', justifyContent: 'center' }}>
+                    {/* AI Toggle (middle) - Same width as feedback */}
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
                     {showAiToggle && (
                         <button
                             onClick={() => setNoAiMode(!noAiMode)}
@@ -220,11 +178,11 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                gap: '8px',
-                                padding: '8px 16px',
+                                gap: '6px',
+                                padding: '6px 12px', // Less padding for smaller size
                                 borderRadius: 'var(--radius-sm)',
                                 fontWeight: 600,
-                                fontSize: '0.875rem',
+                                fontSize: '0.85rem', // Smaller font
                                 cursor: 'pointer',
                                 transition: 'all 0.2s ease',
                                 border: noAiMode ? 'none' : '1px solid var(--color-border)',
@@ -233,9 +191,9 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                     : 'linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%)',
                                 color: noAiMode ? 'var(--color-text-primary)' : '#ffffff',
                                 boxShadow: noAiMode ? 'none' : '0 1px 3px rgba(99, 102, 241, 0.25)',
-                                height: '38px',
+                                width: '110px', // Same width as feedback
+                                height: '34px', // Smaller height
                                 boxSizing: 'border-box',
-                                width: '100%', // Full width of container
                             }}
                             onMouseEnter={(e) => {
                                 if (noAiMode) {
@@ -258,16 +216,57 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                         >
                             {noAiMode ? (
                                 <>
-                                    <Cpu size={16} />
+                                    <Cpu size={14} /> {/* Smaller icon */}
                                     <span className="ai-toggle-text">{S.ai_disabled}</span>
                                 </>
                             ) : (
                                 <>
-                                    <Sparkles size={16} />
+                                    <Sparkles size={14} /> {/* Smaller icon */}
                                     <span className="ai-toggle-text">{S.ai_enabled}</span>
                                 </>
                             )}
                         </button>
+                    )}
+                    </div>
+
+                    {/* Language Selector (right) - Same width as others */}
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    {setLang && (
+                        <select
+                            value={lang}
+                            onChange={(e) => setLang(e.target.value)}
+                            style={{
+                                padding: '6px 10px', // Less padding for smaller size
+                                fontSize: '0.85rem', // Smaller font
+                                fontWeight: 600,
+                                color: 'var(--color-text-primary)',
+                                background: 'var(--color-surface)',
+                                border: '1px solid var(--color-border)',
+                                borderRadius: 'var(--radius-sm)',
+                                cursor: 'pointer',
+                                outline: 'none',
+                                transition: 'all 0.2s',
+                                width: '110px', // Same width as others
+                                height: '34px', // Smaller height
+                                boxSizing: 'border-box',
+                                textAlign: 'center', // Centered text
+                            }}
+                            onFocus={(e) => {
+                                e.currentTarget.style.borderColor = 'var(--color-primary-500)';
+                                e.currentTarget.style.boxShadow = '0 0 0 2px rgba(99, 102, 241, 0.15)';
+                            }}
+                            onBlur={(e) => {
+                                e.currentTarget.style.borderColor = 'var(--color-border)';
+                                e.currentTarget.style.boxShadow = 'none';
+                            }}
+                            aria-label={S.language_aria}
+                        >
+                            {Object.keys(LANGS).map((key) => (
+                                <option key={key} value={key}>
+                                    {LANGS[key].label}
+                                </option>
+                            ))}
+                        </select>
                     )}
                     </div>
                 </div>
