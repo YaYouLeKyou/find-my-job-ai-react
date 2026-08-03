@@ -2,9 +2,8 @@
  * Header - En-tête pour tous les agents
  *
  * Structure :
- *   - Ligne 1 : Titre de l'agent (seul, centré)
- *   - Ligne 2 : Bouton retour Job Bridge (gauche) + Dark mode (droite)
- *   - Ligne 3 : Feedback (icône) + Langue + Toggle AI
+ *   - Ligne 1 : Bouton retour (gauche) + Titre (centré) + Dark mode (droite)
+ *   - Ligne 2 : Feedback (icône gauche) + Langue (centrée) + Toggle AI (droite)
  */
 import React from 'react';
 import { Cpu, ArrowLeft, Sparkles, Sun, Moon, Mail } from 'lucide-react';
@@ -34,47 +33,13 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                 maxWidth: '1280px',
                 margin: '0 auto',
             }}>
-                {/* Row 1: Title only (centered) - hidden on mobile */}
-                <div className="header-title-row" style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                }}>
-                    <h1 style={{
-                        fontSize: 'clamp(1.1rem, 2vw, 1.5rem)',
-                        fontWeight: 700,
-                        color: 'var(--color-text-primary)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        textAlign: 'center',
-                        maxWidth: '100%',
-                    }}>
-                        {agentConfig.title}
-                    </h1>
-                </div>
-
-                {/* Row 2: Back to Hub (left) + Title (center, mobile) + Dark Mode (right) */}
+                {/* Row 1: Back to Hub (left) + Title (center) + Dark Mode (right) */}
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: '8px',
                 }}>
-                    <h1 className="header-title-mobile" style={{
-                        display: 'none',
-                        fontSize: 'clamp(1.1rem, 2vw, 1.5rem)',
-                        fontWeight: 700,
-                        color: 'var(--color-text-primary)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        textAlign: 'center',
-                        flex: 1,
-                        minWidth: 0,
-                    }}>
-                        {agentConfig.title}
-                    </h1>
                     {onBackToHub && (
                         <button
                             onClick={onBackToHub}
@@ -108,6 +73,20 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                         </button>
                     )}
 
+                    <h1 style={{
+                        fontSize: 'clamp(1.1rem, 2vw, 1.5rem)',
+                        fontWeight: 700,
+                        color: 'var(--color-text-primary)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        textAlign: 'center',
+                        flex: 1,
+                        minWidth: 0,
+                    }}>
+                        {agentConfig.title}
+                    </h1>
+
                     {onToggleDarkMode && (
                         <button
                             onClick={onToggleDarkMode}
@@ -140,15 +119,15 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                     )}
                 </div>
 
-                {/* Row 3: Feedback (icon only) + Language + AI Toggle */}
+                {/* Row 2: Feedback (icon only) + Language (center) + AI Toggle (right) */}
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
+                    justifyContent: 'space-between',
                     gap: '8px',
                     flexWrap: 'wrap',
                 }}>
-                    {/* Feedback Button - Envelope icon + "feedbacks" text */}
+                    {/* Feedback Button - Envelope icon only */}
                     <a
                         href="mailto:findmyworkai@gmail.com"
                         style={{
@@ -177,10 +156,11 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                         aria-label={S.feedback}
                     >
                         <Mail size={16} />
-                        <span className="feedback-text">feedbacks</span>
+                        <span className="feedback-text" style={{ display: 'none' }}>feedbacks</span>
                     </a>
 
-                    {/* Language Selector */}
+                    {/* Language Selector - Centered */}
+                    <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
                     {setLang && (
                         <select
                             value={lang}
@@ -214,8 +194,10 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                             ))}
                         </select>
                     )}
+                    </div>
 
-                    {/* AI Toggle */}
+                    {/* AI Toggle - Right aligned */}
+                    <div style={{ flexShrink: 0 }}>
                     {showAiToggle && (
                         <button
                             onClick={() => setNoAiMode(!noAiMode)}
@@ -268,6 +250,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                             )}
                         </button>
                     )}
+                    </div>
                 </div>
             </div>
         </header>

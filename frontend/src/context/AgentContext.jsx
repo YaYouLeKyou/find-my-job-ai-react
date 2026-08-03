@@ -63,6 +63,7 @@ export const AgentProvider = ({ children }) => {
 
     // --- Mode Sans IA ---
     const [noAiMode, setNoAiModeState] = useState(() => {
+        // AI mode should be active by default (noAiMode = false)
         return localStorage.getItem('noAiMode') === 'true';
     });
 
