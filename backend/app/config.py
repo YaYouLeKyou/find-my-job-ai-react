@@ -47,7 +47,8 @@ class Settings:
     ALLOWED_ORIGINS: str = os.getenv(
         "ALLOWED_ORIGINS",
         "http://localhost:5173,http://localhost:3000,http://localhost:8501,"
-        "https://find-my-job-ai.netlify.app,https://*.netlify.app"
+        "https://find-my-job-ai.netlify.app,https://*.netlify.app,"
+        "https://*.vercel.app,https://find-my-job-ai.vercel.app"
     ).strip()
     
     # Redis
