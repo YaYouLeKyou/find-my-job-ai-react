@@ -87,12 +87,12 @@ else:
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(SlowAPIMiddleware)
 
-# CORS middleware
-ALLOWED_ORIGINS = settings.ALLOWED_ORIGINS.split(",")
-logger.info(f"[CORS] Configured allowed origins: {ALLOWED_ORIGINS}")
+# CORS middleware - Configuration permissive pour autoriser tous les domaines
+# (Vercel, Netlify, etc.) sans restriction
+logger.info("[CORS] Configured with allow_origins=['*'] (all domains allowed)")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
