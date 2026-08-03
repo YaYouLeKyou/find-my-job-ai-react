@@ -163,51 +163,44 @@ export default function AnalyzedCvMemory({ lang, cvs, onRemove, onClear, onReana
                             </div>
                         </div>
 
-                         <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                             {onReanalyze && (
-                                 <button
-                                     onClick={() => onReanalyze(cv)}
-                                     style={{
-                                         padding: '6px',
-                                         borderRadius: 'var(--radius-sm)',
-                                         border: '1px solid var(--color-border)',
-                                         background: 'var(--color-surface)',
-                                         cursor: 'pointer',
-                                         color: 'var(--color-text-secondary)',
-                                         display: 'flex',
-                                         alignItems: 'center',
-                                         justifyContent: 'center',
-                                     }}
-                                     title={S.reanalyze}
-                                 >
-                                     <FileText size={14} />
-                                 </button>
-                             )}
-                             <button
-                                 onClick={() => handleRemove(cv.id)}
-                                 style={{
-                                     padding: '6px',
-                                     borderRadius: 'var(--radius-sm)',
-                                     border: '1px solid var(--color-border)',
-                                     background: 'var(--color-surface)',
-                                     cursor: 'pointer',
-                                     color: '#ef4444',
-                                     display: 'flex',
-                                     alignItems: 'center',
-                                     justifyContent: 'center',
-                                 }}
-                                 title={S.delete}
-                             >
-                                 <Trash2 size={14} />
-                             </button>
-                         </div>
-<task_progress>
-- [x] Analyze frontend structure and identify relevant files
-- [x] Fix layout issues (button positioning, title alignment)
-- [x] Remove duplicate trash icon in CV analysis
-- [ ] Fix AI mode activation on mobile
-- [ ] Test all changes
-</task_progress>
+                        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                            {onReanalyze && (
+                                <button
+                                    onClick={() => onReanalyze(cv)}
+                                    style={{
+                                        padding: '6px',
+                                        borderRadius: 'var(--radius-sm)',
+                                        border: '1px solid var(--color-border)',
+                                        background: 'var(--color-surface)',
+                                        cursor: 'pointer',
+                                        color: 'var(--color-text-secondary)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                    }}
+                                    title={S.reanalyze}
+                                >
+                                    <FileText size={14} />
+                                </button>
+                            )}
+                            <button
+                                onClick={() => handleRemove(cv.id)}
+                                style={{
+                                    padding: '6px',
+                                    borderRadius: 'var(--radius-sm)',
+                                    border: '1px solid var(--color-border)',
+                                    background: 'var(--color-surface)',
+                                    cursor: 'pointer',
+                                    color: '#ef4444',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}
+                                title={S.delete}
+                            >
+                                <Trash2 size={14} />
+                            </button>
+                        </div>
                     </div>
                 ))}
             </div>

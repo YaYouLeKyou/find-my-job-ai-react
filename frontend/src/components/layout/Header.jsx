@@ -2,8 +2,8 @@
  * Header - En-tête pour tous les agents
  *
  * Structure :
- *   - Ligne 1 : Bouton retour (gauche) + Titre (centré) + Dark mode (droite)
- *   - Ligne 2 : Feedback (icône gauche) + Langue (centrée) + Toggle AI (droite)
+ *   - Ligne 1 : Bouton flèche (gauche) + Titre (centré) + Dark mode (droite)
+ *   - Ligne 2 : Feedback (avec texte) + Langue + Toggle AI (même hauteur)
  */
 import React from 'react';
 import { Cpu, ArrowLeft, Sparkles, Sun, Moon, Mail } from 'lucide-react';
@@ -33,7 +33,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                 maxWidth: '1280px',
                 margin: '0 auto',
             }}>
-                {/* Row 1: Back to Hub (left) + Title (center) + Dark Mode (right) */}
+                {/* Row 1: Arrow (left) + Title (center) + Dark Mode (right) */}
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -69,7 +69,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                             aria-label={S.back_to_hub_aria}
                         >
                             <ArrowLeft size={16} />
-                            <span className="back-text">{S.back_to_hub}</span>
+                            <span className="back-text" style={{ display: 'none' }}>{S.back_to_hub}</span>
                         </button>
                     )}
 
@@ -119,7 +119,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                     )}
                 </div>
 
-                {/* Row 2: Feedback (icon only) + Language (center) + AI Toggle (right) */}
+                {/* Row 2: Feedback (with text) + Language (center) + AI Toggle (right) - All same height */}
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -127,7 +127,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                     gap: '8px',
                     flexWrap: 'wrap',
                 }}>
-                    {/* Feedback Button - Envelope icon only */}
+                    {/* Feedback Button - Envelope icon with "feedbacks" text */}
                     <a
                         href="mailto:findmyworkai@gmail.com"
                         style={{
@@ -143,6 +143,8 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                             textDecoration: 'none',
                             transition: 'all 0.2s ease',
                             flexShrink: 0,
+                            height: '38px',
+                            boxSizing: 'border-box',
                         }}
                         onMouseEnter={(e) => {
                             e.currentTarget.style.background = 'var(--color-surface-hover)';
@@ -156,7 +158,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                         aria-label={S.feedback}
                     >
                         <Mail size={16} />
-                        <span className="feedback-text" style={{ display: 'none' }}>feedbacks</span>
+                        <span className="feedback-text">feedbacks</span>
                     </a>
 
                     {/* Language Selector - Centered */}
@@ -176,6 +178,8 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                 cursor: 'pointer',
                                 outline: 'none',
                                 transition: 'all 0.2s',
+                                height: '38px',
+                                boxSizing: 'border-box',
                             }}
                             onFocus={(e) => {
                                 e.currentTarget.style.borderColor = 'var(--color-primary-500)';
@@ -217,6 +221,8 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                     : 'linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%)',
                                 color: noAiMode ? 'var(--color-text-primary)' : '#ffffff',
                                 boxShadow: noAiMode ? 'none' : '0 1px 3px rgba(99, 102, 241, 0.25)',
+                                height: '38px',
+                                boxSizing: 'border-box',
                             }}
                             onMouseEnter={(e) => {
                                 if (noAiMode) {
