@@ -828,9 +828,9 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                         </div>
                     </div>
 
-                    <div style={{
+                    <div className="results-grid" style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
                         gap: '16px',
                     }}>
                         {visibleJobs.map((job, idx) => (

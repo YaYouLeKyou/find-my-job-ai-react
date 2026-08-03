@@ -72,7 +72,7 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                             aria-label={S.back_to_hub_aria}
                         >
                             <ArrowLeft size={16} />
-                            <span style={{ display: 'none' }} className="back-text">{S.back_to_hub}</span>
+                            <span className="back-text">{S.back_to_hub}</span>
                         </button>
                     )}
 
@@ -235,12 +235,12 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                             {noAiMode ? (
                                 <>
                                     <Cpu size={16} />
-                                    <span>{S.no_ai_mode}</span>
+                                    <span className="ai-toggle-text">{S.no_ai_mode}</span>
                                 </>
                             ) : (
                                 <>
                                     <Sparkles size={16} />
-                                    <span>{S.ai_mode_active}</span>
+                                    <span className="ai-toggle-text">{S.ai_mode_active}</span>
                                 </>
                             )}
                         </button>

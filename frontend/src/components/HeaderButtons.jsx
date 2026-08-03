@@ -37,7 +37,7 @@ export default function HeaderButtons({ onToggleDarkMode }) {
           e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
         }}
       >
-        💬 Feedback
+        💬 <span>Feedback</span>
       </a>
 
       {/* Dark Mode Button - Top Right, next to Feedback */}
@@ -73,7 +73,7 @@ export default function HeaderButtons({ onToggleDarkMode }) {
           e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
         }}
       >
-        🌓 Mode
+        🌓 <span>Mode</span>
       </button>
     </div>
   );
