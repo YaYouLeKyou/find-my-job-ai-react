@@ -205,17 +205,16 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                                     e.currentTarget.style.boxShadow = '0 2px 6px rgba(99, 102, 241, 0.35)';
                                 }
                             }}
-                            onMouseLeave={(e) => {
-                                if (noAiMode) {
-                                    e.currentTarget.style.background = 'var(--color-surface-secondary)';
-                                    e.currentTarget.style.borderColor = 'var(--color-border)';
-                                } else {
-                                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(99, 102, 241, 0.25)';
-                                }
-                            }}
-                            title={noAiMode ? S.disable_ai : S.enable_ai}
-                            aria-pressed={noAiMode}
-                        >
+                             onMouseLeave={(e) => {
+                                 if (noAiMode) {
+                                     e.currentTarget.style.background = 'var(--color-surface-secondary)';
+                                     e.currentTarget.style.borderColor = 'var(--color-border)';
+                                 } else {
+                                     e.currentTarget.style.boxShadow = '0 1px 3px rgba(99, 102, 241, 0.25)';
+                                 }
+                             }}
+                             aria-pressed={noAiMode}
+                         >
                             {noAiMode ? (
                                 <>
                                     <Cpu size={14} /> {/* Smaller icon */}
