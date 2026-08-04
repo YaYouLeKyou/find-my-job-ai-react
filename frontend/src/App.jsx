@@ -454,28 +454,6 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                     <span>🎛️</span>
                     <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>{S.quick_filters}</h3>
                 </div>
-<task_progress>
-- [x] Analyze frontend structure and identify relevant files
-- [x] Fix layout issues (button positioning, title alignment)
-- [x] Remove duplicate trash icon in CV analysis
-- [x] Fix AI mode activation on mobile
-- [x] Test all changes
-- [x] Commit and push changes to GitHub
-- [x] Revert trash icons to original state
-- [x] Fix header layout as requested
-- [x] Ensure all buttons have same height
-- [x] Commit corrected changes
-- [x] Make title larger on laptop
-- [x] Align buttons vertically with box below
-- [x] Remove floating/sticky header
-- [x] Commit final corrections
-- [x] Align buttons to screen edges
-- [x] Make header truly fixed (not floating)
-- [x] Make all three buttons same width with centered text
-- [x] Commit final button corrections
-- [ ] Add missing 🎛️ emoji to quick filters
-- [ ] Fix mobile button sizing
-</task_progress>
                 <div style={{
                     display: 'flex',
                     flexWrap: 'wrap',
@@ -665,6 +643,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
 
                         return null;
                     })}
+                    </div>
                 </div>
             </div>
 
