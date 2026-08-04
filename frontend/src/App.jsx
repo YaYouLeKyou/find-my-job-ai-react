@@ -790,7 +790,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                         fontWeight: 500,
                     }}>
                         {totalSources > 0 ? `${S.source_progress} ${sourcesDone}/${totalSources}` : S.initializing}
-                        {aiProcessing && ` · ${S.ai_sorting}`}
+                        {aiProcessing && ` · ${S.ai_sorting} (${processedCount}/${totalReceived})`}
                     </span>
                     <AdComponent style={{ marginTop: '24px' }} />
                 </div>

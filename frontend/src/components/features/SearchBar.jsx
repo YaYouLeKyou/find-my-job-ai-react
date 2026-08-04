@@ -154,12 +154,31 @@ function SearchBar({
             )}
 
             {/* Search Input and Button */}
-            <div style={{
+            <div className="search-container" style={{
                 display: 'flex',
                 gap: '12px',
                 alignItems: 'stretch',
             }}>
-                <div style={{
+                <style>
+                    {`
+                    @media (max-width: 767px) {
+                        .search-container {
+                            flex-direction: column !important;
+                        }
+                        .search-input-wrapper {
+                            width: 100% !important;
+                        }
+                        .search-button {
+                            width: 100% !important;
+                            min-width: auto !important;
+                        }
+                        .search-clear-button {
+                            width: 100% !important;
+                        }
+                    }
+                    `}
+                </style>
+                <div className="search-input-wrapper" style={{
                     position: 'relative',
                     flex: 1,
                 }}>
@@ -206,6 +225,7 @@ function SearchBar({
                     />
                 </div>
                 <button
+                    className="search-button"
                     onClick={onSearch}
                     disabled={loading}
                     style={{
@@ -257,6 +277,7 @@ function SearchBar({
                 </button>
                 {onClearCache && (
                     <button
+                        className="search-clear-button"
                         onClick={onClearCache}
                         title={S.clear_results_cache}
                         style={{
