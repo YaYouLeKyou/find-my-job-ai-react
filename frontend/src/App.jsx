@@ -476,7 +476,26 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
 - [ ] Add missing 🎛️ emoji to quick filters
 - [ ] Fix mobile button sizing
 </task_progress>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-end' }}>
+                <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '12px',
+                    alignItems: 'flex-end',
+                    overflowX: 'auto',
+                    paddingBottom: '8px',
+                    marginLeft: '-8px',
+                    marginRight: '-8px',
+                    width: 'calc(100% + 16px)'
+                }}>
+                    <div style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '12px',
+                        alignItems: 'flex-end',
+                        paddingLeft: '8px',
+                        paddingRight: '8px',
+                        minWidth: '100%'
+                    }}>
                     {agentConfig.filters.map((filter) => {
                         const value = activeFilters[filter.id];
 
