@@ -66,7 +66,7 @@ function hashCode(str) {
 }
 
 // ─── Unified Agent App (CLONE for all 3 agents) ──────────────────────────────
-function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMode }) {
+function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMode, CvAnalyzer = DocumentAnalyzer, SearchHook = useStreamSearch }) {
     const { activeAgent, agentConfig, activeFilters, noAiMode, updateFilter } = useAgent();
     const { activeModel, activeModelConfig, getActiveApiKey } = useAI();
     const customGeminiKey = getActiveApiKey() || '';
@@ -117,7 +117,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
         search: searchStream,
         cancel: cancelSearch,
         reset: resetSearch,
-    } = useStreamSearch(API_BASE, activeAgent, noAiMode, (result) => {
+    } = SearchHook(API_BASE, activeAgent, (result) => {
         console.log('[App] Recherche terminée:', result);
     });
 
@@ -263,6 +263,8 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
             lang_code: currentLangCode,
             lang_label: LANGS[lang].label,
             cv_data: cvData ? JSON.stringify(cvData) : '',
+            no_ai_mode: String(noAiMode || false),
+            agentType: activeAgent, // Add agentType for useStreamSearch
             // Agent-specific filters
             ...(activeAgent === 'freelance' && {
                 mission_type: activeFilters.missionType || '',
@@ -432,8 +434,8 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
             {/* AI Settings - Configuration IA au-dessus de l'analyzer */}
             <AISettings lang={lang} />
 
-            {/* Document Analyzer (CV / Fiche de poste) - IDENTIQUE pour tous les agents */}
-            <DocumentAnalyzer
+            {/* Document Analyzer (CV / Fiche de poste) - SPÉCIFIQUE à chaque agent */}
+            <CvAnalyzer
                 lang={lang}
                 onAnalysisSuccess={handleCvAnalysisSuccess}
                 cvData={cvData}

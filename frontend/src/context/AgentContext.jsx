@@ -90,6 +90,14 @@ export const AgentProvider = ({ children }) => {
         localStorage.setItem('noAiMode', String(noAiMode));
     }, [noAiMode]);
 
+    // --- Config de l'agent actif ---
+    const agentConfig = AGENTS[activeAgent];
+
+    // --- Agent-specific AI mode override ---
+    // If the active agent has a forced noAiMode setting, use it
+    const agentForcedNoAiMode = agentConfig?.noAiMode;
+    const effectiveNoAiMode = agentForcedNoAiMode !== undefined ? agentForcedNoAiMode : noAiMode;
+
     // --- Persistance filtres + reset quand l'agent change ---
     useEffect(() => {
         const saved = localStorage.getItem(getAgentStorageKey(activeAgent));
@@ -125,17 +133,15 @@ export const AgentProvider = ({ children }) => {
         setActiveFiltersState(prev => ({ ...prev, [filterId]: value }));
     }, []);
 
-    // --- Config de l'agent actif ---
-    const agentConfig = AGENTS[activeAgent];
-
     // --- Convenience : est-ce que l'IA est disponible ? ---
     // noAiMode désactive l'IA ; sinon l'IA est disponible via le backend
-    const isAiAvailable = !noAiMode;
+    // L'agent peut forcer noAiMode à false (IA toujours activé)
+    const isAiAvailable = !effectiveNoAiMode;
 
     const value = {
         activeAgent,
         setActiveAgent,
-        noAiMode,
+        noAiMode: effectiveNoAiMode,
         setNoAiMode,
         activeFilters,
         setActiveFilters,

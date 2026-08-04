@@ -41,10 +41,24 @@ from app.scrapers.web_sources import (
     scrape_jobspy,
     scrape_enhanced,
 )
+from app.scrapers.freelance_sources import (
+    scrape_free_work,
+    scrape_codeur_com,
+    scrape_freelance_republik,
+)
 
 from shared.ai import call_ai_provider, analyze_cv_with_fallback, generate_cover_letter
 from shared.utils import extract_text_from_pdf
 from app.services.chat import ChatRequest, build_system_prompt, orchestrate_chat_fallback
+from app.agents.job.cv_analyzer import analyze_job_cv
+from app.agents.job.filters import validate_job_filters
+from app.agents.job.searcher import JobSearcher
+from app.agents.freelance.cv_analyzer import analyze_freelance_cv
+from app.agents.freelance.filters import validate_freelance_filters
+from app.agents.freelance.searcher import FreelanceSearcher
+from app.agents.recruiter.cv_analyzer import analyze_recruiter_cv
+from app.agents.recruiter.filters import validate_recruiter_filters
+from app.agents.recruiter.searcher import WorkerSearcher
 import io
 import re
 
@@ -299,7 +313,8 @@ def build_source_registry(selected_sources: list, cv_data: Optional[dict] = None
         async def _jobspy_search(q: str, l: str, n: int):
             try:
                 logger.info(f"[SSE] JobSpy search start query={q!r} location={l!r} limit={n}")
-                result = scrape_jobspy(q, l, n)
+                # ✅ CORRECTION: scrape_jobspy est synchrone, on utilise asyncio.to_thread
+                result = await asyncio.to_thread(scrape_jobspy, q, l, n)
                 logger.info(f"[SSE] JobSpy returned {len(result)} jobs")
                 return result
             except Exception as e:
@@ -336,7 +351,561 @@ def build_source_registry(selected_sources: list, cv_data: Optional[dict] = None
                 return await apify_source.search_jobs(q, l, n)
             source_registry['Apify'] = _apify_search
 
+    if "Free-Work" in selected_sources:
+        async def _free_work_search(q: str, l: str, n: int):
+            try:
+                logger.info(f"[SSE] Free-Work search start query={q!r} location={l!r} limit={n}")
+                result = await scrape_free_work(q, l, n)
+                logger.info(f"[SSE] Free-Work returned {len(result)} jobs")
+                return result
+            except Exception as e:
+                logger.error(f"[SSE] Free-Work search error: {e}", exc_info=True)
+                return []
+        source_registry['Free-Work'] = _free_work_search
+
+    if "Codeur.com" in selected_sources:
+        async def _codeur_search(q: str, l: str, n: int):
+            try:
+                logger.info(f"[SSE] Codeur.com search start query={q!r} location={l!r} limit={n}")
+                result = await scrape_codeur_com(q, l, n)
+                logger.info(f"[SSE] Codeur.com returned {len(result)} jobs")
+                return result
+            except Exception as e:
+                logger.error(f"[SSE] Codeur.com search error: {e}", exc_info=True)
+                return []
+        source_registry['Codeur.com'] = _codeur_search
+
+    if "FreelanceRepublik" in selected_sources:
+        async def _freelance_republik_search(q: str, l: str, n: int):
+            try:
+                logger.info(f"[SSE] FreelanceRepublik search start query={q!r} location={l!r} limit={n}")
+                result = await scrape_freelance_republik(q, l, n)
+                logger.info(f"[SSE] FreelanceRepublik returned {len(result)} jobs")
+                return result
+            except Exception as e:
+                logger.error(f"[SSE] FreelanceRepublik search error: {e}", exc_info=True)
+                return []
+        source_registry['FreelanceRepublik'] = _freelance_republik_search
+
+    if "Malt" in selected_sources:
+        async def _malt_search(q: str, l: str, n: int):
+            try:
+                logger.info(f"[SSE] Malt search start query={q!r} location={l!r} limit={n}")
+                result = await asyncio.to_thread(_scrape_malt, q, l, n)
+                logger.info(f"[SSE] Malt returned {len(result)} candidates")
+                return result
+            except Exception as e:
+                logger.error(f"[SSE] Malt search error: {e}", exc_info=True)
+                return []
+        source_registry['Malt'] = _malt_search
+
+    if "GitHub" in selected_sources:
+        async def _github_search(q: str, l: str, n: int):
+            try:
+                logger.info(f"[SSE] GitHub search start query={q!r} location={l!r} limit={n}")
+                result = await asyncio.to_thread(_scrape_github, q, l, n)
+                logger.info(f"[SSE] GitHub returned {len(result)} candidates")
+                return result
+            except Exception as e:
+                logger.error(f"[SSE] GitHub search error: {e}", exc_info=True)
+                return []
+        source_registry['GitHub'] = _github_search
+
+    if "StackOverflow" in selected_sources:
+        async def _stackoverflow_search(q: str, l: str, n: int):
+            try:
+                logger.info(f"[SSE] StackOverflow search start query={q!r} location={l!r} limit={n}")
+                result = await asyncio.to_thread(_scrape_stackoverflow, q, l, n)
+                logger.info(f"[SSE] StackOverflow returned {len(result)} candidates")
+                return result
+            except Exception as e:
+                logger.error(f"[SSE] StackOverflow search error: {e}", exc_info=True)
+                return []
+        source_registry['StackOverflow'] = _stackoverflow_search
+
+    if "LinkedIn" in selected_sources:
+        async def _linkedin_xray_search(q: str, l: str, n: int):
+            try:
+                logger.info(f"[SSE] LinkedIn X-Ray search start query={q!r} location={l!r} limit={n}")
+                result = await asyncio.to_thread(_scrape_linkedin_xray, q, l, n)
+                logger.info(f"[SSE] LinkedIn X-Ray returned {len(result)} candidates")
+                return result
+            except Exception as e:
+                logger.error(f"[SSE] LinkedIn X-Ray search error: {e}", exc_info=True)
+                return []
+        source_registry['LinkedIn'] = _linkedin_xray_search
+
     return source_registry
+
+
+def _scrape_free_work(query: str, location: str, limit: int) -> list:
+    """Scrape Free-Work for freelance IT candidates."""
+    import urllib.parse
+
+    candidates = []
+
+    # Method 1: X-Ray Google via SerpApi
+    serp_query = f'site:free-work.com/fr/tech-it/freelancers "{query}" "{location}" "Disponible"'
+    logger.info(f"[FREE-WORK] X-Ray query: {serp_query}")
+
+    try:
+        serp_params = {
+            "q": serp_query,
+            "num": min(limit, 10),
+            "hl": "fr",
+            "gl": "fr",
+        }
+        if settings.SERPAPI_KEY:
+            serp_params["api_key"] = settings.SERPAPI_KEY
+
+        import requests as req_lib
+        response = req_lib.get(
+            "https://serpapi.com/search",
+            params=serp_params,
+            timeout=10,
+        )
+        if response.status_code == 200:
+            data = response.json()
+            organic_results = data.get("organic_results", [])
+            for result in organic_results:
+                link = result.get("link", "")
+                title = result.get("title", "")
+                snippet = result.get("snippet", "")
+
+                candidate = {
+                    "worker_id": f"freework_{hash(link)}",
+                    "full_name": _extract_name_from_title(title),
+                    "headline_title": title,
+                    "target_contract": "FREELANCE",
+                    "skills": _extract_skills_from_text(snippet + " " + title),
+                    "location": location,
+                    "tjm_or_rate": None,
+                    "availability": "Disponible",
+                    "source_platform": "Free-Work",
+                    "profile_url": link,
+                }
+                candidates.append(candidate)
+    except Exception as e:
+        logger.warning(f"[FREE-WORK] SerpApi X-Ray failed: {e}")
+
+    # Method 2: Direct HTML scraping
+    try:
+        encoded_query = urllib.parse.quote(query)
+        encoded_location = urllib.parse.quote(location)
+        url = f"https://www.free-work.com/fr/tech-it/freelancers?query={encoded_query}&locations={encoded_location}"
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "text/html,application/xhtml+xml",
+            "Accept-Language": "fr-FR,fr;q=0.9",
+        }
+
+        response = req_lib.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            cards = soup.find_all("div", class_=lambda c: c and ("freelancer" in c.lower() or "profile" in c.lower() or "candidate" in c.lower()))
+            if not cards:
+                cards = soup.find_all("a", href=lambda h: h and "/fr/tech-it/freelancers/" in h)
+
+            for card in cards[:limit]:
+                name = card.get_text(strip=True) or card.get("title", "")
+                href = card.get("href", "")
+                if not href.startswith("http"):
+                    href = f"https://www.free-work.com{href}"
+
+                candidate = {
+                    "worker_id": f"freework_{hash(href)}",
+                    "full_name": name,
+                    "headline_title": name,
+                    "target_contract": "FREELANCE",
+                    "skills": _extract_skills_from_text(name),
+                    "location": location,
+                    "tjm_or_rate": None,
+                    "availability": "",
+                    "source_platform": "Free-Work",
+                    "profile_url": href,
+                }
+                candidates.append(candidate)
+    except Exception as e:
+        logger.warning(f"[FREE-WORK] HTML scraping failed: {e}")
+
+    return candidates
+
+
+def _scrape_malt(query: str, location: str, limit: int) -> list:
+    """Scrape Malt for freelance IT candidates.
+
+    Uses SerpApi X-Ray Google search and direct HTML scraping.
+    """
+    import urllib.parse
+
+    candidates = []
+
+    # Method 1: X-Ray Google via SerpApi
+    serp_query = f'site:malt.fr "{query}" "{location}" freelance'
+    logger.info(f"[MALT] X-Ray query: {serp_query}")
+
+    try:
+        serp_params = {
+            "q": serp_query,
+            "num": min(limit, 10),
+            "hl": "fr",
+            "gl": "fr",
+        }
+        if settings.SERPAPI_KEY:
+            serp_params["api_key"] = settings.SERPAPI_KEY
+
+        import requests as req_lib
+        response = req_lib.get(
+            "https://serpapi.com/search",
+            params=serp_params,
+            timeout=10,
+        )
+        if response.status_code == 200:
+            data = response.json()
+            organic_results = data.get("organic_results", [])
+            for result in organic_results:
+                link = result.get("link", "")
+                title = result.get("title", "")
+                snippet = result.get("snippet", "")
+
+                candidate = {
+                    "worker_id": f"malt_{hash(link)}",
+                    "full_name": _extract_name_from_title(title),
+                    "headline_title": title,
+                    "target_contract": "FREELANCE",
+                    "skills": _extract_skills_from_text(snippet + " " + title),
+                    "location": location,
+                    "tjm_or_rate": _extract_tjm(snippet),
+                    "availability": "Disponible",
+                    "source_platform": "Malt",
+                    "profile_url": link,
+                }
+                candidates.append(candidate)
+    except Exception as e:
+        logger.warning(f"[MALT] SerpApi X-Ray failed: {e}")
+
+    # Method 2: Direct HTML scraping
+    try:
+        encoded_query = urllib.parse.quote(query)
+        encoded_location = urllib.parse.quote(location)
+        url = f"https://www.malt.fr/search/results?query={encoded_query}&location={encoded_location}&contract_type=freelance"
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "text/html,application/xhtml+xml",
+            "Accept-Language": "fr-FR,fr;q=0.9",
+        }
+
+        response = req_lib.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            cards = soup.find_all("div", class_=lambda c: c and ("profile" in c.lower() or "freelance" in c.lower() or "candidate" in c.lower()))
+            if not cards:
+                cards = soup.find_all("a", href=lambda h: h and "/fr/" in h and "malt" in h)
+
+            for card in cards[:limit]:
+                name = card.get_text(strip=True) or card.get("title", "")
+                href = card.get("href", "")
+                if not href.startswith("http"):
+                    href = f"https://www.malt.fr{href}"
+
+                candidate = {
+                    "worker_id": f"malt_{hash(href)}",
+                    "full_name": name,
+                    "headline_title": name,
+                    "target_contract": "FREELANCE",
+                    "skills": _extract_skills_from_text(name),
+                    "location": location,
+                    "tjm_or_rate": None,
+                    "availability": "",
+                    "source_platform": "Malt",
+                    "profile_url": href,
+                }
+                candidates.append(candidate)
+    except Exception as e:
+        logger.warning(f"[MALT] HTML scraping failed: {e}")
+
+    return candidates
+
+
+def _scrape_linkedin_xray(query: str, location: str, limit: int) -> list:
+    """Scrape LinkedIn for candidates using X-Ray Google search."""
+    import urllib.parse
+
+    candidates = []
+
+    # Freelance X-Ray
+    serp_query = f'site:linkedin.com/in/ ("freelance" OR "indépendant" OR "consultant") "{query}" "{location}"'
+    logger.info(f"[LINKEDIN-XRAY] Freelance query: {serp_query}")
+
+    try:
+        serp_params = {
+            "q": serp_query,
+            "num": min(limit, 10),
+            "hl": "fr",
+            "gl": "fr",
+        }
+        if settings.SERPAPI_KEY:
+            serp_params["api_key"] = settings.SERPAPI_KEY
+
+        import requests as req_lib
+        response = req_lib.get(
+            "https://serpapi.com/search",
+            params=serp_params,
+            timeout=10,
+        )
+        if response.status_code == 200:
+            data = response.json()
+            organic_results = data.get("organic_results", [])
+            for result in organic_results:
+                link = result.get("link", "")
+                title = result.get("title", "")
+                snippet = result.get("snippet", "")
+
+                target_contract = "FREELANCE" if "freelance" in snippet.lower() or "indépendant" in snippet.lower() else "MIXTE"
+
+                candidate = {
+                    "worker_id": f"linkedin_{hash(link)}",
+                    "full_name": _extract_name_from_title(title),
+                    "headline_title": title,
+                    "target_contract": target_contract,
+                    "skills": _extract_skills_from_text(snippet + " " + title),
+                    "location": location,
+                    "tjm_or_rate": None,
+                    "availability": "Open to Work" if "open to work" in snippet.lower() else "",
+                    "source_platform": "LinkedIn",
+                    "profile_url": link,
+                }
+                candidates.append(candidate)
+    except Exception as e:
+        logger.warning(f"[LINKEDIN-XRAY] SerpApi failed: {e}")
+
+    # CDD X-Ray
+    cdd_query = f'site:linkedin.com/in/ ("CDD" OR "recherche CDD" OR "disponible immédiatement") "{query}" "{location}"'
+    logger.info(f"[LINKEDIN-XRAY] CDD query: {cdd_query}")
+
+    try:
+        serp_params = {
+            "q": cdd_query,
+            "num": min(limit, 10),
+            "hl": "fr",
+            "gl": "fr",
+        }
+        if settings.SERPAPI_KEY:
+            serp_params["api_key"] = settings.SERPAPI_KEY
+
+        import requests as req_lib
+        response = req_lib.get(
+            "https://serpapi.com/search",
+            params=serp_params,
+            timeout=10,
+        )
+        if response.status_code == 200:
+            data = response.json()
+            organic_results = data.get("organic_results", [])
+            for result in organic_results:
+                link = result.get("link", "")
+                title = result.get("title", "")
+                snippet = result.get("snippet", "")
+
+                candidate = {
+                    "worker_id": f"linkedin_cdd_{hash(link)}",
+                    "full_name": _extract_name_from_title(title),
+                    "headline_title": title,
+                    "target_contract": "CDD",
+                    "skills": _extract_skills_from_text(snippet + " " + title),
+                    "location": location,
+                    "tjm_or_rate": None,
+                    "availability": "Disponible immédiatement",
+                    "source_platform": "LinkedIn",
+                    "profile_url": link,
+                }
+                candidates.append(candidate)
+    except Exception as e:
+        logger.warning(f"[LINKEDIN-XRAY] CDD SerpApi failed: {e}")
+
+    return candidates
+
+
+def _scrape_france_travail_candidates(query: str, location: str, limit: int) -> list:
+    """Scrape France Travail Banque de CV for CDD candidates."""
+    candidates = []
+
+    try:
+        import requests as req_lib
+        # France Travail Banque de CV API
+        url = "https://api.francetravail.io/partenaire/banquedecv/v1/candidats"
+        params = {
+            "motsCles": query,
+            "localisation": location,
+            "typeContratRequested": "CDD",
+            "range": f"0-{limit}",
+        }
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+
+        response = req_lib.get(url, params=params, headers=headers, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            results = data.get("resultats", data.get("candidates", data.get("data", [])))
+            for result in results:
+                candidate = {
+                    "worker_id": f"ft_{result.get('id', hash(result.get('nom', '')))}",
+                    "full_name": result.get("nom", result.get("name", "")),
+                    "headline_title": result.get("metier", result.get("title", "")),
+                    "target_contract": "CDD",
+                    "skills": result.get("competences", result.get("skills", [])),
+                    "location": result.get("localisation", result.get("location", location)),
+                    "tjm_or_rate": None,
+                    "availability": result.get("disponibilite", "Immédiate"),
+                    "source_platform": "France Travail",
+                    "profile_url": result.get("url", result.get("profile_url", "")),
+                }
+                candidates.append(candidate)
+    except Exception as e:
+        logger.warning(f"[FRANCE-TRAVAIL] API failed: {e}")
+
+    return candidates
+
+
+def _scrape_github(query: str, location: str, limit: int) -> list:
+    """Scrape GitHub for tech candidates."""
+    candidates = []
+
+    try:
+        import requests as req_lib
+        # GitHub user search by location and skills
+        encoded_query = urllib.parse.quote(query)
+        url = f"https://api.github.com/search/users?q={encoded_query}+location:{location}&per_page={limit}"
+
+        headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "FindMyWorker-Agent",
+        }
+
+        response = req_lib.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            items = data.get("items", [])
+            for item in items:
+                candidate = {
+                    "worker_id": f"github_{item.get('id', '')}",
+                    "full_name": item.get("login", ""),
+                    "headline_title": f"Developer - {item.get('login', '')}",
+                    "target_contract": "MIXTE",
+                    "skills": [query],
+                    "location": location,
+                    "tjm_or_rate": None,
+                    "availability": "",
+                    "source_platform": "GitHub",
+                    "profile_url": item.get("html_url", ""),
+                }
+                candidates.append(candidate)
+    except Exception as e:
+        logger.warning(f"[GITHUB] API failed: {e}")
+
+    return candidates
+
+
+def _scrape_stackoverflow(query: str, location: str, limit: int) -> list:
+    """Scrape StackOverflow for tech candidates."""
+    candidates = []
+
+    try:
+        import requests as req_lib
+        # StackOverflow user search
+        url = "https://api.stackexchange.com/2.3/users"
+        params = {
+            "order": "desc",
+            "sort": "reputation",
+            "site": "stackoverflow",
+            "pagesize": limit,
+            "filter": "display_name,location,reputation,link",
+        }
+
+        response = req_lib.get(url, params=params, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            items = data.get("items", [])
+            for item in items:
+                location_match = location.lower() in (item.get("location") or "").lower()
+                if location_match or not location:
+                    candidate = {
+                        "worker_id": f"so_{item.get('user_id', '')}",
+                        "full_name": item.get("display_name", ""),
+                        "headline_title": f"Developer - StackOverflow",
+                        "target_contract": "MIXTE",
+                        "skills": [query],
+                        "location": item.get("location", location),
+                        "tjm_or_rate": None,
+                        "availability": "",
+                        "source_platform": "StackOverflow",
+                        "profile_url": item.get("link", ""),
+                    }
+                    candidates.append(candidate)
+    except Exception as e:
+        logger.warning(f"[STACKOVERFLOW] API failed: {e}")
+
+    return candidates
+
+
+def _extract_tjm(text: str) -> str:
+    """Extract TJM rate from text."""
+    import re
+    if not text:
+        return None
+    patterns = [
+        r'(\d+)\s*€\s*/\s*j',
+        r'TJM\s*:?\s*(\d+)\s*€',
+        r'taux\s*journalier\s*:?\s*(\d+)\s*€',
+        r'(\d+)\s*euros\s*/\s*jour',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return f"{match.group(1)}€/j"
+    return None
+
+
+def _extract_name_from_title(title: str) -> str:
+    """Extract candidate name from a search result title."""
+    if not title:
+        return ""
+    cleaned = title
+    for prefix in ["Freelance ", "Consultant ", "Développeur ", "Développeuse ", "Dev ", "Developer "]:
+        if cleaned.startswith(prefix):
+            cleaned = cleaned[len(prefix):]
+            break
+    return cleaned.strip()
+
+
+def _extract_skills_from_text(text: str) -> list:
+    """Extract technical skills from text."""
+    if not text:
+        return []
+    common_skills = [
+        "React", "Vue", "Angular", "TypeScript", "JavaScript", "Python", "Java",
+        "Node.js", "Node", "Django", "Flask", "FastAPI", "Spring", "Laravel",
+        "Ruby", "Go", "Rust", "PHP", "C#", ".NET", "React Native", "Flutter",
+        "Swift", "Kotlin", "Docker", "Kubernetes", "AWS", "Azure", "GCP",
+        "PostgreSQL", "MySQL", "MongoDB", "Redis", "GraphQL", "REST API",
+        "Git", "CI/CD", "Agile", "Scrum", "Microservices", "DevOps",
+        "UI/UX", "Design", "Marketing", "Data", "Machine Learning", "AI",
+        "SEO", "Content", "Rédaction", "Communication", "Management",
+    ]
+    text_lower = text.lower()
+    skills = []
+    for skill in common_skills:
+        if skill.lower() in text_lower:
+            skills.append(skill)
+    return skills[:10]
 
 
 # ─── Main Streaming Endpoint ─────────────────────────────────────────────────
@@ -1175,7 +1744,525 @@ async def analyze_cv_endpoint(
         return {"error": str(e)}
 
 
-# ─── Run with Uvicorn ─────────────────────────────────────────────────────────
+# ─── Freelance Agent CV Analysis Endpoint ──────────────────────────────
+
+@app.post("/api/freelance/analyze-cv")
+async def analyze_freelance_cv_endpoint(
+    file: UploadFile = File(...),
+    selected_model: str = Form("Groq / Llama 3.3"),
+    custom_gemini_key: Optional[str] = Form(None),
+    lang_label: str = Form("français"),
+    force_fallback_mode: bool = Form(False),
+):
+    """Analyze a CV PDF specifically for freelance mission matching."""
+    request_id = id(file)
+    logger.info(f"[FREELANCE_CV] request={request_id} start model={selected_model} file={file.filename} lang={lang_label}")
+
+    try:
+        if not file or file.content_type != "application/pdf":
+            logger.error(f"[FREELANCE_CV] request={request_id} invalid file type={file.content_type if file else 'none'}")
+            return {"error": "Seuls les fichiers PDF sont supportés."}
+
+        pdf_bytes = await file.read()
+        logger.info(f"[FREELANCE_CV] request={request_id} read {len(pdf_bytes)} bytes")
+        if not pdf_bytes:
+            logger.error(f"[FREELANCE_CV] request={request_id} empty pdf")
+            return {"error": "Le fichier PDF est vide."}
+
+        pdf_file = io.BytesIO(pdf_bytes)
+        text = await asyncio.to_thread(extract_text_from_pdf, pdf_file)
+        logger.info(f"[FREELANCE_CV] request={request_id} extracted_text_len={len(text) if text else 0}")
+
+        if not text or len(text.strip()) < 50:
+            logger.error(f"[FREELANCE_CV] request={request_id} extracted text too short")
+            return {"error": "Impossible d'extraire du texte de ce PDF. Vérifiez qu'il contient du texte selectable."}
+
+        target_lang = (lang_label or "français").split("(")[0].strip().lower()
+        if "english" in target_lang or "anglais" in target_lang:
+            target_lang = "anglais"
+        elif "espagnol" in target_lang or "español" in target_lang:
+            target_lang = "espagnol"
+        else:
+            target_lang = "français"
+
+        gemini_key = (custom_gemini_key or settings.GEMINI_API_KEY or "").strip()
+        logger.info(f"[FREELANCE_CV] request={request_id} calling analyze_freelance_cv model={selected_model} lang={target_lang}")
+
+        result = await asyncio.to_thread(
+            analyze_freelance_cv,
+            text=text,
+            target_lang=target_lang,
+            selected_model=selected_model,
+            gemini_api_key=gemini_key,
+            groq_api_key=settings.GROQ_API_KEY,
+            ollama_url=settings.OLLAMA_URL,
+            force_fallback_mode=force_fallback_mode,
+        )
+
+        if not result:
+            logger.error(f"[FREELANCE_CV] request={request_id} analyze_freelance_cv returned None")
+            return {"error": "L'analyse du CV freelance a échoué."}
+
+        mode = "MODE SECOURS (regex)" if result.get("is_fallback") else "IA"
+        logger.warning(f"[FREELANCE_CV] request={request_id} mode={mode} metier={result.get('metier')}")
+        return result
+
+    except Exception as e:
+        logger.exception(f"[FREELANCE_CV] request={request_id} unexpected error")
+        return {"error": str(e)}
+
+
+# ─── Recruiter Agent CV Analysis Endpoint ──────────────────────────────
+
+@app.post("/api/recruiter/analyze-cv")
+async def analyze_recruiter_cv_endpoint(
+    file: UploadFile = File(...),
+    selected_model: str = Form("Groq / Llama 3.3"),
+    custom_gemini_key: Optional[str] = Form(None),
+    lang_label: str = Form("français"),
+    force_fallback_mode: bool = Form(False),
+):
+    """Analyze a CV PDF specifically for recruiter candidate matching."""
+    request_id = id(file)
+    logger.info(f"[RECRUITER_CV] request={request_id} start model={selected_model} file={file.filename} lang={lang_label}")
+
+    try:
+        if not file or file.content_type != "application/pdf":
+            logger.error(f"[RECRUITER_CV] request={request_id} invalid file type={file.content_type if file else 'none'}")
+            return {"error": "Seuls les fichiers PDF sont supportés."}
+
+        pdf_bytes = await file.read()
+        logger.info(f"[RECRUITER_CV] request={request_id} read {len(pdf_bytes)} bytes")
+        if not pdf_bytes:
+            logger.error(f"[RECRUITER_CV] request={request_id} empty pdf")
+            return {"error": "Le fichier PDF est vide."}
+
+        pdf_file = io.BytesIO(pdf_bytes)
+        text = await asyncio.to_thread(extract_text_from_pdf, pdf_file)
+        logger.info(f"[RECRUITER_CV] request={request_id} extracted_text_len={len(text) if text else 0}")
+
+        if not text or len(text.strip()) < 50:
+            logger.error(f"[RECRUITER_CV] request={request_id} extracted text too short")
+            return {"error": "Impossible d'extraire du texte de ce PDF. Vérifiez qu'il contient du texte selectable."}
+
+        target_lang = (lang_label or "français").split("(")[0].strip().lower()
+        if "english" in target_lang or "anglais" in target_lang:
+            target_lang = "anglais"
+        elif "espagnol" in target_lang or "español" in target_lang:
+            target_lang = "espagnol"
+        else:
+            target_lang = "français"
+
+        gemini_key = (custom_gemini_key or settings.GEMINI_API_KEY or "").strip()
+        logger.info(f"[RECRUITER_CV] request={request_id} calling analyze_recruiter_cv model={selected_model} lang={target_lang}")
+
+        result = await asyncio.to_thread(
+            analyze_recruiter_cv,
+            text=text,
+            target_lang=target_lang,
+            selected_model=selected_model,
+            gemini_api_key=gemini_key,
+            groq_api_key=settings.GROQ_API_KEY,
+            ollama_url=settings.OLLAMA_URL,
+            force_fallback_mode=force_fallback_mode,
+        )
+
+        if not result:
+            logger.error(f"[RECRUITER_CV] request={request_id} analyze_recruiter_cv returned None")
+            return {"error": "L'analyse du CV recruteur a échoué."}
+
+        mode = "MODE SECOURS (regex)" if result.get("is_fallback") else "IA"
+        logger.warning(f"[RECRUITER_CV] request={request_id} mode={mode} metier={result.get('metier')}")
+        return result
+
+    except Exception as e:
+        logger.exception(f"[RECRUITER_CV] request={request_id} unexpected error")
+        return {"error": str(e)}
+
+
+# ─── Freelance Agent Search Endpoint ───────────────────────────────────
+
+@app.get("/api/freelance/search")
+async def freelance_search(
+    request: Request,
+    query: str = Query(...),
+    location: str = Query("France"),
+    num_ads: str = Query("10"),
+    mission_type: str = Query(""),
+    duration: str = Query(""),
+    remote: str = Query(""),
+    tjm_min: str = Query(""),
+    tjm_max: str = Query(""),
+    selected_sources: str = Query(""),
+    ranking_engine: str = Query("Groq / Llama 3.3"),
+    custom_gemini_key: str = Query(None),
+    cv_data: str = Query(None),
+    no_ai_mode: bool = Query(False),
+):
+    """Freelance-specific job search endpoint."""
+    logger.info(f"[FREELANCE_ENDPOINT] Starting freelance search: query={query!r}")
+    return await _stream_agent_jobs(
+        query=query,
+        location=location,
+        num_ads=num_ads,
+        agent_type="freelance",
+        agent_filters={
+            "missionType": mission_type,
+            "duration": duration,
+            "remote": remote,
+            "tjmMin": tjm_min,
+            "tjmMax": tjm_max,
+        },
+        selected_sources=selected_sources,
+        ranking_engine=ranking_engine,
+        custom_gemini_key=custom_gemini_key,
+        cv_data=cv_data,
+        no_ai_mode=no_ai_mode,
+    )
+
+
+# ─── Recruiter Agent Search Endpoint ───────────────────────────────────
+
+@app.get("/api/recruiter/search")
+async def recruiter_search(
+    request: Request,
+    query: str = Query(...),
+    location: str = Query("France"),
+    num_ads: str = Query("10"),
+    experience: str = Query(""),
+    salary_min: str = Query(""),
+    salary_max: str = Query(""),
+    skills: str = Query(""),
+    contract: str = Query("CDD"),
+    remote: bool = Query(False),
+    target_contract: str = Query("MIXTE"),
+    availability: str = Query(""),
+    selected_sources: str = Query(""),
+    ranking_engine: str = Query("Groq / Llama 3.3"),
+    custom_gemini_key: str = Query(None),
+    cv_data: str = Query(None),
+    no_ai_mode: bool = Query(False),
+):
+    """Recruiter-specific candidate search endpoint."""
+    return await _stream_agent_jobs(
+        query=query,
+        location=location,
+        num_ads=num_ads,
+        agent_type="recruiter",
+        agent_filters={
+            "experience": experience,
+            "salaryMin": salary_min,
+            "salaryMax": salary_max,
+            "skills": skills,
+            "contract": contract,
+            "remote": remote,
+            "targetContract": target_contract,
+            "availability": availability,
+        },
+        selected_sources=selected_sources,
+        ranking_engine=ranking_engine,
+        custom_gemini_key=custom_gemini_key,
+        cv_data=cv_data,
+        no_ai_mode=no_ai_mode,
+    )
+
+
+async def _stream_agent_jobs(
+    query: str,
+    location: str,
+    num_ads: str,
+    agent_type: str,
+    agent_filters: dict,
+    selected_sources: str,
+    ranking_engine: str,
+    custom_gemini_key: Optional[str],
+    cv_data: Optional[str],
+    no_ai_mode: bool,
+):
+    """Unified streaming handler for agent-specific searches."""
+    sources_list = [s.strip() for s in selected_sources.split(",") if s.strip()]
+    cv_data_dict = None
+    if cv_data:
+        try:
+            cv_data_dict = json.loads(cv_data)
+        except Exception:
+            pass
+    
+    logger.info(f"[AGENT_STREAM] agent_type={agent_type} query={query!r} sources={sources_list}")
+    
+    # Handle num_ads: support "Max" for unlimited display per source, or numeric value
+    if isinstance(num_ads, str) and num_ads.lower() == "max":
+        display_limit = MAX_DISPLAY_ADS_PER_SOURCE
+    else:
+        parsed_num_ads = int(num_ads) if isinstance(num_ads, str) else num_ads
+        display_limit = max(MIN_DISPLAY_ADS_PER_SOURCE, min(parsed_num_ads, MAX_DISPLAY_ADS_PER_SOURCE))
+    
+    search_limit = MAX_SEARCH_LIMIT
+
+    # Get agent-specific searcher
+    if agent_type == "freelance":
+        searcher = FreelanceSearcher()
+    elif agent_type == "recruiter":
+        searcher = WorkerSearcher()
+    else:
+        searcher = JobSearcher()
+
+    # Normalize agent filters to proper types for the searcher
+    normalized_agent_filters = dict(agent_filters or {})
+    if agent_type == "freelance":
+        # Convert TJM values to integers
+        if normalized_agent_filters.get("tjmMin"):
+            try:
+                normalized_agent_filters["tjmMin"] = int(normalized_agent_filters["tjmMin"])
+            except (ValueError, TypeError):
+                normalized_agent_filters["tjmMin"] = 0
+        if normalized_agent_filters.get("tjmMax"):
+            try:
+                normalized_agent_filters["tjmMax"] = int(normalized_agent_filters["tjmMax"])
+            except (ValueError, TypeError):
+                normalized_agent_filters["tjmMax"] = 0
+    elif agent_type == "recruiter":
+        # Convert salary values to integers
+        if normalized_agent_filters.get("salaryMin"):
+            try:
+                normalized_agent_filters["salaryMin"] = int(normalized_agent_filters["salaryMin"])
+            except (ValueError, TypeError):
+                normalized_agent_filters["salaryMin"] = 0
+        if normalized_agent_filters.get("salaryMax"):
+            try:
+                normalized_agent_filters["salaryMax"] = int(normalized_agent_filters["salaryMax"])
+            except (ValueError, TypeError):
+                normalized_agent_filters["salaryMax"] = 0
+        # Split skills into a list
+        if normalized_agent_filters.get("skills"):
+            normalized_agent_filters["skills"] = [
+                s.strip() for s in normalized_agent_filters["skills"].split(",") if s.strip()
+            ]
+        # Convert remote to boolean
+        if normalized_agent_filters.get("remote") in ("true", "True", "1"):
+            normalized_agent_filters["remote"] = True
+        elif normalized_agent_filters.get("remote") in ("false", "False", "0"):
+            normalized_agent_filters["remote"] = False
+
+    # Build the effective search query using the agent-specific searcher
+    effective_query = searcher.build_search_query(query, location, normalized_agent_filters)
+
+    # Map agent-specific sources to real, available sources
+    AGENT_SOURCE_MAP = {
+        # Freelance sources -> mapped to available scraping sources
+        "Malt": "Free-Work",
+        "Upwork": "Free-Work",
+        "Freelancer": "Free-Work",
+        "Toptal": "Free-Work",
+        # Codeur.com and FreelanceRepublik now have their own scrapers
+        # Recruiter/Worker sources -> mapped to available scraping sources
+        "Apec": "France Travail",
+        "GitHub": "GitHub",
+        "StackOverflow": "StackOverflow",
+    }
+
+    # Build source registry using agent-specific sources
+    if not sources_list:
+        sources_list = searcher.get_sources()
+        logger.info(f"[AGENT_STREAM] Using default sources for {agent_type}: {sources_list}")
+    else:
+        logger.info(f"[AGENT_STREAM] Using provided sources: {sources_list}")
+
+    # Map unknown agent sources to real available sources
+    mapped_sources = [AGENT_SOURCE_MAP.get(s.strip(), s.strip()) for s in sources_list]
+    mapped_sources = list(dict.fromkeys([s for s in mapped_sources if s]))
+    logger.info(f"[AGENT_STREAM] Mapped sources: {mapped_sources}")
+
+    # Filter to only known sources (those in build_source_registry)
+    KNOWN_SOURCES = {"LinkedIn", "Indeed", "France Travail", "Monster", "HelloWork", "Google Jobs", "JobSpy", "Enhanced", "Adzuna", "Jooble", "Apify", "Free-Work", "Codeur.com", "FreelanceRepublik", "GitHub", "StackOverflow"}
+    available_sources = [s for s in mapped_sources if s in KNOWN_SOURCES]
+    logger.info(f"[AGENT_STREAM] Available sources after filtering: {available_sources}")
+
+    # If no sources map to known ones, fall back to the job searcher's default sources
+    if not available_sources:
+        logger.warning(f"[AGENT_STREAM] No available sources for agent_type={agent_type}, falling back to job default sources")
+        available_sources = [s for s in JobSearcher().get_sources() if s in KNOWN_SOURCES]
+        logger.info(f"[AGENT_STREAM] Fallback sources: {available_sources}")
+
+    # Use the mapped and filtered sources
+    sources_list = available_sources
+    logger.info(f"[AGENT_STREAM] Building registry with sources: {sources_list}")
+    source_registry = build_source_registry(sources_list, cv_data_dict)
+    total_sources = len(source_registry)
+    logger.info(f"[AGENT_STREAM] Final source registry: {list(source_registry.keys())} (count={total_sources})")
+    
+    # Double-check: if registry is empty but we have sources, something went wrong
+    if total_sources == 0 and available_sources:
+        logger.error(f"[AGENT_STREAM] Registry is empty despite having sources: {available_sources}")
+        logger.error(f"[AGENT_STREAM] This likely means the sources don't have scrapers implemented")
+
+    async def event_generator():
+        try:
+            logger.info(f"[AGENT_STREAM] START agent_type={agent_type} query={query!r} sources={sources_list}")
+            yield f"data: {json.dumps({'type': 'STARTED', 'query': query, 'total_sources': total_sources})}\n\n"
+            await asyncio.sleep(0)
+
+            if total_sources == 0:
+                yield f"data: {json.dumps({'type': 'COMPLETED', 'jobs': [], 'source_status': {}, 'progress': 100})}\n\n"
+                return
+
+            aggregator = SearchAggregator(
+                max_workers=settings.SCRAPER_MAX_WORKERS,
+                timeout_per_source=settings.SCRAPER_TIMEOUT,
+            )
+
+            source_timeouts = {name: get_source_timeout(name) for name in source_registry}
+            source_limits = {name: get_optimal_limit(search_limit, name) for name in source_registry}
+
+            all_jobs = []
+            source_results = {}
+            sources_done = 0
+            scored_jobs_map = {}
+            emitted_counts = {}
+
+            logger.info(f"[AGENT_STREAM] Starting aggregator search with query={effective_query!r} location={location!r}")
+
+            job_count = 0
+            async for result in aggregator.search_parallel_streaming(
+                sources=source_registry,
+                query=effective_query,
+                location=location,
+                limit=search_limit,
+                target_jobs=0,
+                source_timeouts=source_timeouts,
+                source_limits=source_limits,
+            ):
+                if result.jobs:
+                    all_jobs.extend(result.jobs)
+
+                prev = source_results.get(result.source_name)
+                if prev:
+                    prev.jobs = (prev.jobs or []) + (result.jobs or [])
+                    prev.success = prev.success and result.success
+                    prev.execution_time = round((prev.execution_time or 0) + (result.execution_time or 0), 2)
+                else:
+                    source_results[result.source_name] = result
+
+                if getattr(result, 'done', True):
+                    sources_done += 1
+
+                status = "completed" if result.success and getattr(result, 'done', True) else ("streaming" if getattr(result, 'is_partial', False) else "error")
+                jobs_count = len(result.jobs) if result.jobs else 0
+                progress = min(100, int(sources_done / total_sources * 100)) if total_sources > 0 else 100
+
+                if result.jobs and jobs_count > 0:
+                    logger.info(f"[AGENT_STREAM] source={result.source_name} sample_job={result.jobs[0].get('titre', 'N/A')}")
+
+                if jobs_count == 0 and not result.success:
+                    diagnostic = {
+                        "source": result.source_name,
+                        "error": result.error or "Aucun résultat",
+                        "hint": _get_source_diagnostic_hint(result.source_name, result.error),
+                    }
+                elif jobs_count == 0 and result.success:
+                    diagnostic = {
+                        "source": result.source_name,
+                        "error": "Aucun résultat trouvé",
+                        "hint": _get_source_diagnostic_hint(result.source_name, ""),
+                    }
+                else:
+                    diagnostic = None
+
+                if display_limit <= MAX_DISPLAY_ADS_PER_SOURCE:
+                    emitted_so_far = emitted_counts.get(result.source_name, 0)
+                    remaining = display_limit - emitted_so_far
+                    if remaining <= 0:
+                        jobs_to_emit = []
+                    else:
+                        jobs_to_emit = (result.jobs or [])[:remaining]
+                        emitted_counts[result.source_name] = emitted_so_far + len(jobs_to_emit)
+                else:
+                    jobs_to_emit = result.jobs or []
+
+                yield f"data: {json.dumps({'type': 'SOURCE_RESULT', 'progress': progress, 'total_so_far': len(all_jobs), 'target': display_limit, 'source': result.source_name, 'status': status, 'jobs': jobs_to_emit, 'sources_done': sources_done, 'total_sources': total_sources, 'source_progress': progress, 'execution_time': result.execution_time, 'is_partial': getattr(result, 'is_partial', False), 'fallback': getattr(result, 'fallback', False), 'diagnostic': diagnostic})}\n\n"
+                await asyncio.sleep(0)
+
+                if result.jobs and cv_data_dict and not no_ai_mode:
+                    try:
+                        new_batch = result.jobs
+                        job_chunks = [new_batch] if len(new_batch) <= 20 else [new_batch[i:i+20] for i in range(0, len(new_batch), 20)]
+                        scored_jobs = []
+                        for chunk in job_chunks:
+                            scored = score_jobs(cv_data_dict, chunk, fast=True)
+                            scored_jobs.extend(scored)
+                        scored_jobs.sort(key=lambda x: x.get('pertinence_ai', 0), reverse=True)
+
+                        for job in scored_jobs:
+                            sig = _generate_job_signature(job)
+                            scored_jobs_map[sig] = job
+
+                        yield f"data: {json.dumps({'type': 'SCORES_UPDATED', 'jobs': scored_jobs, 'progress': progress})}\n\n"
+                    except Exception as e:
+                        logger.error(f"[AGENT_STREAM] Progressive AI scoring failed: {e}")
+                        yield f"data: {json.dumps({'type': 'SCORES_UPDATED', 'jobs': [], 'progress': progress})}\n\n"
+
+            source_status = {}
+            for sname, sresult in source_results.items():
+                source_status[sname] = {
+                    "success": sresult.success,
+                    "count": len(sresult.jobs) if sresult.jobs else 0,
+                    "status": "completed" if sresult.success else "error",
+                    "error": sresult.error,
+                    "execution_time": sresult.execution_time,
+                    "diagnostic": _get_source_diagnostic_hint(sname, sresult.error) if (not sresult.success or (sresult.jobs is None or len(sresult.jobs) == 0)) else None,
+                }
+
+            if cv_data_dict and scored_jobs_map:
+                final_jobs = []
+                for job in all_jobs:
+                    sig = _generate_job_signature(job)
+                    if sig in scored_jobs_map:
+                        final_jobs.append(scored_jobs_map[sig])
+                    else:
+                        final_jobs.append(job)
+                final_jobs.sort(key=lambda x: x.get('pertinence_ai', 0), reverse=True)
+            else:
+                final_jobs = all_jobs
+
+            # Apply agent-specific filters on the final results using the agent searcher
+            try:
+                filtered_jobs = searcher.apply_filters(final_jobs, normalized_agent_filters)
+                if filtered_jobs is not None:
+                    final_jobs = filtered_jobs
+            except Exception as e:
+                logger.warning(f"[AGENT_STREAM] Agent filter application failed (continuing with unfiltered results): {e}")
+
+            normalized_jobs = normalize_jobs_for_frontend(final_jobs)
+
+            if display_limit <= MAX_DISPLAY_ADS_PER_SOURCE:
+                limited_jobs = []
+                source_display_counts = {}
+                for job in normalized_jobs:
+                    job_source = job.get('source', '')
+                    source_display_counts[job_source] = source_display_counts.get(job_source, 0) + 1
+                    if source_display_counts[job_source] <= display_limit:
+                        limited_jobs.append(job)
+                normalized_jobs = limited_jobs
+
+            yield f"data: {json.dumps({'type': 'COMPLETED', 'jobs': normalized_jobs, 'source_status': source_status, 'progress': 100, 'total_jobs': len(all_jobs)})}\n\n"
+            logger.info(f"[AGENT_STREAM] COMPLETED agent_type={agent_type} total_jobs={len(normalized_jobs)} sources={list(source_status.keys())}")
+            await asyncio.sleep(0)
+        except Exception as e:
+            logger.exception(f"[AGENT_STREAM] GLOBAL_ERROR agent_type={agent_type}")
+            yield f"data: {json.dumps({'type': 'ERROR', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ─── Run with Uvicorn ─────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import uvicorn

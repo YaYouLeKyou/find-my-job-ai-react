@@ -1,16 +1,12 @@
 /**
- * agentsConfig.js - Configuration centralisée des 3 agents et de leurs filtres
+ * agentsConfig.js - Configuration séparée pour 3 agents et de leurs filtres
  *
- * Chaque agent est un CLONE du même squelette d'interface. La SEULE différence
- * réside dans :
- *   1. Les filtres affichés dans la Sidebar (spécifiques à chaque métier)
- *   2. Le type de recherche envoyé au backend (agent_type)
+ * Chaque agent a son propre analyseur, ces propres filtres, sa propre searchbar.
  *
  * Les 3 agents partagent :
  *   - Le même Header (sélection d'agent + toggle Mode Sans IA)
- *   - Le même analyseur de documents (CV / Fiche de poste)
- *   - Le même système de recherche en streaming SSE (useStreamSearch.js)
- *   - Le même système de carte de résultat unifiée (ResultCard)
+ *   - Le meme design
+
  */
 
 // =============================================================================
@@ -25,6 +21,7 @@ export const AGENTS = {
         title: 'Find my job AI',
         subtitle: "Trouvez votre prochain emploi avec l'aide de l'IA",
         description: "Analysez votre CV, recevez des recommandations de carrière IA, et trouvez les meilleures offres sur 10+ plateformes en un clic.",
+        noAiMode: false,
         theme: {
             primary: '#7c4dff',
             gradient: 'linear-gradient(135deg, #7c4dff 0%, #448aff 100%)',
@@ -95,6 +92,7 @@ export const AGENTS = {
         title: 'Find my freelance mission AI',
         subtitle: 'Trouvez des missions freelance adaptées à votre profil grâce à l\'IA',
         description: "Trouvez des missions freelance adaptées à vos compétences, calculez votre TJM optimal et générez des propositions commerciales percutantes.",
+        noAiMode: false,
         theme: {
             primary: '#00bcd4',
             gradient: 'linear-gradient(135deg, #00bcd4 0%, #00897b 100%)',
@@ -108,9 +106,9 @@ export const AGENTS = {
             alertBg: 'linear-gradient(135deg, rgba(0,188,212,0.1), rgba(0,137,123,0.06))',
             alertBorder: 'rgba(0, 188, 212, 0.25)',
         },
-        sources: ['Malt', 'Upwork', 'Freelancer', 'Toptal', 'Codeur.com'],
+        sources: ['LinkedIn', 'France Travail', 'Google Jobs', 'Adzuna', 'Enhanced', 'JobSpy', 'Free-Work', 'Codeur.com', 'FreelanceRepublik'],
         resultType: 'mission',
-        searchEndpoint: '/api/search-freelance-stream',
+        searchEndpoint: '/api/freelance/search',
         // Filtres spécifiques au Freelance
         filters: [
             {
@@ -180,6 +178,7 @@ export const AGENTS = {
         title: 'Find my worker AI',
         subtitle: 'Trouvez les meilleurs talents pour vos postes à pourvoir',
         description: "Publiez vos offres et trouvez le candidat idéal grâce au matching IA. Gérez les candidatures en un clic.",
+        noAiMode: false,
         theme: {
             primary: '#ff6f00',
             gradient: 'linear-gradient(135deg, #ff6f00 0%, #ff8f00 100%)',
@@ -195,7 +194,7 @@ export const AGENTS = {
         },
         sources: ['LinkedIn', 'Indeed', 'France Travail', 'Apec', 'Monster'],
         resultType: 'candidate',
-        searchEndpoint: '/api/search-worker-stream',
+        searchEndpoint: '/api/recruiter/search',
         // Filtres spécifiques au Recruteur
         filters: [
             {

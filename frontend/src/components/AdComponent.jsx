@@ -109,7 +109,7 @@ const AdComponent = ({ format = 'auto', style = {} }) => {
           minHeight: '100px',
           width: '100%'
         }}
-        data-ad-client="ca-pub-5351020915477002"
+        data-ad-client="ca-pub-9172635804207966"
         data-ad-slot="1234567890"
         data-ad-format={format}
         data-full-width-responsive="true"

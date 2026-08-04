@@ -216,9 +216,42 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
 
         const startTime = Date.now();
 
-        // Construire l'URL
-        const queryParams = new URLSearchParams(searchParams);
-        const streamUrl = `${apiBase}/api/search-jobs-stream?${queryParams.toString()}`;
+        // Construire l'URL en fonction du type d'agent
+        const agentType = typeof params === 'string' ? params : (params?.agentType || 'job');
+        const endpoint = agentType === 'freelance' ? '/api/freelance/search' : agentType === 'recruiter' ? '/api/recruiter/search' : '/api/search-jobs-stream';
+
+        console.log('[Stream] Agent type:', agentType, 'Endpoint:', endpoint);
+        console.log('[Stream] searchParams:', searchParams);
+
+        // Construire les query params depuis searchParams
+        const queryParams = new URLSearchParams({
+            query: searchParams.query || '',
+            location: searchParams.location || '',
+            num_ads: searchParams.num_ads || '10',
+            contract: searchParams.contract || '',
+            remote: searchParams.remote || 'false',
+            selected_sources: searchParams.selected_sources || '',
+            ranking_engine: searchParams.ranking_engine || '',
+            custom_gemini_key: searchParams.custom_gemini_key || '',
+            cv_data: searchParams.cv_data || '',
+            no_ai_mode: searchParams.no_ai_mode || 'false',
+            // Filtres spécifiques à l'agent Freelance
+            ...(agentType === 'freelance' && {
+                mission_type: searchParams.mission_type || '',
+                duration: searchParams.duration || '',
+                tjm_min: searchParams.tjm_min || '',
+                tjm_max: searchParams.tjm_max || '',
+            }),
+            // Filtres spécifiques à l'agent Recruteur
+            ...(agentType === 'recruiter' && {
+                experience: searchParams.experience || '',
+                salary_min: searchParams.salary_min || '',
+                salary_max: searchParams.salary_max || '',
+                skills: searchParams.skills || '',
+            }),
+        });
+
+        const streamUrl = `${apiBase}${endpoint}?${queryParams.toString()}`;
 
         // Créer un EventSource natif pour le streaming SSE
         if (eventSourceRef.current) {
@@ -457,7 +490,7 @@ ${JSON.stringify(jobsToScore, null, 2)}`;
         return () => {
             es.close();
         };
-    }, [apiBase, processAiChunk, onSearchComplete, deduplicateJobs]);
+    }, [apiBase, processAiChunk, onSearchComplete, deduplicateJobs, params]);
 
     // Annuler la recherche
     const cancel = useCallback(() => {

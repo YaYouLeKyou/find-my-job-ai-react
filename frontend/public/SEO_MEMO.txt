@@ -36,7 +36,7 @@
 
 4. GOOGLE ADSENSE - CONFIGURATION
 ────────────────────────────────────────────────────────────────────────────────
-   • Publisher ID: ca-pub-5351020915477002
+   • Publisher ID: ca-pub-9172635804207966
    • Les publicités s'affichent pendant le chargement IA (CV, jobs, freelance)
    • Remplacez l'ad slot ID "1234567890" dans AdComponent.jsx par votre vraie unité
    
