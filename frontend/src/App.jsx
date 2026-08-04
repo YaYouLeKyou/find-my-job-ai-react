@@ -649,7 +649,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
 
             {/* Advanced Filters - directly below quick filters */}
             <div className="card" style={{ marginTop: '16px', background: 'var(--color-surface)' }}>
-                <AdvancedFiltersHeader onToggle={handleToggleAdvancedFilters} />
+                <AdvancedFiltersHeader onToggle={handleToggleAdvancedFilters} lang={lang} />
                 <AdvancedFiltersDrawer
                     activeAgent={activeAgent}
                     isOpen={advancedFiltersOpen}
@@ -657,6 +657,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                     onApplyFilters={handleApplyAdvancedFilters}
                     currentFilters={advancedFilters}
                     cvData={cvData}
+                    lang={lang}
                 />
             </div>
 

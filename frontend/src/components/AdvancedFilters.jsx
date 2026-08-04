@@ -1,13 +1,16 @@
 import React, { useState, useCallback } from 'react';
+import { LANGS, STRINGS } from '../utils/translations';
 
-export default function AdvancedFilters({ 
-  isOpen = true, 
+export default function AdvancedFilters({
+  isOpen = true,
   onClose = () => {},
   onApplyFilters,
   currentFilters = {},
   totalJobs = 0,
-  filteredCount = 0
+  filteredCount = 0,
+  lang = 'Français'
 }) {
+  const S = STRINGS[LANGS[lang]?.code || 'fr'];
   // Initialize state from props or defaults
   const [minMatchScore, setMinMatchScore] = useState(currentFilters.minMatchScore || 0);
   const [companyTypes, setCompanyTypes] = useState(currentFilters.companyTypes || []);
@@ -88,7 +91,7 @@ export default function AdvancedFilters({
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
         <span style={{ fontSize: '1rem' }}>🎛️</span>
         <h3 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-          Filtres avancés
+          {S.advanced_filters}
         </h3>
       </div>
 
@@ -99,7 +102,7 @@ export default function AdvancedFilters({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', flex: '1 1 160px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
             <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Score de match minimum
+              {S.min_match_score}
             </label>
             <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-primary-500)', minWidth: '32px', textAlign: 'right' }}>
               {minMatchScore}%
@@ -119,7 +122,7 @@ export default function AdvancedFilters({
         {/* Company Type - Select style */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', flex: '1 1 160px' }}>
           <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Type d'entreprise
+            {S.company_type}
           </label>
           <select
             value={companyTypes[0] || ''}
@@ -127,16 +130,16 @@ export default function AdvancedFilters({
             className="select-control"
             style={{ padding: '8px 12px', fontSize: '0.875rem', width: '100%', height: '38px', boxSizing: 'border-box' }}
           >
-            <option value="">Tous les types</option>
-            <option value="Client Final">Client Final</option>
-            <option value="ESN / Cabinet">ESN / Cabinet</option>
+            <option value="">{S.all_companies}</option>
+            <option value="Client Final">{S.client_final}</option>
+            <option value="ESN / Cabinet">{S.esn_cabinet}</option>
           </select>
         </div>
 
         {/* Work Mode - Select style */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', flex: '1 1 160px' }}>
           <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Mode de travail
+            {S.work_mode}
           </label>
           <select
             value={workModes[0] || ''}
@@ -144,8 +147,8 @@ export default function AdvancedFilters({
             className="select-control"
             style={{ padding: '8px 12px', fontSize: '0.875rem', width: '100%', height: '38px', boxSizing: 'border-box' }}
           >
-            <option value="">Tous les modes</option>
-            <option value="Full Remote (100%)">Full Remote (100%)</option>
+            <option value="">{S.all_types}</option>
+            <option value="Full Remote (100%)">{S.full_remote}</option>
             <option value="Hybride (3-4j)">Hybride (3-4j)</option>
             <option value="Hybride (1-2j)">Hybride (1-2j)</option>
             <option value="Présentiel (0j)">Présentiel (0j)</option>
@@ -155,11 +158,11 @@ export default function AdvancedFilters({
         {/* Salary - Number style */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', flex: '1 1 160px' }}>
           <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Salaire minimum annuel
+            {S.min_salary}
           </label>
           <input
             type="number"
-            placeholder="Salaire minimum"
+            placeholder={S.salary_placeholder}
             value={minSalary || ''}
             onChange={(e) => setMinSalary(parseInt(e.target.value) || 0)}
             min={0}
@@ -200,13 +203,13 @@ export default function AdvancedFilters({
             onChange={(e) => setIncludeAISalary(e.target.checked)}
             style={{ accentColor: 'var(--color-primary-500)' }}
           />
-          Inclure estimations IA
+          {S.include_ai_salary}
         </label>
 
         {/* Offer Freshness - Select style */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', flex: '1 1 160px' }}>
           <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Fraîcheur de l'offre
+            {S.offer_freshness}
           </label>
           <select
             value={offerFreshness}
@@ -214,10 +217,10 @@ export default function AdvancedFilters({
             className="select-control"
             style={{ padding: '8px 12px', fontSize: '0.875rem', width: '100%', height: '38px', boxSizing: 'border-box' }}
           >
-            <option value="all">Toutes</option>
-            <option value="24h">Moins de 24h</option>
-            <option value="3d">Moins de 3 jours</option>
-            <option value="7d">Moins de 7 jours</option>
+            <option value="all">{S.all_freshness}</option>
+            <option value="24h">{S.less_24h}</option>
+            <option value="3d">{S.less_3d}</option>
+            <option value="7d">{S.less_7d}</option>
           </select>
         </div>
       </div>
@@ -229,14 +232,14 @@ export default function AdvancedFilters({
             className="btn btn-secondary"
             style={{ fontSize: '0.85rem' }}
         >
-            Réinitialiser
+            {S.reset_filters}
         </button>
         <button
             onClick={handleApplyFilters}
             className="btn btn-primary"
             style={{ fontSize: '0.85rem' }}
         >
-            Appliquer les filtres
+            {S.apply_filters}
         </button>
       </div>
     </div>

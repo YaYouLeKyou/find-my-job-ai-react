@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { X, Plus, Minus, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { LANGS, STRINGS } from '../utils/translations';
 
 export default function AdvancedFiltersDrawer({
   activeAgent,
@@ -8,8 +9,10 @@ export default function AdvancedFiltersDrawer({
   onApplyFilters,
   currentFilters = {},
   cvData = null,
-  jobData = null
+  jobData = null,
+  lang = 'Français'
 }) {
+  const S = STRINGS[LANGS[lang]?.code || 'fr'];
   // State for all possible filter types
   const [minMatchScore, setMinMatchScore] = useState(currentFilters.minMatchScore || 0);
   const [companyTypes, setCompanyTypes] = useState(currentFilters.companyTypes || []);
@@ -313,7 +316,7 @@ export default function AdvancedFiltersDrawer({
             letterSpacing: '0.05em',
             color: 'var(--color-text-secondary)'
           }}>
-            FILTRES DE BASE
+            {S.advanced_filters}
           </h4>
           {expandedSections.basic ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </div>
@@ -468,7 +471,7 @@ export default function AdvancedFiltersDrawer({
             letterSpacing: '0.05em',
             color: 'var(--color-text-secondary)'
           }}>
-            SOURCES DE RÉSULTATS
+            {S.filters}
           </h4>
           {expandedSections.sources ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </div>
@@ -1002,14 +1005,14 @@ export default function AdvancedFiltersDrawer({
             className="btn btn-secondary"
             style={{ fontSize: '0.85rem' }}
         >
-            Réinitialiser
+            {S.reset_filters}
         </button>
         <button
             onClick={handleApplyFilters}
             className="btn btn-primary"
             style={{ fontSize: '0.85rem' }}
         >
-            Appliquer les filtres ({activeFilterCount})
+            {S.apply_filters} ({activeFilterCount})
         </button>
       </div>
     </div>

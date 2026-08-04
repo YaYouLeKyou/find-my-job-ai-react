@@ -1,7 +1,9 @@
 import React from 'react';
 import { Settings } from 'lucide-react';
+import { LANGS, STRINGS } from '../utils/translations';
 
-export default function AdvancedFiltersHeader({ onToggle }) {
+export default function AdvancedFiltersHeader({ onToggle, lang = 'Français' }) {
+  const S = STRINGS[LANGS[lang]?.code || 'fr'];
   return (
     <div style={{
       display: 'flex',
@@ -16,7 +18,7 @@ export default function AdvancedFiltersHeader({ onToggle }) {
           fontWeight: 600,
           color: 'var(--color-text-primary)'
         }}>
-          Filtres avancés
+          {S.advanced_filters}
         </h3>
       </div>
       <button
@@ -43,7 +45,7 @@ export default function AdvancedFiltersHeader({ onToggle }) {
         }}
       >
         <Settings size={16} />
-        <span>Configurer</span>
+        <span>{S.configure}</span>
       </button>
     </div>
   );
