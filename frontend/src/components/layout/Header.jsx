@@ -15,6 +15,22 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
     const { noAiMode, setNoAiMode, agentConfig } = useAgent();
     const theme = agentConfig.theme;
     const S = STRINGS[LANGS[lang]?.code || 'fr'];
+    const [isMobile, setIsMobile] = React.useState(false);
+
+    React.useEffect(() => {
+        const checkIfMobile = () => {
+            setIsMobile(window.innerWidth <= 768);
+        };
+
+        // Check on initial render
+        checkIfMobile();
+
+        // Add event listener for window resize
+        window.addEventListener('resize', checkIfMobile);
+
+        // Cleanup
+        return () => window.removeEventListener('resize', checkIfMobile);
+    }, []);
 
     return (
         <header style={{
@@ -230,8 +246,8 @@ export default function Header({ onBackToHub, showAiToggle = true, onToggleDarkM
                     )}
                     </div>
 
-                    {/* Language Selector (right) - Same width as others */}
-                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    {/* Language Selector (right) - Same width as others - Hidden on mobile */}
+                    <div style={{ display: isMobile ? 'none' : 'flex', justifyContent: 'center' }}>
                     {setLang && (
                         <select
                             value={lang}
