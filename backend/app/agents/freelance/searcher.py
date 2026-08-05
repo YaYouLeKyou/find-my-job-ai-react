@@ -3,9 +3,8 @@ from typing import Optional
 
 logger = __import__("logging").getLogger(__name__)
 
-# Freelance-specific sources that return 100% freelance missions
-# Default sources: reliable freelance platforms + general job boards with freelance X-Ray queries
-FREELANCE_SOURCES = ["Free-Work", "Malt", "LinkedIn", "Enhanced", "JobSpy"]
+# Freelance-specific sources that return missions (not candidates)
+FREELANCE_SOURCES = ["Free-Work", "LinkedIn", "Enhanced", "JobSpy"]
 
 # ─── Freelance Qualification Rules (STRICT) ─────────────────────────────────
 

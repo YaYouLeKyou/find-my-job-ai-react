@@ -106,7 +106,7 @@ export const AGENTS = {
             alertBg: 'linear-gradient(135deg, rgba(0,188,212,0.1), rgba(0,137,123,0.06))',
             alertBorder: 'rgba(0, 188, 212, 0.25)',
         },
-        sources: ['Free-Work', 'Malt', 'LinkedIn', 'Enhanced', 'JobSpy'],
+        sources: ['Free-Work', 'LinkedIn', 'Enhanced', 'JobSpy'],
         resultType: 'mission',
         searchEndpoint: '/api/freelance/search',
         // Filtres spécifiques au Freelance
@@ -192,7 +192,7 @@ export const AGENTS = {
             alertBg: 'linear-gradient(135deg, rgba(255,111,0,0.1), rgba(255,143,0,0.06))',
             alertBorder: 'rgba(255, 111, 0, 0.25)',
         },
-        sources: ['LinkedIn', 'Indeed', 'France Travail', 'Apec', 'Monster'],
+        sources: ['LinkedIn', 'Indeed', 'France Travail', 'Apec', 'Monster', 'Malt'],
         resultType: 'candidate',
         searchEndpoint: '/api/recruiter/search',
         // Filtres spécifiques au Recruteur
