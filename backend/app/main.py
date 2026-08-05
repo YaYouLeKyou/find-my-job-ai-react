@@ -2259,7 +2259,8 @@ async def _stream_agent_jobs(
                 else:
                     jobs_to_emit = result.jobs or []
 
-                yield f"data: {json.dumps({'type': 'SOURCE_RESULT', 'progress': progress, 'total_so_far': len(all_jobs), 'target': display_limit, 'source': result.source_name, 'status': status, 'jobs': jobs_to_emit, 'sources_done': sources_done, 'total_sources': total_sources, 'source_progress': progress, 'execution_time': result.execution_time, 'is_partial': getattr(result, 'is_partial', False), 'fallback': getattr(result, 'fallback', False), 'diagnostic': diagnostic})}\n\n"
+                total_found_by_source = len(result.jobs) if result.jobs else 0
+                yield f"data: {json.dumps({'type': 'SOURCE_RESULT', 'progress': progress, 'total_so_far': len(all_jobs), 'target': display_limit, 'source': result.source_name, 'status': status, 'jobs': jobs_to_emit, 'sources_done': sources_done, 'total_sources': total_sources, 'source_progress': progress, 'execution_time': result.execution_time, 'is_partial': getattr(result, 'is_partial', False), 'fallback': getattr(result, 'fallback', False), 'diagnostic': diagnostic, 'total_found_by_source': total_found_by_source})}\n\n"
                 await asyncio.sleep(0)
 
                 if result.jobs and cv_data_dict and not no_ai_mode:

@@ -35,22 +35,22 @@ const APPS = [
     badgeBg: 'rgba(0, 188, 212, 0.08)',
     badgeBorder: 'rgba(0, 188, 212, 0.2)',
   },
-  {
-    id: 'worker',
-    emoji: '👷',
-    titleKey: 'hub_card_worker_title',
-    subtitleKey: 'hub_card_worker_subtitle',
-    descriptionKey: 'hub_card_worker_description',
-    featuresKey: 'hub_card_worker_features',
-    sourcesKey: 'hub_card_worker_sources',
-    gradient: 'linear-gradient(135deg, #ff6f00 0%, #ff8f00 100%)',
-    glowColor: 'rgba(255, 111, 0, 0.25)',
-    accentColor: '#ff6f00',
-    tagBg: 'rgba(255, 111, 0, 0.12)',
-    tagColor: '#e65100',
-    badgeBg: 'rgba(255, 111, 0, 0.08)',
-    badgeBorder: 'rgba(255, 111, 0, 0.2)',
-  },
+  // {
+  //   id: 'worker',
+  //   emoji: '👷',
+  //   titleKey: 'hub_card_worker_title',
+  //   subtitleKey: 'hub_card_worker_subtitle',
+  //   descriptionKey: 'hub_card_worker_description',
+  //   featuresKey: 'hub_card_worker_features',
+  //   sourcesKey: 'hub_card_worker_sources',
+  //   gradient: 'linear-gradient(135deg, #ff6f00 0%, #ff8f00 100%)',
+  //   glowColor: 'rgba(255, 111, 0, 0.25)',
+  //   accentColor: '#ff6f00',
+  //   tagBg: 'rgba(255, 111, 0, 0.12)',
+  //   tagColor: '#e65100',
+  //   badgeBg: 'rgba(255, 111, 0, 0.08)',
+  //   badgeBorder: 'rgba(255, 111, 0, 0.2)',
+  // },
 ];
 
 export default function LandingHub({ onSelectApp, lang, setLang, onToggleDarkMode }) {
@@ -440,7 +440,7 @@ export default function LandingHub({ onSelectApp, lang, setLang, onToggleDarkMod
         }
         @media (min-width: 1024px) {
           .app-cards-grid {
-            grid-template-columns: repeat(3, 1fr) !important;
+            grid-template-columns: repeat(2, 1fr) !important;
           }
         }
         @media (max-width: 1023px) {

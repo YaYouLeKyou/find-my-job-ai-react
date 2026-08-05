@@ -4,15 +4,31 @@
  * Affiche uniquement les sources qui ont trouvé des résultats (pas de badge grisé pour les sources vides)
  */
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { LANGS, STRINGS } from '../utils/translations';
 
 export default function ActiveSourcesHeader({ sourceCounts, aiProcessing, processedCount, lang = 'Français', onToggleSource, hiddenSources = [] }) {
   const S = STRINGS[LANGS[lang]?.code || 'fr'];
   const totalRealJobs = Object.values(sourceCounts).reduce((a, b) => a + b, 0);
-  // Ne garder que les sources avec au moins 1 résultat
-  const activeSources = Object.entries(sourceCounts)
-    .filter(([source, count]) => count > 0)
+
+  // Track sources that have ever had results > 0 (persist visibility)
+  const sourcesWithResultsRef = useRef(new Set());
+
+  // Update the ref when sourceCounts change
+  useEffect(() => {
+    Object.entries(sourceCounts).forEach(([source, count]) => {
+      if (count > 0) {
+        sourcesWithResultsRef.current.add(source);
+      }
+    });
+  }, [sourceCounts]);
+
+  // Ne garder que les sources qui ont trouvé des résultats
+  // OU qui ont déjà eu des résultats par le passé (pour éviter le clignotement)
+  const sourcesToShow = new Set([...Object.keys(sourceCounts), ...sourcesWithResultsRef.current]);
+  const activeSources = Array.from(sourcesToShow)
+    .map(source => [source, sourceCounts[source] || 0])
+    .filter(([source, count]) => count > 0 || sourcesWithResultsRef.current.has(source))
     .sort((a, b) => b[1] - a[1]); // Trier par nombre de résultats décroissant
 
   return (
