@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 # Ensure the parent directory is in sys.path so 'shared' module is found
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from fastapi import FastAPI, Request, Query, File, UploadFile, Form
@@ -391,13 +392,66 @@ def build_source_registry(selected_sources: list, cv_data: Optional[dict] = None
         async def _malt_search(q: str, l: str, n: int):
             try:
                 logger.info(f"[SSE] Malt search start query={q!r} location={l!r} limit={n}")
-                result = await asyncio.to_thread(_scrape_malt, q, l, n)
-                logger.info(f"[SSE] Malt returned {len(result)} candidates")
+                from app.scrapers.freelance_sources import scrape_malt
+                result = await scrape_malt(q, l, n)
+                logger.info(f"[SSE] Malt returned {len(result)} jobs")
                 return result
             except Exception as e:
                 logger.error(f"[SSE] Malt search error: {e}", exc_info=True)
                 return []
         source_registry['Malt'] = _malt_search
+
+    if "UpworkRSS" in selected_sources:
+        async def _upwork_rss_search(q: str, l: str, n: int):
+            try:
+                logger.info(f"[SSE] UpworkRSS search start query={q!r} location={l!r} limit={n}")
+                from app.scrapers.freelance_sources import scrape_upwork_rss
+                result = await scrape_upwork_rss(query=q, location=l, limit=n)
+                logger.info(f"[SSE] UpworkRSS returned {len(result)} jobs")
+                return result
+            except Exception as e:
+                logger.error(f"[SSE] UpworkRSS search error: {e}", exc_info=True)
+                return []
+        source_registry['UpworkRSS'] = _upwork_rss_search
+
+    if "WeWorkRemotelyRSS" in selected_sources:
+        async def _wwr_rss_search(q: str, l: str, n: int):
+            try:
+                logger.info(f"[SSE] WeWorkRemotelyRSS search start query={q!r} location={l!r} limit={n}")
+                from app.scrapers.freelance_sources import scrape_wwr_rss
+                result = await scrape_wwr_rss(category=q, query=l, limit=n)
+                logger.info(f"[SSE] WeWorkRemotelyRSS returned {len(result)} jobs")
+                return result
+            except Exception as e:
+                logger.error(f"[SSE] WeWorkRemotelyRSS search error: {e}", exc_info=True)
+                return []
+        source_registry['WeWorkRemotelyRSS'] = _wwr_rss_search
+
+    if "RemoteOK" in selected_sources:
+        async def _remoteok_search(q: str, l: str, n: int):
+            try:
+                logger.info(f"[SSE] RemoteOK search start query={q!r} location={l!r} limit={n}")
+                from app.scrapers.freelance_sources import scrape_remoteok_api
+                result = await scrape_remoteok_api(query=q, location=l, limit=n)
+                logger.info(f"[SSE] RemoteOK returned {len(result)} jobs")
+                return result
+            except Exception as e:
+                logger.error(f"[SSE] RemoteOK search error: {e}", exc_info=True)
+                return []
+        source_registry['RemoteOK'] = _remoteok_search
+
+    if "Freelancer.com" in selected_sources:
+        async def _freelancer_com_search(q: str, l: str, n: int):
+            try:
+                logger.info(f"[SSE] Freelancer.com search start query={q!r} location={l!r} limit={n}")
+                from app.scrapers.freelance_sources import scrape_freelancer_com
+                result = await scrape_freelancer_com(query=q, location=l, limit=n)
+                logger.info(f"[SSE] Freelancer.com returned {len(result)} jobs")
+                return result
+            except Exception as e:
+                logger.error(f"[SSE] Freelancer.com search error: {e}", exc_info=True)
+                return []
+        source_registry['Freelancer.com'] = _freelancer_com_search
 
     if "GitHub" in selected_sources:
         async def _github_search(q: str, l: str, n: int):
@@ -1900,25 +1954,31 @@ async def freelance_search(
     no_ai_mode: bool = Query(False),
 ):
     """Freelance-specific job search endpoint."""
-    logger.info(f"[FREELANCE_ENDPOINT] Starting freelance search: query={query!r}")
-    return await _stream_agent_jobs(
-        query=query,
-        location=location,
-        num_ads=num_ads,
-        agent_type="freelance",
-        agent_filters={
-            "missionType": mission_type,
-            "duration": duration,
-            "remote": remote,
-            "tjmMin": tjm_min,
-            "tjmMax": tjm_max,
-        },
-        selected_sources=selected_sources,
-        ranking_engine=ranking_engine,
-        custom_gemini_key=custom_gemini_key,
-        cv_data=cv_data,
-        no_ai_mode=no_ai_mode,
-    )
+    logger.info(f"[FREELANCE_ENDPOINT] Starting freelance search: query={query!r} location={location!r} sources={selected_sources!r} no_ai_mode={no_ai_mode}")
+    try:
+        result = await _stream_agent_jobs(
+            query=query,
+            location=location,
+            num_ads=num_ads,
+            agent_type="freelance",
+            agent_filters={
+                "missionType": mission_type,
+                "duration": duration,
+                "remote": remote,
+                "tjmMin": tjm_min,
+                "tjmMax": tjm_max,
+            },
+            selected_sources=selected_sources,
+            ranking_engine=ranking_engine,
+            custom_gemini_key=custom_gemini_key,
+            cv_data=cv_data,
+            no_ai_mode=no_ai_mode,
+        )
+        logger.info(f"[FREELANCE_ENDPOINT] _stream_agent_jobs returned successfully")
+        return result
+    except Exception as e:
+        logger.exception(f"[FREELANCE_ENDPOINT] Error in freelance search: {e}")
+        raise
 
 
 # ─── Recruiter Agent Search Endpoint ───────────────────────────────────
@@ -1980,6 +2040,7 @@ async def _stream_agent_jobs(
     no_ai_mode: bool,
 ):
     """Unified streaming handler for agent-specific searches."""
+    logger.info(f"[AGENT_STREAM] START agent_type={agent_type} query={query!r} location={location!r} selected_sources={selected_sources!r}")
     sources_list = [s.strip() for s in selected_sources.split(",") if s.strip()]
     cv_data_dict = None
     if cv_data:
@@ -2047,13 +2108,24 @@ async def _stream_agent_jobs(
     # Build the effective search query using the agent-specific searcher
     effective_query = searcher.build_search_query(query, location, normalized_agent_filters)
 
+    # Import freelance scrapers
+    from app.scrapers.freelance_sources import (
+        scrape_upwork_rss,
+        scrape_wwr_rss,
+        scrape_remoteok_api,
+        scrape_malt,
+        scrape_freelancer_com,
+    )
+
     # Map agent-specific sources to real, available sources
     AGENT_SOURCE_MAP = {
-        # Freelance sources -> mapped to available scraping sources
-        "Malt": "Free-Work",
-        "Upwork": "Free-Work",
-        "Freelancer": "Free-Work",
-        "Toptal": "Free-Work",
+        # Freelance sources -> mapped to real scraper implementations
+        "Upwork": "UpworkRSS",
+        "Malt": "Malt",
+        "Freelancer": "Freelancer.com",
+        "404works": "Free-Work",
+        "Freelance-Info": "Free-Work",
+        "LeHibou": "Free-Work",
         # Codeur.com and FreelanceRepublik now have their own scrapers
         # Recruiter/Worker sources -> mapped to available scraping sources
         "Apec": "France Travail",
@@ -2074,14 +2146,22 @@ async def _stream_agent_jobs(
     logger.info(f"[AGENT_STREAM] Mapped sources: {mapped_sources}")
 
     # Filter to only known sources (those in build_source_registry)
-    KNOWN_SOURCES = {"LinkedIn", "Indeed", "France Travail", "Monster", "HelloWork", "Google Jobs", "JobSpy", "Enhanced", "Adzuna", "Jooble", "Apify", "Free-Work", "Codeur.com", "FreelanceRepublik", "GitHub", "StackOverflow"}
+    KNOWN_SOURCES = {
+        "LinkedIn", "Indeed", "France Travail", "Monster", "HelloWork",
+        "Google Jobs", "JobSpy", "Enhanced", "Adzuna", "Jooble", "Apify",
+        "Free-Work", "Codeur.com", "FreelanceRepublik", "GitHub", "StackOverflow",
+        "UpworkRSS", "WeWorkRemotelyRSS", "RemoteOK", "Malt", "Freelancer.com",
+    }
     available_sources = [s for s in mapped_sources if s in KNOWN_SOURCES]
     logger.info(f"[AGENT_STREAM] Available sources after filtering: {available_sources}")
 
     # If no sources map to known ones, fall back to the job searcher's default sources
     if not available_sources:
         logger.warning(f"[AGENT_STREAM] No available sources for agent_type={agent_type}, falling back to job default sources")
-        available_sources = [s for s in JobSearcher().get_sources() if s in KNOWN_SOURCES]
+        # Limit fallback sources to prevent timeouts
+        fallback_sources = [s for s in JobSearcher().get_sources() if s in KNOWN_SOURCES][:3]
+        logger.info(f"[AGENT_STREAM] Fallback sources limited to 3: {fallback_sources}")
+        available_sources = fallback_sources
         logger.info(f"[AGENT_STREAM] Fallback sources: {available_sources}")
 
     # Use the mapped and filtered sources
@@ -2270,6 +2350,6 @@ if __name__ == "__main__":
         "app.main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True,
+        reload=False,
         log_level="info"
     )

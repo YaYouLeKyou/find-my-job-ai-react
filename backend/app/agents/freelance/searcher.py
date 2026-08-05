@@ -3,9 +3,9 @@ from typing import Optional
 
 logger = __import__("logging").getLogger(__name__)
 
-# Freelance now uses the SAME sources as Job and Recruiter agents
-# The filtering is done post-search to keep only freelance/prestation offers
-FREELANCE_SOURCES = ["LinkedIn", "France Travail", "Google Jobs", "Adzuna", "Enhanced", "JobSpy", "Free-Work", "Codeur.com", "FreelanceRepublik"]
+# Freelance-specific sources that return 100% freelance missions
+# Default sources: reliable freelance platforms + general job boards with freelance X-Ray queries
+FREELANCE_SOURCES = ["Free-Work", "Malt", "LinkedIn", "Enhanced", "JobSpy"]
 
 # ─── Freelance Qualification Rules (STRICT) ─────────────────────────────────
 
@@ -194,23 +194,30 @@ class FreelanceSearcher:
     def apply_filters(self, jobs: list, filters: dict) -> list:
         """Apply freelance-specific filters.
         
-        1. FIRST: Filter to keep ONLY freelance/prestation offers (is_freelance_offer)
+        1. FIRST: Filter to keep ONLY freelance/prestation offers (is_freelance_offer) - if strict_mode
         2. THEN: Apply user filters (TJM, mission type, duration, remote)
         """
-        # ─── ÉTAPE 1: Filtrer pour ne garder QUE les offres freelance ───
-        freelance_jobs = []
-        rejected_count = 0
-        for job in jobs:
-            if is_freelance_offer(job):
-                freelance_jobs.append(job)
-            else:
-                rejected_count += 1
+        # Check if strict freelance filtering is enabled (default: False for broader results)
+        strict_mode = filters.get("strictFreelanceFilter", False)
         
-        logger.info(f"[FREELANCE_FILTER] Total jobs: {len(jobs)}, Freelance kept: {len(freelance_jobs)}, Rejected: {rejected_count}")
+        if strict_mode:
+            # ─── ÉTAPE 1: Filtrer pour ne garder QUE les offres freelance ───
+            freelance_jobs = []
+            rejected_count = 0
+            for job in jobs:
+                if is_freelance_offer(job):
+                    freelance_jobs.append(job)
+                else:
+                    rejected_count += 1
+            
+            logger.info(f"[FREELANCE_FILTER] Total jobs: {len(jobs)}, Freelance kept: {len(freelance_jobs)}, Rejected: {rejected_count}")
+            filtered = freelance_jobs
+        else:
+            # Non-strict mode: keep all jobs, just log
+            logger.info(f"[FREELANCE_FILTER] Non-strict mode: keeping all {len(jobs)} jobs")
+            filtered = jobs
         
         # ─── ÉTAPE 2: Appliquer les filtres utilisateur ───
-        filtered = freelance_jobs
-        
         # Filtre TJM min
         if filters.get("tjmMin"):
             try:

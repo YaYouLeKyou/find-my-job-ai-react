@@ -106,7 +106,7 @@ export const AGENTS = {
             alertBg: 'linear-gradient(135deg, rgba(0,188,212,0.1), rgba(0,137,123,0.06))',
             alertBorder: 'rgba(0, 188, 212, 0.25)',
         },
-        sources: ['LinkedIn', 'France Travail', 'Google Jobs', 'Adzuna', 'Enhanced', 'JobSpy', 'Free-Work', 'Codeur.com', 'FreelanceRepublik'],
+        sources: ['Free-Work', 'Malt', 'LinkedIn', 'Enhanced', 'JobSpy'],
         resultType: 'mission',
         searchEndpoint: '/api/freelance/search',
         // Filtres spécifiques au Freelance
