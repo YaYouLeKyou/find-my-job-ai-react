@@ -466,13 +466,16 @@ function ResultCard({
                 paddingTop: '16px',
                 borderTop: '1px solid var(--color-border)',
                 flexWrap: 'wrap',
+                width: '100%',
+                maxWidth: '100%',
+                boxSizing: 'border-box',
             }}>
                 <a
                     href={link}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
-                        flex: 1,
+                        flex: '1 1 0',
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -488,7 +491,13 @@ function ResultCard({
                         cursor: 'pointer',
                         transition: 'all 0.2s ease',
                         fontFamily: 'var(--font-sans)',
-                        minWidth: '120px',
+                        minWidth: 0,
+                        flexShrink: 1,
+                        flexBasis: 0,
+                        boxSizing: 'border-box',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
                     }}
                     onMouseEnter={(e) => {
                         e.currentTarget.style.background = 'rgba(99, 102, 241, 0.15)';
@@ -507,7 +516,7 @@ function ResultCard({
                     <button
                         onClick={() => setExpanded(!expanded)}
                         style={{
-                            flex: 1,
+                            flex: '1 1 0',
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -523,7 +532,13 @@ function ResultCard({
                             transition: 'all 0.2s ease',
                             fontFamily: 'var(--font-sans)',
                             boxShadow: '0 4px 14px rgba(99, 102, 241, 0.25)',
-                            minWidth: '120px',
+                            minWidth: 0,
+                            flexShrink: 1,
+                            flexBasis: 0,
+                            boxSizing: 'border-box',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
                         }}
                         onMouseEnter={(e) => {
                             e.currentTarget.style.boxShadow = '0 6px 20px rgba(99, 102, 241, 0.35)';

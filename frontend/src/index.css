@@ -1727,10 +1727,10 @@ label {
     align-self: flex-start !important;
   }
 
-  /* Actions: full-width buttons on mobile */
+  /* Actions: full-width buttons stacked vertically, compact on mobile */
   .result-card-actions {
     flex-direction: column !important;
-    gap: 8px !important;
+    gap: 6px !important;
   }
 
   .result-card-actions > * {
@@ -1738,6 +1738,8 @@ label {
     min-width: 0 !important;
     flex: 1 1 100% !important;
     box-sizing: border-box !important;
+    padding: 8px 12px !important;
+    font-size: 0.8rem !important;
   }
 }
 
@@ -1753,7 +1755,8 @@ label {
   }
 
   .result-card-actions > * {
-    padding: 10px 12px !important;
-    font-size: 0.8rem !important;
+    padding: 6px 10px !important;
+    font-size: 0.75rem !important;
+    gap: 6px !important;
   }
 }
