@@ -461,9 +461,9 @@ function ResultCard({
             {/* Actions: View link + Letter + Interview */}
             <div className="result-card-actions" style={{
                 display: 'flex',
-                gap: '10px',
-                marginTop: '8px',
-                paddingTop: '16px',
+                gap: '6px',
+                marginTop: '4px',
+                paddingTop: '8px',
                 borderTop: '1px solid var(--color-border)',
                 flexWrap: 'wrap',
                 width: '100%',
@@ -479,9 +479,9 @@ function ResultCard({
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '8px',
-                        padding: '12px 16px',
-                        fontSize: '0.85rem',
+                        gap: '6px',
+                        padding: '6px 10px',
+                        fontSize: '0.75rem',
                         fontWeight: 600,
                         color: 'var(--color-primary-500)',
                         background: 'rgba(99, 102, 241, 0.08)',
@@ -495,9 +495,10 @@ function ResultCard({
                         flexShrink: 1,
                         flexBasis: 0,
                         boxSizing: 'border-box',
-                        whiteSpace: 'nowrap',
+                        whiteSpace: 'normal',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
+                        lineHeight: '1.3',
                     }}
                     onMouseEnter={(e) => {
                         e.currentTarget.style.background = 'rgba(99, 102, 241, 0.15)';
@@ -509,7 +510,7 @@ function ResultCard({
                     }}
                 >
                     {resultType === 'mission' ? '🌐 Voir la mission' : resultType === 'candidate' ? '🌐 Voir le profil' : "🌐 Voir l'offre"}
-                    <ExternalLink size={14} />
+                    <ExternalLink size={12} />
                 </a>
 
                 {showLetterFeature && (
@@ -520,9 +521,9 @@ function ResultCard({
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: '8px',
-                            padding: '12px 16px',
-                            fontSize: '0.85rem',
+                            gap: '6px',
+                            padding: '6px 10px',
+                            fontSize: '0.75rem',
                             fontWeight: 600,
                             color: 'white',
                             background: 'linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%)',
@@ -531,28 +532,29 @@ function ResultCard({
                             cursor: 'pointer',
                             transition: 'all 0.2s ease',
                             fontFamily: 'var(--font-sans)',
-                            boxShadow: '0 4px 14px rgba(99, 102, 241, 0.25)',
+                            boxShadow: '0 2px 8px rgba(99, 102, 241, 0.2)',
                             minWidth: 0,
                             flexShrink: 1,
                             flexBasis: 0,
                             boxSizing: 'border-box',
-                            whiteSpace: 'nowrap',
+                            whiteSpace: 'normal',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
+                            lineHeight: '1.3',
                         }}
                         onMouseEnter={(e) => {
-                            e.currentTarget.style.boxShadow = '0 6px 20px rgba(99, 102, 241, 0.35)';
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.3)';
                             e.currentTarget.style.transform = 'translateY(-1px)';
                         }}
                         onMouseLeave={(e) => {
-                            e.currentTarget.style.boxShadow = '0 4px 14px rgba(99, 102, 241, 0.25)';
+                            e.currentTarget.style.boxShadow = '0 2px 8px rgba(99, 102, 241, 0.2)';
                             e.currentTarget.style.transform = 'translateY(0)';
                         }}
                          title={S.ai_letter_title}
                     >
-                        <FileText size={16} />
+                        <FileText size={12} />
                         <span>Lettre IA</span>
-                        {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                     </button>
                 )}
 
@@ -560,12 +562,13 @@ function ResultCard({
                     <button
                         onClick={() => onStartInterview(item)}
                         style={{
+                            flex: '1 1 0',
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: '8px',
-                            padding: '12px 16px',
-                            fontSize: '0.85rem',
+                            gap: '6px',
+                            padding: '6px 10px',
+                            fontSize: '0.75rem',
                             fontWeight: 600,
                             color: 'var(--color-text-primary)',
                             background: 'var(--color-surface)',
@@ -574,7 +577,14 @@ function ResultCard({
                             cursor: 'pointer',
                             transition: 'all 0.2s ease',
                             fontFamily: 'var(--font-sans)',
-                            minWidth: '100px',
+                            minWidth: 0,
+                            flexShrink: 1,
+                            flexBasis: 0,
+                            boxSizing: 'border-box',
+                            whiteSpace: 'normal',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            lineHeight: '1.3',
                         }}
                         onMouseEnter={(e) => {
                             e.currentTarget.style.background = 'var(--color-surface-hover)';
@@ -586,7 +596,7 @@ function ResultCard({
                         }}
                          title={S.simulate_interview}
                     >
-                        <MessageSquare size={16} />
+                        <MessageSquare size={12} />
                         <span>Entretien</span>
                     </button>
                 )}
