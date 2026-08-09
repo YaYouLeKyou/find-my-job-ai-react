@@ -461,6 +461,7 @@ function ResultCard({
             {/* Actions: View link + Letter + Interview */}
             <div className="result-card-actions" style={{
                 display: 'flex',
+                flexDirection: 'column',
                 gap: '6px',
                 marginTop: '4px',
                 paddingTop: '8px',
@@ -475,13 +476,13 @@ function ResultCard({
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
-                        flex: '1 1 0',
-                        display: 'inline-flex',
+                        width: '100%',
+                        display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '6px',
-                        padding: '6px 10px',
-                        fontSize: '0.75rem',
+                        padding: '8px 12px',
+                        fontSize: '0.8rem',
                         fontWeight: 600,
                         color: 'var(--color-primary-500)',
                         background: 'rgba(99, 102, 241, 0.08)',
@@ -491,13 +492,8 @@ function ResultCard({
                         cursor: 'pointer',
                         transition: 'all 0.2s ease',
                         fontFamily: 'var(--font-sans)',
-                        minWidth: 0,
-                        flexShrink: 1,
-                        flexBasis: 0,
                         boxSizing: 'border-box',
                         whiteSpace: 'normal',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
                         lineHeight: '1.3',
                     }}
                     onMouseEnter={(e) => {
@@ -517,13 +513,13 @@ function ResultCard({
                     <button
                         onClick={() => setExpanded(!expanded)}
                         style={{
-                            flex: '1 1 0',
-                            display: 'inline-flex',
+                            width: '100%',
+                            display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: '6px',
-                            padding: '6px 10px',
-                            fontSize: '0.75rem',
+                            padding: '8px 12px',
+                            fontSize: '0.8rem',
                             fontWeight: 600,
                             color: 'white',
                             background: 'linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%)',
@@ -533,13 +529,8 @@ function ResultCard({
                             transition: 'all 0.2s ease',
                             fontFamily: 'var(--font-sans)',
                             boxShadow: '0 2px 8px rgba(99, 102, 241, 0.2)',
-                            minWidth: 0,
-                            flexShrink: 1,
-                            flexBasis: 0,
                             boxSizing: 'border-box',
                             whiteSpace: 'normal',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
                             lineHeight: '1.3',
                         }}
                         onMouseEnter={(e) => {
@@ -562,13 +553,13 @@ function ResultCard({
                     <button
                         onClick={() => onStartInterview(item)}
                         style={{
-                            flex: '1 1 0',
-                            display: 'inline-flex',
+                            width: '100%',
+                            display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: '6px',
-                            padding: '6px 10px',
-                            fontSize: '0.75rem',
+                            padding: '8px 12px',
+                            fontSize: '0.8rem',
                             fontWeight: 600,
                             color: 'var(--color-text-primary)',
                             background: 'var(--color-surface)',
@@ -577,13 +568,8 @@ function ResultCard({
                             cursor: 'pointer',
                             transition: 'all 0.2s ease',
                             fontFamily: 'var(--font-sans)',
-                            minWidth: 0,
-                            flexShrink: 1,
-                            flexBasis: 0,
                             boxSizing: 'border-box',
                             whiteSpace: 'normal',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
                             lineHeight: '1.3',
                         }}
                         onMouseEnter={(e) => {
