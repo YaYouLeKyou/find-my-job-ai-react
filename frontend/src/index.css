@@ -1449,6 +1449,24 @@ label {
    MOBILE RESPONSIVE - Results Grid Fix
    ============================================================ */
 
+/* Ensure all grid children can shrink and never overflow */
+.results-grid {
+  display: grid !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+}
+
+.results-grid > * {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  overflow-wrap: break-word !important;
+  word-break: break-word !important;
+}
+
 /* Fix job cards overflowing on mobile */
 @media (max-width: 767px) {
   .results-grid {
@@ -1672,5 +1690,70 @@ label {
   .card {
     overflow-x: hidden !important;
     max-width: 100% !important;
+  }
+}
+
+/* ============================================================
+   RESULT CARD - MOBILE RESPONSIVE
+   ============================================================ */
+
+/* ResultCard - ensure full visibility on mobile */
+.result-card {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  overflow-wrap: break-word !important;
+  word-break: break-word !important;
+}
+
+/* Tablet Portrait & below */
+@media (max-width: 767px) {
+  .result-card {
+    padding: 16px !important;
+    gap: 12px !important;
+  }
+
+  /* Header: stack title and AI score vertically on mobile */
+  .result-card-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+    padding-right: 40px !important;
+  }
+
+  .result-card-score {
+    align-self: flex-start !important;
+  }
+
+  /* Actions: full-width buttons on mobile */
+  .result-card-actions {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .result-card-actions > * {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: 1 1 100% !important;
+    box-sizing: border-box !important;
+  }
+}
+
+/* Mobile Small (< 480px) */
+@media (max-width: 479px) {
+  .result-card {
+    padding: 12px !important;
+  }
+
+  .result-card-header h3 {
+    font-size: 0.95rem !important;
+    -webkit-line-clamp: 3 !important;
+  }
+
+  .result-card-actions > * {
+    padding: 10px 12px !important;
+    font-size: 0.8rem !important;
   }
 }

@@ -253,7 +253,7 @@ function ResultCard({
     const showInterviewFeature = true;
 
     return (
-        <div style={{
+        <div className="result-card" style={{
             background: 'linear-gradient(135deg, var(--color-surface) 0%, var(--color-surface-secondary) 100%)',
             border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius-md)',
@@ -264,6 +264,13 @@ function ResultCard({
             display: 'flex',
             flexDirection: 'column',
             gap: '16px',
+            boxSizing: 'border-box',
+            width: '100%',
+            maxWidth: '100%',
+            minWidth: 0,
+            overflow: 'hidden',
+            overflowWrap: 'break-word',
+            wordBreak: 'break-word',
         }}
             onMouseEnter={(e) => {
                 e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
@@ -319,7 +326,7 @@ function ResultCard({
             )}
 
             {/* Header: Title + Company + AI Score */}
-            <div style={{
+            <div className="result-card-header" style={{
                 display: 'flex',
                 alignItems: 'flex-start',
                 justifyContent: 'space-between',
@@ -359,7 +366,7 @@ function ResultCard({
                     )}
                 </div>
                 {/* AI Score - inline with title */}
-                <div style={{ flexShrink: 0, marginTop: '2px' }}>
+                <div className="result-card-score" style={{ flexShrink: 0, marginTop: '2px' }}>
                     {renderAiScore()}
                 </div>
             </div>
@@ -388,15 +395,17 @@ function ResultCard({
                             <Tag size={12} />
                             <span>{source}</span>
                         </span>
-                        {source && (
+                        {onDelete && (
                             <button
                                 className="btn btn-delete-sm"
                                 onClick={handleDeleteSource}
-                                 title={S.delete_source}
-                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#999' }}
+                                title={S.delete_source}
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#999', padding: '4px', display: 'flex', alignItems: 'center' }}
                             >
                                 <Trash2 size={14} />
-                    </button>
+                            </button>
+                        )}
+                    </div>
                 )}
                 {/* Delete button */}
                 {onDelete && (
@@ -421,12 +430,10 @@ function ResultCard({
                         onMouseLeave={(e) => {
                             e.currentTarget.style.background = 'var(--color-surface)';
                         }}
-                         title={S.delete_offer}
+                        title={S.delete_offer}
                     >
                         <Trash2 size={18} />
                     </button>
-                )}
-            </div>
                 )}
                 {renderTypeSpecificFields()}
             </div>
@@ -452,7 +459,7 @@ function ResultCard({
             {renderSkills()}
 
             {/* Actions: View link + Letter + Interview */}
-            <div style={{
+            <div className="result-card-actions" style={{
                 display: 'flex',
                 gap: '10px',
                 marginTop: '8px',
