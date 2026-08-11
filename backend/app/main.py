@@ -1711,13 +1711,15 @@ INSTRUCTIONS :
 3. Identifie 3 points forts concrets.
 4. Identifie 3 axes d'amelioration precis et actionnables.
 5. Ajoute 2-3 conseils pratiques pour que le candidat puisse progresser.
+6. Fournis un exemple concret de bonne reponse a la question, pour que le candidat puisse s'en inspirer.
 
 Retourne UNIQUEMENT un objet JSON avec les cles suivantes :
 - score : entier 0-10
 - feedback : texte detaille et pedagogique
 - points_forts : liste de 3 items
 - axes_amelioration : liste de 3 items
-- conseils : liste de 2 a 3 conseils pratiques"""
+- conseils : liste de 2 a 3 conseils pratiques
+- exemple_bonne_reponse : texte d'un exemple de bonne reponse"""
 
         result = await asyncio.to_thread(
             call_ai_provider,
