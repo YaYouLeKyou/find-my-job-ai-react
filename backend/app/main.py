@@ -1651,6 +1651,10 @@ Pose une question pertinente, professionnelle, qui permet de veritablement evalu
             prompt=prompt,
             selected_model=ranking_engine,
             is_json=False,
+            gemini_api_key=settings.GEMINI_API_KEY,
+            xai_api_key=settings.XAI_API_KEY,
+            groq_api_key=settings.GROQ_API_KEY,
+            ollama_url=settings.OLLAMA_URL,
             custom_gemini_key=gemini_key or None,
         )
 
@@ -1708,6 +1712,10 @@ Evalue sur 10 et fournis un retour constructif. Retourne UN OBJET JSON avec les 
             prompt=prompt,
             selected_model=ranking_engine,
             is_json=True,
+            gemini_api_key=settings.GEMINI_API_KEY,
+            xai_api_key=settings.XAI_API_KEY,
+            groq_api_key=settings.GROQ_API_KEY,
+            ollama_url=settings.OLLAMA_URL,
             custom_gemini_key=gemini_key or None,
         )
 
