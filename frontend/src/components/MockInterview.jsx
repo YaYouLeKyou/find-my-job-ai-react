@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Mic, MicOff, Send, MessageSquare, VolumeX, ArrowLeft,
   CheckCircle2, AlertCircle, Loader2, BookOpen, Target,
-  Copy, Check, Download, RefreshCw, Sun, Moon, Sparkles, ChevronRight
+  Copy, Download, RefreshCw, Sun, Moon, Sparkles, ChevronRight
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -37,7 +37,6 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
     setTimeout(() => setToast(null), 3000);
   }, []);
 
-  // ─── Speech Recognition Init ─────────────────────────────────────────────
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -45,38 +44,30 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
       recognitionRef.current.continuous = false;
       recognitionRef.current.interimResults = false;
       recognitionRef.current.lang = 'fr-FR';
-
       recognitionRef.current.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
         setUserAnswer(transcript);
         setIsListening(false);
       };
-
       recognitionRef.current.onerror = () => {
         setIsListening(false);
         showToast('Erreur de reconnaissance vocale', 'error');
       };
-
       recognitionRef.current.onend = () => setIsListening(false);
     }
-
     if ('speechSynthesis' in window) {
       synthesisRef.current = window.speechSynthesis;
     }
-
     const savedDark = localStorage.getItem('mockInterviewDarkMode');
     if (savedDark === 'true') {
       setDarkMode(true);
       document.documentElement.setAttribute('data-theme', 'dark');
     }
-
     return () => {
       if (recognitionRef.current) recognitionRef.current.abort();
       if (synthesisRef.current) synthesisRef.current.cancel();
     };
   }, []);
-
-  // ─── No auto-generation: user configures level/type first, then starts ──
 
   const toggleDarkMode = () => {
     const newDark = !darkMode;
@@ -135,21 +126,15 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
       setScores([]);
       setError('');
       showToast('Entretien recommencé', 'info');
-      setTimeout(() => {
-        if (job) generateQuestion();
-      }, 100);
     }
   };
 
-  // ─── Generate Question ───────────────────────────────────────────────────
   const generateQuestion = async () => {
     if (!job) return;
-
     setLoading(true);
     setError('');
     setCurrentEvaluation(null);
     setUserAnswer('');
-
     try {
       const response = await fetch(`${API_BASE}/api/mock-interview/question`, {
         method: "POST",
@@ -166,18 +151,14 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
           lang_label: "français"
         })
       });
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.detail || "Erreur lors de la génération de la question");
       }
-
       const data = await response.json();
       const question = data.question;
-
       setCurrentQuestion(question);
       setQuestionCount(prev => prev + 1);
-
       if (mode === 'voice' && synthesisRef.current) {
         speakText(question);
       }
@@ -190,15 +171,11 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
     }
   };
 
-  // ─── Submit Answer ───────────────────────────────────────────────────────
   const submitAnswer = async () => {
     if (!userAnswer.trim() || !currentQuestion) return;
-
     setEvaluating(true);
     setError('');
-
     const answerText = userAnswer;
-
     try {
       const response = await fetch(`${API_BASE}/api/mock-interview/evaluate`, {
         method: "POST",
@@ -214,27 +191,21 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
           lang_label: "français"
         })
       });
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.detail || "Erreur lors de l'évaluation");
       }
-
       const data = await response.json();
       const evaluation = data.evaluation;
-
       setCurrentEvaluation(evaluation);
       setAnsweredCount(prev => prev + 1);
-
       const match = evaluation.match(/(\d+)\s*\/\s*10/);
       if (match) {
         setScores(prev => [...prev, parseInt(match[1])]);
       }
-
       if (mode === 'voice' && synthesisRef.current) {
         speakText(evaluation);
       }
-
       showToast('✅ Réponse évaluée', 'success');
     } catch (err) {
       console.error(err);
@@ -245,7 +216,6 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
     }
   };
 
-  // ─── Speech Synthesis ────────────────────────────────────────────────────
   const speakText = (text) => {
     if (!synthesisRef.current) return;
     synthesisRef.current.cancel();
@@ -298,7 +268,6 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
     return 'low';
   };
 
-  // ─── Fallback UI for parseError or no job ────────────────────────────────
   if (parseError || !job) {
     return (
       <div className="app-container">
@@ -332,13 +301,12 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
     );
   }
 
-  // ─── Main Render ─────────────────────────────────────────────────────────
   return (
     <div className="app-container">
       {toast && <div className={`toast ${toast.type}`}>{toast.message}</div>}
 
       <div className="main-content" style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
-        {/* ─── Title Bar ─────────────────────────────────────────────────── */}
+        {/* Title Bar */}
         <div className="standalone-title-bar">
           <div className="title-left">
             <BookOpen size={24} style={{ color: 'var(--primary-color)' }} />
@@ -362,7 +330,7 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
           </div>
         </div>
 
-        {/* ─── Controls Bar ─────────────────────────────────────────────── */}
+        {/* Controls Bar */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -374,7 +342,6 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
           <button onClick={onBack} className="btn btn-secondary">
             <ArrowLeft size={16} /> Retour
           </button>
-
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               onClick={() => setMode(mode === 'written' ? 'voice' : 'written')}
@@ -383,13 +350,11 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
             >
               {mode === 'written' ? <><Mic size={16} /> Vocal</> : <><MessageSquare size={16} /> Écrit</>}
             </button>
-
             {mode === 'voice' && isSpeaking && (
               <button onClick={stopSpeaking} className="btn btn-secondary" style={{ padding: '8px 16px' }}>
                 <VolumeX size={16} /> Stop
               </button>
             )}
-
             <button
               onClick={exportConversation}
               className="btn btn-secondary"
@@ -399,7 +364,6 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
             >
               <Download size={16} />
             </button>
-
             <button
               onClick={restartInterview}
               className="btn btn-secondary"
@@ -412,7 +376,7 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
           </div>
         </div>
 
-        {/* ─── Stats Bar ────────────────────────────────────────────────── */}
+        {/* Stats Bar */}
         {questionCount > 0 && (
           <div className="interview-stats-bar" style={{ marginBottom: '20px' }}>
             <div className="stat-item">
@@ -433,10 +397,10 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
           </div>
         )}
 
-        {/* ─── Error ────────────────────────────────────────────────────── */}
+        {/* Error */}
         {error && <div className="alert alert-danger" style={{ marginBottom: '16px' }}><span>{error}</span></div>}
 
-        {/* ─── Interview Settings (Niveau & Type) ──────────────────────── */}
+        {/* Interview Settings */}
         {!loading && questionCount === 0 && (
           <div className="card" style={{ marginBottom: '20px', padding: '24px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -500,11 +464,19 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
                   ))}
                 </div>
               </div>
+              <button
+                onClick={generateQuestion}
+                className="btn btn-primary"
+                disabled={loading}
+                style={{ padding: '14px 40px', fontSize: '1rem', marginTop: '8px' }}
+              >
+                <BookOpen size={16} /> Commencer l'entretien
+              </button>
             </div>
           </div>
         )}
 
-        {/* ─── Loading ──────────────────────────────────────────────────── */}
+        {/* Loading */}
         {loading && (
           <div className="card" style={{ padding: '32px' }}>
             <div style={{ textAlign: 'center', padding: '20px' }}>
@@ -514,7 +486,7 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
           </div>
         )}
 
-        {/* ─── Question Card ────────────────────────────────────────────── */}
+        {/* Question Card */}
         {!loading && currentQuestion && !currentEvaluation && (
           <div className="card" style={{
             marginBottom: '20px',
@@ -558,7 +530,7 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
           </div>
         )}
 
-        {/* ─── Answer Input ─────────────────────────────────────────────── */}
+        {/* Answer Input */}
         {!loading && currentQuestion && !currentEvaluation && (
           <div className="card" style={{ marginBottom: '20px', padding: '24px' }}>
             <div className="card-title" style={{ marginBottom: '16px' }}>
@@ -633,7 +605,7 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
           </div>
         )}
 
-        {/* ─── AI Synthesis Card ───────────────────────────────────────── */}
+        {/* AI Synthesis Card */}
         {!loading && currentEvaluation && (
           <div className="card" style={{
             marginBottom: '20px',
@@ -694,7 +666,7 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
           </div>
         )}
 
-        {/* ─── Next Question Button ─────────────────────────────────────── */}
+        {/* Next Question Button */}
         {!loading && currentEvaluation && (
           <div style={{ textAlign: 'center', marginTop: '24px', marginBottom: '40px' }}>
             <button
@@ -703,20 +675,6 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
               style={{ padding: '14px 40px', fontSize: '1rem' }}
             >
               <ChevronRight size={18} /> Question suivante
-            </button>
-          </div>
-        )}
-
-        {/* ─── Empty State ──────────────────────────────────────────────── */}
-        {!loading && !currentQuestion && questionCount === 0 && (
-          <div className="card" style={{ textAlign: 'center', padding: '48px' }}>
-            <BookOpen size={48} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
-            <h3 style={{ marginBottom: '8px' }}>Prêt pour votre entretien ?</h3>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>
-              Répondez aux questions une par une et recevez une synthèse IA après chaque réponse.
-            </p>
-            <button onClick={generateQuestion} className="btn btn-primary" style={{ padding: '14px 40px', fontSize: '1rem' }}>
-              <BookOpen size={16} /> Commencer l'entretien
             </button>
           </div>
         )}
