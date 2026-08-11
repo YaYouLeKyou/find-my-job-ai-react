@@ -76,12 +76,7 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
     };
   }, []);
 
-  // ─── Generate first question on mount ────────────────────────────────────
-  useEffect(() => {
-    if (job && !currentQuestion && questionCount === 0) {
-      generateQuestion();
-    }
-  }, [job]);
+  // ─── No auto-generation: user configures level/type first, then starts ──
 
   const toggleDarkMode = () => {
     const newDark = !darkMode;
