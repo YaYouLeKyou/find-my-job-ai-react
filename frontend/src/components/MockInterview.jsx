@@ -712,7 +712,54 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
               color: 'var(--color-text-primary)',
               wordWrap: 'break-word',
             }}>
-              {currentEvaluation}
+              {typeof currentEvaluation === 'object' && currentEvaluation !== null ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {currentEvaluation.feedback && (
+                    <div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>Feedback</div>
+                      <div>{currentEvaluation.feedback}</div>
+                    </div>
+                  )}
+                  {currentEvaluation.points_forts && currentEvaluation.points_forts.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>Points forts</div>
+                      <ul style={{ margin: 0, paddingLeft: '18px' }}>
+                        {currentEvaluation.points_forts.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {currentEvaluation.axes_amelioration && currentEvaluation.axes_amelioration.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>Axes d'amélioration</div>
+                      <ul style={{ margin: 0, paddingLeft: '18px' }}>
+                        {currentEvaluation.axes_amelioration.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {currentEvaluation.conseils && currentEvaluation.conseils.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>Conseils pour progresser</div>
+                      <ul style={{ margin: 0, paddingLeft: '18px' }}>
+                        {currentEvaluation.conseils.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {currentEvaluation.exemple_bonne_reponse && (
+                    <div style={{ marginTop: '4px' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>Exemple de bonne réponse</div>
+                      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', padding: '12px', whiteSpace: 'pre-wrap', lineHeight: '1.6', fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>{currentEvaluation.exemple_bonne_reponse}</div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>{currentEvaluation}</div>
+              )}
             </div>
           </div>
         )}
