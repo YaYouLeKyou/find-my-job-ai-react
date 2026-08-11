@@ -1697,7 +1697,7 @@ PROFIL CANDIDAT :
 - Competences cles : {', '.join(cv_data.get('mots_cles', []))}
 """
 
-        prompt = f"""Tu es un recruteur experimente. Evalue la reponse d'un candidat a la question d'entretien suivante.
+        prompt = f"""Tu es un recruteur experimente et bienveillant. Evalue la reponse d'un candidat a la question d'entretien suivante.
 
 QUESTION: {question}
 REPONSE DU CANDIDAT: {answer}
@@ -1705,7 +1705,19 @@ POSTE: {job_title}
 DESCRIPTION: {job_description}
 {cv_context}
 
-Evalue sur 10 et fournis un retour constructif. Retourne UN OBJET JSON avec les cles suivantes : score (entier 0-10), feedback (texte court), points_forts (liste de 3 items), axes_amelioration (liste de 3 items)."""
+INSTRUCTIONS :
+1. Attribue un score global sur 10.
+2. Fournis un feedback detaille et pedagogique : explique ce qui etait bon, ce qui etait attendu, et donne des corrections precises.
+3. Identifie 3 points forts concrets.
+4. Identifie 3 axes d'amelioration precis et actionnables.
+5. Ajoute 2-3 conseils pratiques pour que le candidat puisse progresser.
+
+Retourne UNIQUEMENT un objet JSON avec les cles suivantes :
+- score : entier 0-10
+- feedback : texte detaille et pedagogique
+- points_forts : liste de 3 items
+- axes_amelioration : liste de 3 items
+- conseils : liste de 2 a 3 conseils pratiques"""
 
         result = await asyncio.to_thread(
             call_ai_provider,
