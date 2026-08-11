@@ -268,7 +268,8 @@ function ResultCard({
             width: '100%',
             maxWidth: '100%',
             minWidth: 0,
-            overflow: 'hidden',
+            overflowX: 'hidden',
+            overflowY: 'visible',
             overflowWrap: 'break-word',
             wordBreak: 'break-word',
         }}
@@ -466,7 +467,7 @@ function ResultCard({
                 marginTop: '4px',
                 paddingTop: '8px',
                 borderTop: '1px solid var(--color-border)',
-                flexWrap: 'wrap',
+                flexWrap: 'nowrap',
                 width: '100%',
                 maxWidth: '100%',
                 boxSizing: 'border-box',

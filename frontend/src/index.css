@@ -1703,7 +1703,8 @@ label {
   max-width: 100% !important;
   width: 100% !important;
   box-sizing: border-box !important;
-  overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
   overflow-wrap: break-word !important;
   word-break: break-word !important;
 }
@@ -1758,5 +1759,151 @@ label {
     padding: 6px 10px !important;
     font-size: 0.75rem !important;
     gap: 6px !important;
+  }
+}
+
+/* ============================================================
+   MOBILE RESPONSIVE - Job Cards Overflow Fix
+   ============================================================ */
+
+/* Empêcher tout débordement horizontal sur mobile */
+@media (max-width: 767px) {
+  /* Cartes : 100% de largeur sans dépassement */
+  .job-card,
+  .result-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Header de carte : empiler verticalement */
+  .job-card-header,
+  .result-card-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+    padding-right: 0 !important;
+  }
+
+  /* Titre : autoriser le retour à la ligne */
+  .job-info h3,
+  .result-card-header h3 {
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    -webkit-line-clamp: 3 !important;
+  }
+
+  /* Entreprise : autoriser le retour à la ligne */
+  .job-company {
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+
+  /* Badges de score : autoriser le retour à la ligne */
+  .score-badge {
+    white-space: normal !important;
+    word-break: break-word !important;
+    max-width: 100% !important;
+    text-align: center !important;
+  }
+
+  /* Meta chips : wrap et pas de débordement */
+  .job-card-meta,
+  .meta-item {
+    flex-wrap: wrap !important;
+    max-width: 100% !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+
+  .meta-item {
+    white-space: normal !important;
+  }
+
+  /* Actions : boutons pleine largeur empilés */
+  .job-card-actions,
+  .result-card-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .job-card-actions .btn,
+  .result-card-actions > * {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex: 1 1 100% !important;
+    box-sizing: border-box !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    text-align: center !important;
+  }
+
+  /* Score IA : ne pas déborder */
+  .result-card-score {
+    flex-shrink: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .result-card-score > div {
+    white-space: normal !important;
+    word-break: break-word !important;
+    max-width: 100% !important;
+  }
+
+  /* Grille de résultats : 1 colonne */
+  .results-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  .results-grid > * {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Letter expander : boutons pleine largeur */
+  .letter-expander > div:first-child {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .letter-expander .btn {
+    width: 100% !important;
+    max-width: 100% !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+  }
+
+  /* Boutons génériques : autoriser le wrap */
+  .btn {
+    white-space: normal !important;
+    word-break: break-word !important;
+  }
+}
+
+/* Mobile Small (< 480px) */
+@media (max-width: 479px) {
+  .job-card,
+  .result-card {
+    padding: 12px !important;
+  }
+
+  .job-card-actions .btn,
+  .result-card-actions > * {
+    padding: 10px 12px !important;
+    font-size: 0.8rem !important;
   }
 }
