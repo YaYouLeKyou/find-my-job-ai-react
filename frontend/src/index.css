@@ -346,7 +346,8 @@ label {
 .textarea-control {
   resize: none;
   min-height: 100px;
-  overflow: hidden;
+  height: auto;
+  overflow: visible;
 }
 
 .checkbox-container {
@@ -1451,6 +1452,12 @@ label {
     display: block !important;
     visibility: visible !important;
     opacity: 1 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+  .mock-interview-answer-wrapper textarea,
+  .mock-interview-answer-wrapper .card-content > div {
     max-height: none !important;
     overflow: visible !important;
     height: auto !important;

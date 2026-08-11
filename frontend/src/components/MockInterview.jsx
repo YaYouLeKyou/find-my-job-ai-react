@@ -659,7 +659,7 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
 
         {/* AI Synthesis Card */}
         {!loading && currentEvaluation && (
-          <div className="card" style={{
+          <div className="card mock-interview-answer-wrapper" style={{
             marginBottom: '20px',
             borderColor: 'rgba(46,125,50,0.3)',
             background: 'linear-gradient(135deg, rgba(46,125,50,0.08) 0%, rgba(16,185,129,0.05) 100%)',
