@@ -27,6 +27,7 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
 
   const recognitionRef = useRef(null);
   const synthesisRef = useRef(null);
+  const answerTextareaRef = useRef(null);
 
   const avgScore = scores.length > 0
     ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
@@ -583,7 +584,7 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
 
         {/* Answer Input */}
         {!loading && currentQuestion && !currentEvaluation && (
-          <div className="card" style={{ marginBottom: '20px', padding: '24px' }}>
+          <div className="card mock-interview-answer-wrapper" style={{ marginBottom: '20px', padding: '24px' }}>
             <div className="card-title" style={{ marginBottom: '16px' }}>
               <MessageSquare size={20} />
               <span>Votre réponse</span>
@@ -593,7 +594,7 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
                 <>
                   <textarea
                     className="textarea-control"
-                    style={{ height: '150px', width: '100%', resize: 'vertical', marginBottom: '12px', fontSize: '1rem' }}
+                    style={{ height: 'auto', minHeight: '120px', width: '100%', resize: 'none', overflow: 'visible', marginBottom: '12px', fontSize: '1rem' }}
                     placeholder="Tapez votre réponse ici..."
                     value={userAnswer}
                     onChange={(e) => setUserAnswer(e.target.value)}

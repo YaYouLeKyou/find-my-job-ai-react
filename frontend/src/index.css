@@ -344,8 +344,9 @@ label {
 }
 
 .textarea-control {
-  resize: vertical;
+  resize: none;
   min-height: 100px;
+  overflow: hidden;
 }
 
 .checkbox-container {
@@ -1443,6 +1444,17 @@ label {
   .upload-card h3 { font-size: 0.95rem; }
   .upload-card p { font-size: 0.8rem; }
   .app-footer { font-size: 0.75rem; padding: 12px; }
+
+  /* Mock interview: always show answer area on mobile */
+  .mock-interview-answer-wrapper,
+  .mock-interview-answer-wrapper > * {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
 }
 
 /* ============================================================
