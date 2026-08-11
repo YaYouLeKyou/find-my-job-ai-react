@@ -2,16 +2,14 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Mic, MicOff, Send, MessageSquare, VolumeX, ArrowLeft,
   CheckCircle2, AlertCircle, Loader2, BookOpen, Target,
-  Copy, Check, Download, RefreshCw, Sun, Moon
+  Copy, Check, Download, RefreshCw, Sun, Moon, Sparkles, ChevronRight
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export default function MockInterview({ onBack, job, cvData, rankingEngine, customGeminiKey, parseError }) {
-  // ─── Core State ──────────────────────────────────────────────────
   const [mode, setMode] = useState('written');
   const [currentQuestion, setCurrentQuestion] = useState(null);
-  const [conversation, setConversation] = useState([]);
   const [userAnswer, setUserAnswer] = useState('');
   const [loading, setLoading] = useState(false);
   const [evaluating, setEvaluating] = useState(false);
@@ -21,25 +19,19 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
   const [error, setError] = useState('');
   const [toast, setToast] = useState(null);
   const [darkMode, setDarkMode] = useState(false);
-  const [copiedMessageId, setCopiedMessageId] = useState(null);
   const [questionCount, setQuestionCount] = useState(0);
-  const [interviewStage, setInterviewStage] = useState('débutant');
-  const [questionType, setQuestionType] = useState('technique');
+  const [answeredCount, setAnsweredCount] = useState(0);
+  const [scores, setScores] = useState([]);
+  const [interviewStage, setInterviewStage] = useState('intermédiaire');
+  const [questionType, setQuestionType] = useState('mixte');
 
   const recognitionRef = useRef(null);
   const synthesisRef = useRef(null);
 
-  // ─── Computed Statistics ─────────────────────────────────────────────────
-  const answeredQuestions = conversation.filter(m => m.type === 'answer').length;
-  const evaluations = conversation.filter(m => m.type === 'evaluation');
-  const avgScore = evaluations.length > 0
-    ? Math.round(evaluations.reduce((sum, m) => {
-        const match = m.content.match(/(\d+)\/10/);
-        return sum + (match ? parseInt(match[1]) : 5);
-      }, 0) / evaluations.length)
+  const avgScore = scores.length > 0
+    ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
     : 0;
 
-  // ─── Toast ───────────────────────────────────────────────────────────────
   const showToast = useCallback((message, type = 'info') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
@@ -72,12 +64,6 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
       synthesisRef.current = window.speechSynthesis;
     }
 
-    // Generate first question on mount
-    if (job) {
-      generateQuestion();
-    }
-
-    // Load dark mode preference
     const savedDark = localStorage.getItem('mockInterviewDarkMode');
     if (savedDark === 'true') {
       setDarkMode(true);
@@ -90,14 +76,13 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
     };
   }, []);
 
-  // ─── Regenerate question if job changes ──────────────────────────────────
+  // ─── Generate first question on mount ────────────────────────────────────
   useEffect(() => {
-    if (job && conversation.length === 0) {
+    if (job && !currentQuestion && questionCount === 0) {
       generateQuestion();
     }
   }, [job]);
 
-  // ─── Dark Mode Toggle ────────────────────────────────────────────────────
   const toggleDarkMode = () => {
     const newDark = !darkMode;
     setDarkMode(newDark);
@@ -109,20 +94,17 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
     }
   };
 
-  // ─── Copy to Clipboard ───────────────────────────────────────────────────
-  const copyToClipboard = async (text, messageId) => {
+  const copyToClipboard = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopiedMessageId(messageId);
-      setTimeout(() => setCopiedMessageId(null), 2000);
+      showToast('✅ Copié !', 'success');
     } catch {
       showToast('Erreur de copie', 'error');
     }
   };
 
-  // ─── Export Conversation ─────────────────────────────────────────────────
   const exportConversation = () => {
-    if (conversation.length === 0) {
+    if (!currentQuestion && !currentEvaluation) {
       showToast('Aucune conversation à exporter', 'warning');
       return;
     }
@@ -131,16 +113,12 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
     lines.push(`Poste : ${job?.title || job?.titre || 'N/A'}`);
     lines.push(`Entreprise : ${job?.company || job?.entreprise || 'N/A'}`);
     lines.push(`Date : ${new Date().toLocaleString('fr-FR')}`);
-    lines.push(`Questions répondues : ${answeredQuestions}/${questionCount}`);
+    lines.push(`Questions répondues : ${answeredCount}/${questionCount}`);
     lines.push(`Score moyen : ${avgScore > 0 ? `${avgScore}/10` : 'N/A'}`);
     lines.push('');
-    conversation.forEach((msg, idx) => {
-      const typeLabel = msg.type === 'question' ? '❓ QUESTION' :
-                        msg.type === 'answer' ? '🗣️ RÉPONSE' : '📋 ÉVALUATION';
-      lines.push(`\n${typeLabel} (${idx + 1})`);
-      lines.push(msg.content);
-      lines.push('');
-    });
+    if (currentQuestion) lines.push(`❓ QUESTION : ${currentQuestion}`);
+    if (userAnswer) lines.push(`\n🗣️ RÉPONSE : ${userAnswer}`);
+    if (currentEvaluation) lines.push(`\n📋 ÉVALUATION : ${currentEvaluation}`);
     const content = lines.join('\n');
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const link = document.createElement('a');
@@ -152,14 +130,14 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
     showToast('✅ Conversation exportée', 'success');
   };
 
-  // ─── Restart Interview ───────────────────────────────────────────────────
   const restartInterview = () => {
-    if (window.confirm('Voulez-vous vraiment recommencer l\'entretien ? Toute la conversation sera perdue.')) {
-      setConversation([]);
+    if (window.confirm('Voulez-vous vraiment recommencer l\'entretien ? Toute la progression sera perdue.')) {
       setCurrentQuestion(null);
       setCurrentEvaluation(null);
       setUserAnswer('');
       setQuestionCount(0);
+      setAnsweredCount(0);
+      setScores([]);
       setError('');
       showToast('Entretien recommencé', 'info');
       setTimeout(() => {
@@ -175,6 +153,7 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
     setLoading(true);
     setError('');
     setCurrentEvaluation(null);
+    setUserAnswer('');
 
     try {
       const response = await fetch(`${API_BASE}/api/mock-interview/question`, {
@@ -202,7 +181,6 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
       const question = data.question;
 
       setCurrentQuestion(question);
-      setConversation(prev => [...prev, { type: 'question', content: question, id: Date.now() }]);
       setQuestionCount(prev => prev + 1);
 
       if (mode === 'voice' && synthesisRef.current) {
@@ -225,10 +203,6 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
     setError('');
 
     const answerText = userAnswer;
-    const answerId = Date.now();
-
-    setConversation(prev => [...prev, { type: 'answer', content: answerText, id: answerId }]);
-    setUserAnswer('');
 
     try {
       const response = await fetch(`${API_BASE}/api/mock-interview/evaluate`, {
@@ -255,7 +229,12 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
       const evaluation = data.evaluation;
 
       setCurrentEvaluation(evaluation);
-      setConversation(prev => [...prev, { type: 'evaluation', content: evaluation, id: Date.now() }]);
+      setAnsweredCount(prev => prev + 1);
+
+      const match = evaluation.match(/(\d+)\s*\/\s*10/);
+      if (match) {
+        setScores(prev => [...prev, parseInt(match[1])]);
+      }
 
       if (mode === 'voice' && synthesisRef.current) {
         speakText(evaluation);
@@ -292,7 +271,6 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
     }
   };
 
-  // ─── Speech Recognition ──────────────────────────────────────────────────
   const startListening = () => {
     if (recognitionRef.current && !isListening) {
       recognitionRef.current.start();
@@ -307,13 +285,12 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
     }
   };
 
-  // ─── Next Question ───────────────────────────────────────────────────────
   const nextQuestion = () => {
     setCurrentEvaluation(null);
+    setUserAnswer('');
     generateQuestion();
   };
 
-  // ─── Extract Score from Evaluation ───────────────────────────────────────
   const extractScore = (text) => {
     const match = text.match(/(\d+)\s*\/\s*10/);
     return match ? parseInt(match[1]) : null;
@@ -365,7 +342,7 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
     <div className="app-container">
       {toast && <div className={`toast ${toast.type}`}>{toast.message}</div>}
 
-      <div className="main-content">
+      <div className="main-content" style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
         {/* ─── Title Bar ─────────────────────────────────────────────────── */}
         <div className="standalone-title-bar">
           <div className="title-left">
@@ -391,20 +368,19 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
         </div>
 
         {/* ─── Controls Bar ─────────────────────────────────────────────── */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          marginBottom: '20px', 
-          flexWrap: 'wrap', 
-          gap: '12px' 
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '20px',
+          flexWrap: 'wrap',
+          gap: '12px'
         }}>
           <button onClick={onBack} className="btn btn-secondary">
             <ArrowLeft size={16} /> Retour
           </button>
 
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* Mode Toggle */}
             <button
               onClick={() => setMode(mode === 'written' ? 'voice' : 'written')}
               className="btn btn-secondary"
@@ -413,90 +389,46 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
               {mode === 'written' ? <><Mic size={16} /> Vocal</> : <><MessageSquare size={16} /> Écrit</>}
             </button>
 
-            {/* Stop Speaking */}
             {mode === 'voice' && isSpeaking && (
               <button onClick={stopSpeaking} className="btn btn-secondary" style={{ padding: '8px 16px' }}>
                 <VolumeX size={16} /> Stop
               </button>
             )}
 
-            {/* Export */}
             <button
               onClick={exportConversation}
               className="btn btn-secondary"
               style={{ padding: '8px 16px' }}
               title="Exporter"
-              disabled={conversation.length === 0}
+              disabled={!currentQuestion && !currentEvaluation}
             >
               <Download size={16} />
             </button>
 
-            {/* Restart */}
             <button
               onClick={restartInterview}
               className="btn btn-secondary"
               style={{ padding: '8px 16px' }}
               title="Recommencer"
-              disabled={conversation.length === 0}
+              disabled={questionCount === 0}
             >
               <RefreshCw size={16} />
             </button>
           </div>
         </div>
 
-        {/* ─── Interview Settings ───────────────────────────────────────── */}
-        <div className="card" style={{ marginBottom: '20px' }}>
-          <div className="card-content">
-            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <div className="form-group" style={{ flex: '1', minWidth: '200px' }}>
-                <label>Niveau</label>
-                <select
-                  className="select-control"
-                  value={interviewStage}
-                  onChange={(e) => setInterviewStage(e.target.value)}
-                  disabled={loading}
-                >
-                  <option value="débutant">Débutant</option>
-                  <option value="intermédiaire">Intermédiaire</option>
-                  <option value="avancé">Avancé</option>
-                </select>
-              </div>
-              <div className="form-group" style={{ flex: '1', minWidth: '200px' }}>
-                <label>Type de question</label>
-                <select
-                  className="select-control"
-                  value={questionType}
-                  onChange={(e) => setQuestionType(e.target.value)}
-                  disabled={loading}
-                >
-                  <option value="technique">Technique</option>
-                  <option value="comportemental">Comportemental</option>
-                  <option value="situationnel">Situations professionnelles</option>
-                </select>
-              </div>
-              <button
-                onClick={nextQuestion}
-                className="btn btn-primary"
-                disabled={loading}
-              >
-                <BookOpen size={16} /> Nouvelle question
-              </button>
-            </div>
-          </div>
-        </div>
-
         {/* ─── Stats Bar ────────────────────────────────────────────────── */}
-        {conversation.length > 0 && (
-          <div className="interview-stats-bar">
+        {questionCount > 0 && (
+          <div className="interview-stats-bar" style={{ marginBottom: '20px' }}>
             <div className="stat-item">
               <Target size={14} />
-              <span>Questions :</span>
+              <span>Question :</span>
               <span className="stat-value">{questionCount}</span>
             </div>
             <div className="stat-item">
               <MessageSquare size={14} />
               <span>Répondues :</span>
-              <span className="stat-value">{answeredQuestions}</span>
+              <span className="stat-value">{answeredCount}</span>
             </div>
             <div className="stat-item">
               <CheckCircle2 size={14} />
@@ -507,109 +439,134 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
         )}
 
         {/* ─── Error ────────────────────────────────────────────────────── */}
-        {error && <div className="alert alert-danger"><span>{error}</span></div>}
+        {error && <div className="alert alert-danger" style={{ marginBottom: '16px' }}><span>{error}</span></div>}
 
-        {/* ─── Conversation ─────────────────────────────────────────────── */}
-        {conversation.length > 0 && (
-          <div className="interview-conversation-container">
-            {conversation.map((msg, idx) => {
-              const isAnswer = msg.type === 'answer';
-              const isEvaluation = msg.type === 'evaluation';
-              const score = isEvaluation ? extractScore(msg.content) : null;
-              const scoreColor = score ? getScoreColor(score) : null;
-
-              return (
-                <div
-                  key={msg.id || idx}
-                  className="msg-wrapper"
-                  style={{
-                    position: 'relative',
-                    padding: '16px',
-                    borderRadius: '8px',
-                    background: msg.type === 'question' ? 'rgba(124,77,255,0.1)' :
-                               msg.type === 'answer' ? 'rgba(68,138,255,0.1)' :
-                               'rgba(46,125,50,0.1)',
-                    border: `1px solid ${
-                      msg.type === 'question' ? 'rgba(124,77,255,0.2)' :
-                      msg.type === 'answer' ? 'rgba(68,138,255,0.2)' :
-                      'rgba(46,125,50,0.2)'
-                    }`,
-                    marginBottom: '12px',
-                  }}
-                >
-                  {/* Copy Button */}
-                  {(isAnswer || isEvaluation) && (
-                    <button
-                      className="msg-copy-btn"
-                      onClick={() => copyToClipboard(msg.content, msg.id)}
-                      title="Copier"
-                    >
-                      {copiedMessageId === msg.id ? <Check size={14} /> : <Copy size={14} />}
-                    </button>
-                  )}
-
-                  {/* Message Header */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                    {msg.type === 'question' && <BookOpen size={16} style={{ color: '#7c4dff' }} />}
-                    {msg.type === 'answer' && <MessageSquare size={16} style={{ color: '#448aff' }} />}
-                    {msg.type === 'evaluation' && <CheckCircle2 size={16} style={{ color: '#2e7d32' }} />}
-                    <strong style={{
-                      color: msg.type === 'question' ? '#7c4dff' :
-                             msg.type === 'answer' ? '#448aff' :
-                             '#2e7d32'
-                    }}>
-                      {msg.type === 'question' ? 'Question' :
-                       msg.type === 'answer' ? 'Votre réponse' :
-                       'Évaluation'}
-                    </strong>
-                    {/* Score Badge */}
-                    {isEvaluation && score !== null && (
-                      <span className={`score-badge-inline ${scoreColor}`}>
-                        {score}/10
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Message Content */}
-                  <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: '1.6', wordWrap: 'break-word' }}>
-                    {msg.content}
-                  </p>
+        {/* ─── Interview Settings (Niveau & Type) ──────────────────────── */}
+        {!loading && questionCount === 0 && (
+          <div className="card" style={{ marginBottom: '20px', padding: '24px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Niveau de l'entretien
                 </div>
-              );
-            })}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {['débutant', 'intermédiaire', 'avancé'].map(stage => (
+                    <button
+                      key={stage}
+                      onClick={() => setInterviewStage(stage)}
+                      style={{
+                        padding: '10px 20px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: `2px solid ${interviewStage === stage ? 'var(--color-primary-500)' : 'var(--color-border)'}`,
+                        background: interviewStage === stage ? 'rgba(99,102,241,0.1)' : 'var(--color-surface)',
+                        color: interviewStage === stage ? 'var(--color-primary-500)' : 'var(--color-text-secondary)',
+                        fontWeight: 600,
+                        fontSize: '0.9rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        fontFamily: 'var(--font-sans)',
+                        textTransform: 'capitalize',
+                      }}
+                    >
+                      {stage}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Type de questions
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {[
+                    { value: 'technique', label: 'Technique' },
+                    { value: 'comportemental', label: 'Comportemental' },
+                    { value: 'situationnel', label: 'Situationnel' },
+                    { value: 'mixte', label: 'Mixte' },
+                  ].map(type => (
+                    <button
+                      key={type.value}
+                      onClick={() => setQuestionType(type.value)}
+                      style={{
+                        padding: '10px 20px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: `2px solid ${questionType === type.value ? 'var(--color-primary-500)' : 'var(--color-border)'}`,
+                        background: questionType === type.value ? 'rgba(99,102,241,0.1)' : 'var(--color-surface)',
+                        color: questionType === type.value ? 'var(--color-primary-500)' : 'var(--color-text-secondary)',
+                        fontWeight: 600,
+                        fontSize: '0.9rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        fontFamily: 'var(--font-sans)',
+                      }}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* ─── Loading Skeleton ─────────────────────────────────────────── */}
+        {/* ─── Loading ──────────────────────────────────────────────────── */}
         {loading && (
-          <div style={{ padding: '20px' }}>
-            <div className="skeleton" style={{ height: '24px', width: '60%', marginBottom: '12px' }}></div>
-            <div className="skeleton" style={{ height: '16px', width: '100%', marginBottom: '8px' }}></div>
-            <div className="skeleton" style={{ height: '16px', width: '90%', marginBottom: '8px' }}></div>
-            <div className="skeleton" style={{ height: '16px', width: '70%', marginTop: '8px' }}></div>
+          <div className="card" style={{ padding: '32px' }}>
             <div style={{ textAlign: 'center', padding: '20px' }}>
+              <Loader2 size={40} style={{ animation: 'spin 1s linear infinite', color: 'var(--primary-color)' }} />
               <p style={{ marginTop: '16px', color: 'var(--text-secondary)' }}>Génération de la question...</p>
             </div>
           </div>
         )}
 
-        {/* ─── Current Question Indicator ──────────────────────────────── */}
-        {currentQuestion && !currentEvaluation && (
-          <div className="card" style={{ marginBottom: '20px', borderColor: 'rgba(124,77,255,0.2)', background: 'rgba(124,77,255,0.05)' }}>
-            <div className="card-content">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                <AlertCircle size={16} style={{ color: '#7c4dff' }} />
-                <strong>Question actuelle :</strong>
-              </div>
-              <p style={{ margin: 0, fontStyle: 'italic', lineHeight: '1.6' }}>{currentQuestion}</p>
+        {/* ─── Question Card ────────────────────────────────────────────── */}
+        {!loading && currentQuestion && !currentEvaluation && (
+          <div className="card" style={{
+            marginBottom: '20px',
+            borderColor: 'rgba(124,77,255,0.3)',
+            background: 'linear-gradient(135deg, rgba(124,77,255,0.08) 0%, rgba(68,138,255,0.05) 100%)',
+            padding: '32px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              <span style={{
+                background: 'linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%)',
+                color: 'white',
+                padding: '4px 12px',
+                borderRadius: '9999px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+              }}>
+                Question {questionCount}
+              </span>
+              {mode === 'voice' && (
+                <button
+                  onClick={isSpeaking ? stopSpeaking : () => speakText(currentQuestion)}
+                  className="btn btn-secondary"
+                  style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                >
+                  {isSpeaking ? <VolumeX size={14} /> : <MessageSquare size={14} />}
+                  {isSpeaking ? 'Stop' : 'Écouter'}
+                </button>
+              )}
             </div>
+            <h3 style={{
+              fontSize: '1.3rem',
+              fontWeight: 700,
+              lineHeight: '1.5',
+              color: 'var(--color-text-primary)',
+              margin: 0,
+            }}>
+              {currentQuestion}
+            </h3>
           </div>
         )}
 
         {/* ─── Answer Input ─────────────────────────────────────────────── */}
-        {currentQuestion && !currentEvaluation && (
-          <div className="card" style={{ marginBottom: '20px' }}>
-            <div className="card-title">
+        {!loading && currentQuestion && !currentEvaluation && (
+          <div className="card" style={{ marginBottom: '20px', padding: '24px' }}>
+            <div className="card-title" style={{ marginBottom: '16px' }}>
               <MessageSquare size={20} />
               <span>Votre réponse</span>
             </div>
@@ -618,7 +575,7 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
                 <>
                   <textarea
                     className="textarea-control"
-                    style={{ height: '150px', width: '100%', resize: 'vertical', marginBottom: '12px' }}
+                    style={{ height: '150px', width: '100%', resize: 'vertical', marginBottom: '12px', fontSize: '1rem' }}
                     placeholder="Tapez votre réponse ici..."
                     value={userAnswer}
                     onChange={(e) => setUserAnswer(e.target.value)}
@@ -632,9 +589,9 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
                     onClick={submitAnswer}
                     className="btn btn-primary"
                     disabled={!userAnswer.trim() || evaluating}
-                    style={{ width: '100%' }}
+                    style={{ width: '100%', padding: '14px', fontSize: '1rem' }}
                   >
-                    {evaluating ? <><Loader2 size={16} className="spin" /> Évaluation en cours...</> : <><Send size={16} /> Envoyer la réponse (Ctrl+Enter)</>}
+                    {evaluating ? <><Loader2 size={16} className="spin" /> Évaluation en cours...</> : <><Send size={16} /> Envoyer la réponse</>}
                   </button>
                 </>
               ) : (
@@ -670,6 +627,7 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
                       onClick={submitAnswer}
                       className="btn btn-primary"
                       disabled={evaluating}
+                      style={{ padding: '12px 32px' }}
                     >
                       {evaluating ? <><Loader2 size={16} className="spin" /> Évaluation...</> : <><Send size={16} /> Envoyer la réponse</>}
                     </button>
@@ -680,24 +638,89 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
           </div>
         )}
 
+        {/* ─── AI Synthesis Card ───────────────────────────────────────── */}
+        {!loading && currentEvaluation && (
+          <div className="card" style={{
+            marginBottom: '20px',
+            borderColor: 'rgba(46,125,50,0.3)',
+            background: 'linear-gradient(135deg, rgba(46,125,50,0.08) 0%, rgba(16,185,129,0.05) 100%)',
+            padding: '32px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              <span style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: 'white',
+                padding: '4px 12px',
+                borderRadius: '9999px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}>
+                <Sparkles size={12} /> Synthèse IA
+              </span>
+              {(() => {
+                const score = extractScore(currentEvaluation);
+                const scoreColor = getScoreColor(score);
+                if (score !== null) {
+                  return (
+                    <span className={`score-badge-inline ${scoreColor}`} style={{ fontSize: '1rem', padding: '6px 16px' }}>
+                      {score}/10
+                    </span>
+                  );
+                }
+                return null;
+              })()}
+              <button
+                onClick={() => copyToClipboard(currentEvaluation)}
+                className="btn btn-secondary"
+                style={{ padding: '4px 10px', fontSize: '0.75rem', marginLeft: 'auto' }}
+                title="Copier"
+              >
+                <Copy size={14} />
+              </button>
+            </div>
+            <div style={{
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '20px',
+              whiteSpace: 'pre-wrap',
+              lineHeight: '1.7',
+              fontSize: '0.95rem',
+              color: 'var(--color-text-primary)',
+              wordWrap: 'break-word',
+            }}>
+              {currentEvaluation}
+            </div>
+          </div>
+        )}
+
         {/* ─── Next Question Button ─────────────────────────────────────── */}
-        {currentEvaluation && (
-          <div style={{ textAlign: 'center', marginTop: '24px' }}>
-            <button onClick={nextQuestion} className="btn btn-primary" style={{ padding: '12px 32px' }}>
-              <BookOpen size={16} /> Question suivante
+        {!loading && currentEvaluation && (
+          <div style={{ textAlign: 'center', marginTop: '24px', marginBottom: '40px' }}>
+            <button
+              onClick={nextQuestion}
+              className="btn btn-primary"
+              style={{ padding: '14px 40px', fontSize: '1rem' }}
+            >
+              <ChevronRight size={18} /> Question suivante
             </button>
           </div>
         )}
 
         {/* ─── Empty State ──────────────────────────────────────────────── */}
-        {!loading && conversation.length === 0 && !currentQuestion && (
-          <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
+        {!loading && !currentQuestion && questionCount === 0 && (
+          <div className="card" style={{ textAlign: 'center', padding: '48px' }}>
             <BookOpen size={48} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
             <h3 style={{ marginBottom: '8px' }}>Prêt pour votre entretien ?</h3>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>
-              Cliquez sur "Nouvelle question" pour commencer la simulation.
+              Répondez aux questions une par une et recevez une synthèse IA après chaque réponse.
             </p>
-            <button onClick={generateQuestion} className="btn btn-primary">
+            <button onClick={generateQuestion} className="btn btn-primary" style={{ padding: '14px 40px', fontSize: '1rem' }}>
               <BookOpen size={16} /> Commencer l'entretien
             </button>
           </div>
