@@ -1741,7 +1741,10 @@ Retourne UNIQUEMENT un objet JSON avec les cles suivantes :
         except (json.JSONDecodeError, TypeError):
             json_match = re.search(r'\{.*\}', result, re.DOTALL)
             if json_match:
-                data = json.loads(json_match.group())
+                try:
+                    data = json.loads(json_match.group())
+                except (json.JSONDecodeError, TypeError):
+                    return {"error": "Invalid JSON response from AI provider"}
             else:
                 return {"error": "Invalid response format"}
 
