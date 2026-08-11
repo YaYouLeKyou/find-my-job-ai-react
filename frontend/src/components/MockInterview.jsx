@@ -209,9 +209,39 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
       const evaluation = data.evaluation;
       setCurrentEvaluation(evaluation);
       setAnsweredCount(prev => prev + 1);
-      const match = evaluation.match(/(\d+)\s*\/\s*10/);
-      if (match) {
-        setScores(prev => [...prev, parseInt(match[1])]);
+
+      let evaluationText = evaluation;
+      let scoreValue = null;
+
+      if (typeof evaluation === 'object' && evaluation !== null) {
+        const score = evaluation.score ?? evaluation.note ?? evaluation.points;
+        if (typeof score === 'number') {
+          scoreValue = Math.min(10, Math.max(0, score));
+        } else if (typeof score === 'string') {
+          const m = score.match(/(\d+)/);
+          if (m) scoreValue = Math.min(10, Math.max(0, parseInt(m[1])));
+        }
+
+        const parts = [];
+        if (typeof evaluation.feedback === 'string') parts.push(evaluation.feedback);
+        if (typeof evaluation.commentaire === 'string') parts.push(evaluation.commentaire);
+        if (typeof evaluation.retour === 'string') parts.push(evaluation.retour);
+        if (typeof evaluation.evaluation === 'string') parts.push(evaluation.evaluation);
+        if (typeof evaluation.texte === 'string') parts.push(evaluation.texte);
+        if (parts.length > 0) {
+          evaluationText = parts.join('\n\n');
+        } else {
+          evaluationText = JSON.stringify(evaluation, null, 2);
+        }
+      } else if (typeof evaluation === 'string') {
+        evaluationText = evaluation;
+        const m = evaluation.match(/(\d+)\s*\/\s*10/);
+        if (m) scoreValue = parseInt(m[1]);
+      }
+
+      setCurrentEvaluation(evaluationText);
+      if (scoreValue !== null) {
+        setScores(prev => [...prev, scoreValue]);
       }
       if (mode === 'voice' && synthesisRef.current) {
         speakText(evaluation);
@@ -267,8 +297,19 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
   };
 
   const extractScore = (text) => {
-    const match = text.match(/(\d+)\s*\/\s*10/);
-    return match ? parseInt(match[1]) : null;
+    if (typeof text === 'string') {
+      const match = text.match(/(\d+)\s*\/\s*10/);
+      return match ? parseInt(match[1]) : null;
+    }
+    if (typeof text === 'object' && text !== null) {
+      const score = text.score ?? text.note ?? text.points;
+      if (typeof score === 'number') return Math.min(10, Math.max(0, score));
+      if (typeof score === 'string') {
+        const m = score.match(/(\d+)/);
+        if (m) return Math.min(10, Math.max(0, parseInt(m[1])));
+      }
+    }
+    return null;
   };
 
   const getScoreColor = (score) => {
