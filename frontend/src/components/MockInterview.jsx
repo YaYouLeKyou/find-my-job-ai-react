@@ -156,6 +156,11 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
         throw new Error(errorData.detail || "Erreur lors de la génération de la question");
       }
       const data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
       const question = data.question;
       setCurrentQuestion(question);
       setQuestionCount(prev => prev + 1);
@@ -196,6 +201,11 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
         throw new Error(errorData.detail || "Erreur lors de l'évaluation");
       }
       const data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
       const evaluation = data.evaluation;
       setCurrentEvaluation(evaluation);
       setAnsweredCount(prev => prev + 1);
