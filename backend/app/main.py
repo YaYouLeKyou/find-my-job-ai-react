@@ -1721,17 +1721,36 @@ Retourne UNIQUEMENT un objet JSON avec les cles suivantes :
 - conseils : liste de 2 a 3 conseils pratiques
 - exemple_bonne_reponse : texte d'un exemple de bonne reponse"""
 
-        result = await asyncio.to_thread(
-            call_ai_provider,
-            prompt=prompt,
-            selected_model=ranking_engine,
-            is_json=True,
-            gemini_api_key=settings.GEMINI_API_KEY,
-            xai_api_key=settings.XAI_API_KEY,
-            groq_api_key=settings.GROQ_API_KEY,
-            ollama_url=settings.OLLAMA_URL,
-            custom_gemini_key=gemini_key or None,
-        )
+        try:
+            result = await asyncio.to_thread(
+                call_ai_provider,
+                prompt=prompt,
+                selected_model=ranking_engine,
+                is_json=True,
+                gemini_api_key=settings.GEMINI_API_KEY,
+                xai_api_key=settings.XAI_API_KEY,
+                groq_api_key=settings.GROQ_API_KEY,
+                ollama_url=settings.OLLAMA_URL,
+                custom_gemini_key=gemini_key or None,
+            )
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"[MOCK_INTERVIEW] AI provider error: {error_msg}")
+            
+            # Try to extract JSON from the error message if it contains failed_generation
+            json_match = re.search(r'"failed_generation":\s*"(.*?)"', error_msg, re.DOTALL)
+            if json_match:
+                try:
+                    raw = json_match.group(1)
+                    # Unescape common JSON escape sequences
+                    result = raw.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
+                    data = json.loads(result)
+                    logger.info("[MOCK_INTERVIEW] Successfully extracted JSON from failed_generation")
+                    return {"evaluation": data}
+                except Exception as extract_error:
+                    logger.warning(f"[MOCK_INTERVIEW] Failed to parse failed_generation JSON: {extract_error}")
+            
+            return {"error": "Failed to evaluate interview answer", "details": error_msg[:200]}
 
         if not result:
             return {"error": "Failed to evaluate interview answer"}
@@ -1744,9 +1763,13 @@ Retourne UNIQUEMENT un objet JSON avec les cles suivantes :
                 try:
                     data = json.loads(json_match.group())
                 except (json.JSONDecodeError, TypeError):
-                    return {"error": "Invalid JSON response from AI provider"}
+                    cleaned = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', result)
+                    try:
+                        data = json.loads(cleaned)
+                    except (json.JSONDecodeError, TypeError):
+                        return {"error": "Invalid JSON response from AI provider", "raw": result[:500]}
             else:
-                return {"error": "Invalid response format"}
+                return {"error": "Invalid response format", "raw": result[:500]}
 
         return {"evaluation": data}
 
