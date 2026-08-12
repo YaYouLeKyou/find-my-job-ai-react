@@ -354,10 +354,10 @@ export default function MockInterview({ onBack, job, cvData, rankingEngine, cust
   }
 
   return (
-    <div className="app-container">
+    <div className="app-container mock-interview-page">
       {toast && <div className={`toast ${toast.type}`}>{toast.message}</div>}
 
-      <div className="main-content" style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
+      <div className="main-content mock-interview-main" style={{ maxWidth: '900px', margin: '0 auto', width: '100%' }}>
         {/* Title Bar */}
         <div className="standalone-title-bar">
           <div className="title-left">
