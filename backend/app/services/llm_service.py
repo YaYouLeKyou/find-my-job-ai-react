@@ -112,11 +112,9 @@ class LLMProviderManager:
             try:
                 params = {
                     "messages": [{"role": "user", "content": prompt}],
-                    "model": "llama-3.3-70b-versatile",
+                    "model": "qwen/qwen3.6-27b",
+                    "reasoning_effort": "none",
                 }
-
-                if is_json:
-                    params["response_format"] = {"type": "json_object"}
 
                 response = self.groq_client.chat.completions.create(**params)
                 return response.choices[0].message.content
@@ -147,7 +145,7 @@ class LLMProviderManager:
 
         while retries < max_retries:
             try:
-                model_id = "gemini-1.5-flash"
+                model_id = "gemini-3.5-flash"
                 config = None
 
                 if is_json:

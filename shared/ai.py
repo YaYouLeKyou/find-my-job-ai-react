@@ -138,7 +138,7 @@ def call_ai_provider(
         if "Gemini" in selected_model:
             if not active_gemini_key:
                 raise Exception("Clé API Gemini manquante.")
-            model_id = "gemini-2.0-flash" if "3.5" in selected_model else "gemini-1.5-flash"
+            model_id = "gemini-3.5-flash" if "3.5" in selected_model else "gemini-2.5-flash"
             logger.info(f"Appel Gemini AI : {model_id}")
 
             if GOOGLE_NEW_SDK:
@@ -267,16 +267,15 @@ def call_ai_provider(
             return response.json()['choices'][0]['message']['content']
 
         else:
-            # Groq / Llama 3.3
+            # Groq / Qwen
             if not groq_api_key:
                 raise Exception("Clé Groq non configurée")
             client = Groq(api_key=groq_api_key)
             params = {
                 "messages": [{"role": "user", "content": prompt}],
-                "model": "llama-3.3-70b-versatile",
+                "model": "qwen/qwen3.6-27b",
+                "reasoning_effort": "none",
             }
-            if is_json:
-                params["response_format"] = {"type": "json_object"}
             response = client.chat.completions.create(**params)
             return response.choices[0].message.content
 
@@ -445,6 +444,42 @@ ALL_JOB_PATTERNS = [
 ]
 
 
+def _extract_json_from_text(text: str) -> Optional[dict]:
+    """Extract JSON from text that may contain markdown, extra text, or code blocks."""
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    json_match = re.search(r'(\{.*\}|\[.*\])', text, re.DOTALL)
+    if json_match:
+        try:
+            return json.loads(json_match.group(1))
+        except json.JSONDecodeError:
+            pass
+    json_objects = re.findall(r'\{[^{}]*\}', text, re.DOTALL)
+    if json_objects:
+        try:
+            return json.loads(json_objects[0])
+        except json.JSONDecodeError:
+            pass
+    return None
+
+
+def _safe_str(value: Any) -> str:
+    """Convert a value to string safely."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        return json.dumps(value, ensure_ascii=False).strip()
+    if isinstance(value, list):
+        return ", ".join(_safe_str(v) for v in value).strip()
+    return str(value).strip()
+
+
 def _is_placeholder_metier(value: str) -> bool:
     normalized = (value or "").strip().lower()
     placeholders = {
@@ -566,16 +601,20 @@ def analyze_cv_with_fallback(
                 custom_gemini_key=custom_gemini_key,
             )
             if response_text:
+                logger.info(f"[CV_ANALYSIS] Réponse IA brute (premiers 2000 caractères) : {response_text[:2000]}")
                 try:
-                    data = json.loads(response_text)
-                    metier = (data.get("metier") or "").strip()
+                    data = _extract_json_from_text(response_text)
+                    logger.info(f"[CV_ANALYSIS] JSON extrait : {data}")
+                    if data is None:
+                        raise json.JSONDecodeError("No valid JSON found", response_text, 0)
+                    metier = _safe_str(data.get("metier"))
                     if metier and not _is_placeholder_metier(metier):
                         invalid_fields = [
                             k for k in [
                                 "nom_complet",
                                 "contact",
                                 "resume",
-                            ] if _is_placeholder_value(data.get(k))
+                            ] if _is_placeholder_value(_safe_str(data.get(k)))
                         ]
                         if len(invalid_fields) <= 1:
                             logger.info("[MODE] Analyse CV = IA (réponse valide)")

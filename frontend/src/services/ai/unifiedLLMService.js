@@ -18,20 +18,20 @@ const PROVIDER_ENDPOINTS = {
     groq: {
         baseUrl: 'https://api.groq.com/openai/v1',
         modelMap: {
-            'Groq / Llama 3.3 70B': 'llama-3.3-70b-versatile',
+            'Groq / Qwen 3.6 27B': 'qwen/qwen3.6-27b',
             'Groq / DeepSeek R1': 'deepseek-r1-distill-llama-70b',
-            'Groq / Llama 3.1 8B': 'llama-3.1-8b-instant',
+            'Groq / Qwen 3 8B': 'qwen/qwen3-8b',
         },
-        defaultModel: 'llama-3.3-70b-versatile',
+        defaultModel: 'qwen/qwen3.6-27b',
     },
     gemini: {
         baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
         modelMap: {
-            'Gemini 3.5 Pro': 'gemini-1.5-pro',
-            'Gemini 2.5 Pro': 'gemini-2.0-pro-exp',
-            'Gemini 2.5 Flash': 'gemini-2.0-flash',
+            'Gemini 3.5 Pro': 'gemini-2.5-pro',
+            'Gemini 2.5 Pro': 'gemini-2.5-pro',
+            'Gemini 2.5 Flash': 'gemini-2.5-flash',
         },
-        defaultModel: 'gemini-1.5-pro',
+        defaultModel: 'gemini-2.5-flash',
     },
     openai: {
         baseUrl: 'https://api.openai.com/v1',
@@ -76,7 +76,7 @@ const PROVIDER_ENDPOINTS = {
 
 class UnifiedLLMService {
     constructor() {
-        this._activeModel = 'Groq / Llama 3.3 70B';
+        this._activeModel = 'Groq / Qwen 3.6 27B';
         this._apiKeys = {};
     }
 
@@ -117,7 +117,7 @@ class UnifiedLLMService {
         // Fallback sur Groq par défaut
         return {
             provider: 'groq',
-            modelName: 'llama-3.3-70b-versatile',
+            modelName: 'qwen/qwen3.6-27b',
             baseUrl: PROVIDER_ENDPOINTS.groq.baseUrl,
             apiKey: null,
             isDefault: true,
@@ -203,7 +203,7 @@ class UnifiedLLMService {
         for (const config of Object.values(PROVIDER_ENDPOINTS)) {
             if (config.modelMap[modelId]) return config.modelMap[modelId];
         }
-        return 'llama-3.3-70b-versatile';
+        return 'qwen/qwen3.6-27b';
     }
 }
 

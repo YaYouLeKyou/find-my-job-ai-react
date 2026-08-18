@@ -1405,7 +1405,7 @@ async def ai_call(request: Request):
     try:
         body = await request.json()
         prompt = body.get("prompt", "")
-        model = body.get("model", "Groq / Llama 3.3 70B")
+        model = body.get("model", "Groq / Qwen 3.6 27B")
         provider = body.get("provider", "groq")
         model_name = body.get("modelName")
         api_key = body.get("apiKey")

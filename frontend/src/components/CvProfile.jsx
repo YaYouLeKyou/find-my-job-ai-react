@@ -21,6 +21,20 @@ export default function CvProfile({
 
   const S = STRINGS[LANGS[lang].code];
 
+  const contact = (() => {
+    const raw = cvData.contact;
+    if (typeof raw === "string") return raw.trim();
+    if (!raw || typeof raw !== "object") return "";
+    const parts = [];
+    if (raw.telephone) parts.push(String(raw.telephone));
+    if (raw.email) parts.push(String(raw.email));
+    if (raw.adresse) parts.push(String(raw.adresse));
+    if (raw.linkedin) parts.push(String(raw.linkedin));
+    if (raw.github) parts.push(String(raw.github));
+    if (raw.portfolio) parts.push(String(raw.portfolio));
+    return parts.join(" | ");
+  })();
+
   useEffect(() => {
     if (cvData && cvData.is_fallback) {
       const keyBase = `fallback_data_${hashCode(cvData.nom_complet || 'default')}`;
@@ -42,9 +56,9 @@ export default function CvProfile({
           <User size={28} className="text-primary" />
           {cvData.nom_complet || "Candidat"}
         </h2>
-        {cvData.contact && (
+        {contact && (
           <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-            📩 {cvData.contact}
+            📩 {contact}
           </span>
         )}
         {cvData.is_fallback && (

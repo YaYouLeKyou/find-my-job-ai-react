@@ -2,7 +2,7 @@
  * aiProviders.js - Configuration centralisée des fournisseurs IA
  * 
  * Définit TOUS les grands modèles supportés, leurs URLs d'obtention de clés,
- * et le fournisseur par défaut (Groq / Llama 3.3 70B).
+ * et le fournisseur par défaut (Groq / Qwen 3.6 27B).
  * 
  * Supprime définitivement le support des modèles locaux (Ollama, Llama local, Qwen local).
  */
@@ -79,8 +79,8 @@ export const AI_MODELS = [
     // GROQ - DÉFAUT SYSTÈME (clé partagée de l'application)
     // ═════════════════════════════════════════════════════════════════
     {
-        id: 'Groq / Llama 3.3 70B',
-        label: 'Groq / Llama 3.3 70B',
+        id: 'Groq / Qwen 3.6 27B',
+        label: 'Groq / Qwen 3.6 27B',
         provider: 'groq',
         requiresPersonalKey: false,
         description: '🚀 DÉFAUT - Ultra-rapide, quota partagé de l\'application',
@@ -95,8 +95,8 @@ export const AI_MODELS = [
         apiKeyUrl: 'https://console.groq.com/keys',
     },
     {
-        id: 'Groq / Llama 3.1 8B',
-        label: 'Groq / Llama 3.1 8B',
+        id: 'Groq / Qwen 3 8B',
+        label: 'Groq / Qwen 3 8B',
         provider: 'groq',
         requiresPersonalKey: false,
         description: 'Modèle léger rapide via Groq',
@@ -164,8 +164,8 @@ export const AI_MODELS = [
 // DÉFAUT SYSTÈME
 // =============================================================================
 
-/** Identifiant du modèle par défaut (Groq / Llama 3.3 70B) */
-export const DEFAULT_MODEL_ID = 'Groq / Llama 3.3 70B';
+/** Identifiant du modèle par défaut (Groq / Qwen 3.6 27B) */
+export const DEFAULT_MODEL_ID = 'Groq / Qwen 3.6 27B';
 
 /** Fournisseur par défaut */
 export const DEFAULT_PROVIDER = 'groq';

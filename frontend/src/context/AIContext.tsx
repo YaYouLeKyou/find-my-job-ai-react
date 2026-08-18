@@ -2,7 +2,7 @@
  * AIContext - Contexte centralisé pour la gestion des modèles IA et clés API
  * 
  * Version BYOK Universelle :
- * - Démarrage par défaut sur Groq / Llama 3.3 70B (clé partagée)
+ * - Démarrage par défaut sur Groq / Qwen 3.6 27B (clé partagée)
  * - Support de tous les grands fournisseurs : Groq, Gemini, OpenAI, Anthropic, DeepSeek, Mistral...
  * - Propagation globale de la clé à toute l'application
  * - Basculement automatique clé partagée → clé personnelle
@@ -182,9 +182,9 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         const data = await response.json();
         const newStatus: Record<string, boolean> = {};
         if (data.groq) {
-          newStatus['Groq / Llama 3.3 70B'] = !!data.groq.online;
+          newStatus['Groq / Qwen 3.6 27B'] = !!data.groq.online;
           newStatus['Groq / DeepSeek R1'] = !!data.groq.online;
-          newStatus['Groq / Llama 3.1 8B'] = !!data.groq.online;
+          newStatus['Groq / Qwen 3 8B'] = !!data.groq.online;
         }
         if (data.gemini) {
           newStatus['Gemini 3.5 Pro'] = !!data.gemini.online;

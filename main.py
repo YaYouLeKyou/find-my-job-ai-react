@@ -242,7 +242,7 @@ def call_ai_provider(prompt, selected_model, is_json=False):
 
             genai.configure(api_key=active_gemini_key)
             # Mapping : 3.5 -> 2.0 Flash (Stable), 2.5 -> 1.5 Flash
-            model_id = "models/gemini-2.0-flash" if "3.5" in selected_model else "models/gemini-1.5-flash"
+            model_id = "models/gemini-3.5-flash" if "3.5" in selected_model else "models/gemini-2.5-flash"
             
             logger.info(f"Appel Gemini AI : {model_id}")
             model = genai.GenerativeModel(model_id)
@@ -312,17 +312,15 @@ def call_ai_provider(prompt, selected_model, is_json=False):
             response.raise_for_status()
             return response.json()['choices'][0]['message']['content']
         else:
-            # Groq / Llama 3.3
+            # Groq / Qwen
             if not client:
                 raise Exception("Clé Groq non configurée")
                 
             params = {
                 "messages": [{"role": "user", "content": prompt}],
-                "model": "llama-3.3-70b-versatile",
+                "model": "qwen/qwen3.6-27b",
+                "reasoning_effort": "none",
             }
-            if is_json:
-                params["response_format"] = {"type": "json_object"}
-                
             response = client.chat.completions.create(**params)
             return response.choices[0].message.content
     except Exception as e:
