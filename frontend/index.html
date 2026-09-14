@@ -12,16 +12,39 @@
     <meta name="google-site-verification" content="-WhOrFjQBG8wEY1VpvI9F51dTgNlE4Vo77qTozBpY_A" />
     <link rel="canonical" href="https://find-my-job-ai.netlify.app" />
 
-    <!-- Google AdSense -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9172635804207966"
-         crossorigin="anonymous"></script>
+    <!-- Google AdSense : chargé en différé uniquement si pas d'adblocker.
+         Sans ça, ERR_BLOCKED_BY_CLIENT pollue la console et les users
+         croient que l'app est cassée. Le composant AdComponent gère déjà
+         le fallback "Espace publicitaire". -->
+    <script>
+      (function () {
+        function loadAdsense() {
+          if (window.adsbygoogle) return;
+          var s = document.createElement('script');
+          s.async = true;
+          s.crossOrigin = 'anonymous';
+          s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9172635804207966';
+          // Si l'adblocker bloque, onerror => on ne fait rien, AdComponent affiche le placeholder.
+          s.onerror = function () { window.__adsenseBlocked = true; };
+          document.head.appendChild(s);
+        }
+        // Différé : ne bloque jamais le premier rendu / l'analyse CV.
+        if (document.readyState === 'complete') { setTimeout(loadAdsense, 3000); }
+        else { window.addEventListener('load', function () { setTimeout(loadAdsense, 3000); }); }
+      })();
+    </script>
 
-    <!-- Microsoft Clarity -->
+    <!-- Microsoft Clarity : même logique, chargé en différé, jamais bloquant. -->
     <script type="text/javascript">
         (function(c,l,a,r,i,t,y){
-            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+            function loadClarity(){
+              if (c[a] && c[a].q && c[a].q.length) return;
+              t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+              t.onerror=function(){};
+              y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+            }
+            if (document.readyState === 'complete') { setTimeout(loadClarity, 3000); }
+            else { window.addEventListener('load', function(){ setTimeout(loadClarity, 3000); }); }
         })(window, document, "clarity", "script", "xq6fqslzqx");
     </script>
 

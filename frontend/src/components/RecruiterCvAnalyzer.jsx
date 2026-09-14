@@ -6,12 +6,12 @@ import { useAI } from '../../context/AIContext';
 import CvProfile from '../CvProfile';
 import AdComponent from '../AdComponent';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = (import.meta.env.VITE_API_URL || '').trim();
 
 function RecruiterCvAnalyzer({ lang, onAnalysisSuccess, cvData: externalCvData }) {
     const S = STRINGS[LANGS[lang].code];
     const { noAiMode } = useAgent();
-    const { activeModel } = useAI();
+    const { activeModel, getActiveApiKey } = useAI();
 
     const [dragActive, setDragActive] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -56,6 +56,12 @@ function RecruiterCvAnalyzer({ lang, onAnalysisSuccess, cvData: externalCvData }
         formData.append('file', file);
         formData.append('selected_model', activeModel);
         formData.append('lang_label', LANGS[lang].label);
+        try {
+            const personalKey = getActiveApiKey ? getActiveApiKey() : null;
+            if (personalKey && personalKey.trim()) {
+                formData.append('custom_gemini_key', personalKey.trim());
+            }
+        } catch { /* cle partagee backend */ }
         formData.append('force_fallback_mode', noAiMode ? 'true' : 'false');
 
         try {

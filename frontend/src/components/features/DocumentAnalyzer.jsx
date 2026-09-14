@@ -19,12 +19,14 @@ import { useAI } from '../../context/AIContext';
 import CvProfile from '../CvProfile';
 import AdComponent from '../AdComponent';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// VITE_API_URL vide => requêtes relatives /api/... (proxy Vite en local,
+// redirect Netlify -> Railway en prod). Ne JAMAIS retomber sur localhost en prod.
+const API_BASE = (import.meta.env.VITE_API_URL || '').trim();
 
 function DocumentAnalyzer({ lang, onAnalysisSuccess, cvData: externalCvData }) {
     const S = STRINGS[LANGS[lang].code];
     const { noAiMode } = useAgent();
-    const { activeModel } = useAI();
+    const { activeModel, getActiveApiKey } = useAI();
 
     const [dragActive, setDragActive] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -70,6 +72,13 @@ function DocumentAnalyzer({ lang, onAnalysisSuccess, cvData: externalCvData }) {
         formData.append('file', file);
         formData.append('selected_model', activeModel);
         formData.append('lang_label', LANGS[lang].label);
+        // Clé perso (Gemini/Mistral/...) si l'utilisateur en a saisi une dans AISettings
+        try {
+            const personalKey = getActiveApiKey ? getActiveApiKey() : null;
+            if (personalKey && personalKey.trim()) {
+                formData.append('custom_gemini_key', personalKey.trim());
+            }
+        } catch { /* pas de clé perso : on utilise la clé partagée backend */ }
         // Mode Sans IA → force fallback (regex parsing, no AI)
         formData.append('force_fallback_mode', noAiMode ? 'true' : 'false');
 

@@ -5,11 +5,21 @@ const AdComponent = ({ format = 'auto', style = {} }) => {
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
+    // Si AdSense est bloqué (adblocker), on affiche directement le placeholder.
+    if (typeof window !== 'undefined' && window.__adsenseBlocked) {
+      setHasError(true);
+      return;
+    }
     // Check if AdSense is already loaded or if this ad is already processed
     if (adLoaded || hasError) return;
 
-    // Wait for AdSense to load
+    // Si le script AdSense n'existe pas encore (chargement différé), on attend.
     const checkAdSense = setInterval(() => {
+      if (window.__adsenseBlocked) {
+        clearInterval(checkAdSense);
+        setHasError(true);
+        return;
+      }
       if (window.adsbygoogle) {
         clearInterval(checkAdSense);
         try {

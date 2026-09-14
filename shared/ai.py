@@ -138,7 +138,19 @@ def call_ai_provider(
         if "Gemini" in selected_model:
             if not active_gemini_key:
                 raise Exception("Clé API Gemini manquante.")
-            model_id = "gemini-3.5-flash" if "3.5" in selected_model else "gemini-2.5-flash"
+            # Mapping UI -> vrais IDs Gemini (vérifié sept 2026 : 3.5/3.6/3.7/3.8 Flash existent).
+            if "3.8" in selected_model:
+                model_id = "gemini-3.8-flash"
+            elif "3.7" in selected_model:
+                model_id = "gemini-3.7-flash"
+            elif "3.6" in selected_model:
+                model_id = "gemini-3.6-flash"
+            elif "3.5" in selected_model:
+                model_id = "gemini-3.5-flash"
+            elif "2.5" in selected_model:
+                model_id = "gemini-2.5-flash"
+            else:
+                model_id = "gemini-3.5-flash"
             logger.info(f"Appel Gemini AI : {model_id}")
 
             if GOOGLE_NEW_SDK:
@@ -267,13 +279,20 @@ def call_ai_provider(
             return response.json()['choices'][0]['message']['content']
 
         else:
-            # Groq / Qwen
+            # Groq / Qwen — mapping UI -> vrais IDs Groq (qwen3.6-27b vérifié via API).
             if not groq_api_key:
                 raise Exception("Clé Groq non configurée")
+            groq_model = "qwen/qwen3.6-27b"
+            if "DeepSeek" in selected_model:
+                groq_model = "deepseek-r1-distill-llama-70b"
+            elif "8B" in selected_model or "Qwen 3 8B" in selected_model:
+                groq_model = "qwen/qwen3-8b"
+            elif "3.8" in selected_model:
+                groq_model = "qwen/qwen3.8-27b"
             client = Groq(api_key=groq_api_key)
             params = {
                 "messages": [{"role": "user", "content": prompt}],
-                "model": "qwen/qwen3.6-27b",
+                "model": groq_model,
                 "reasoning_effort": "none",
             }
             response = client.chat.completions.create(**params)

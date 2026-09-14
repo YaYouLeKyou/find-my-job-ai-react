@@ -7,12 +7,16 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Ordre de chargement :
+# 1. backend/.env (prod Railway : variables injectées, fichier absent)
+# 2. racine .env (dev local : D:/.../job bridge ai/.env)
+# 3. env système (prioritaire via override=False -> ne pas écraser Railway)
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
-_DOTENV_PATH = _BACKEND_DIR / ".env"
-if _DOTENV_PATH.exists():
-    load_dotenv(_DOTENV_PATH, override=True)
-else:
-    load_dotenv(override=True)
+_ROOT_DIR = _BACKEND_DIR.parent
+for _p in (_BACKEND_DIR / ".env", _ROOT_DIR / ".env"):
+    if _p.exists():
+        load_dotenv(_p, override=False)
+load_dotenv(override=False)
 
 
 class Settings:

@@ -39,7 +39,7 @@ import useFilteredJobs from './hooks/useFilteredJobs';
 import { Loader2 } from 'lucide-react';
 import './styles/streaming.css';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = (import.meta.env.VITE_API_URL || '').trim();
 
 // ─── Client-side sorting helper ──────────────────────────────────────────────
 function sortJobs(jobs, sortOption) {
@@ -910,7 +910,7 @@ function UnifiedAgentApp({ onBackToHub, lang, setLang, onToggleDarkMode, darkMod
                         <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>Mistral</span>
                     </span>
                     <span style={{ opacity: 0.3, fontWeight: '900' }}>|</span>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}>by Yanès Hadiouche</span>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: '700' }}><a href="https://portefolio-web-developer-yanes.netlify.app/" target="_blank" rel="noopener noreferrer">by Yanès Hadiouche</a></span>
                 </div>
             </div>
 
