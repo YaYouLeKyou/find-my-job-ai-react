@@ -3,6 +3,6 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://find-my-job-ai-react-findmyjobai.up.railway.app/api/:path*" }
+    { "source": "/api/:path*", "destination": "https://find-my-job-ai-react.onrender.com/api/:path*" }
   ]
 }
