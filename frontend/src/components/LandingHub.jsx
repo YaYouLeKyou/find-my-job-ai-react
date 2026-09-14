@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import HeaderButtons from './HeaderButtons';
 import { LANGS, STRINGS } from '../utils/translations';
+import useServerWakeUp from '../hooks/useServerWakeUp';
+import ServerStatusBadge from './ServerStatusBadge';
 
 const APPS = [
   {
@@ -56,47 +58,10 @@ const APPS = [
 export default function LandingHub({ onSelectApp, lang, setLang, onToggleDarkMode }) {
   const [hovered, setHovered] = useState(null);
   const [visible, setVisible] = useState(false);
-  const [serverAwake, setServerAwake] = useState(false);
+  // Réveille le backend Render (cold start) dès l'arrivée, sans bloquer l'UI.
+  const { status: serverStatus } = useServerWakeUp();
+  const serverAwake = serverStatus !== 'waking';
   const S = STRINGS[LANGS[lang].code];
-
-  // Réveiller le serveur backend au montage initial (silencieux)
-  useEffect(() => {
-    const wakeUpServer = async () => {
-      try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-        // Timeout de 8 secondes pour ne pas bloquer l'interface
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-        try {
-          await fetch(`${apiUrl}/api/health`, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' },
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
-          setServerAwake(true);
-        } catch (error) {
-          clearTimeout(timeoutId);
-          // Si le serveur est en veille (erreur réseau), on considère qu'il se réveillera
-          // On ne bloque pas l'interface pour autant
-          if (error.name === 'AbortError') {
-            console.log('[Hub] Server wake-up timeout (cold start expected)');
-          } else {
-            console.log('[Hub] Server wake-up request failed (cold start expected)');
-          }
-          setServerAwake(true);
-        }
-      } catch (error) {
-        // Erreur inattendue, on continue quand même
-        console.error('[Hub] Unexpected error during server wake-up:', error);
-        setServerAwake(true);
-      }
-    };
-
-    wakeUpServer();
-  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 80);
@@ -164,6 +129,11 @@ export default function LandingHub({ onSelectApp, lang, setLang, onToggleDarkMod
         >
           <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#7c4dff', display: 'inline-block', animation: 'pulse-dot 1.5s ease-in-out infinite' }} />
           {S.hub_badge}
+        </div>
+
+        {/* Statut backend Render (cold start) — informatif, ne bloque pas */}
+        <div style={{ marginBottom: '24px' }}>
+          <ServerStatusBadge status={serverStatus} />
         </div>
 
         {/* Language Selector */}
