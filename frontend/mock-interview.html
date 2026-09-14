@@ -5,13 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Simulation d'Entretien - Job Bridge</title>
 
-    <!-- Google AdSense : chargé en différé, jamais bloquant.
-         Avec un adblocker actif, le navigateur peut logger
-         "ERR_BLOCKED_BY_CLIENT" — inoffensif, le placeholder s'affiche. -->
+    <!-- Google AdSense : détection adblocker 100% LOCALE (élément "bait"
+         masqué par les règles cosmétiques). Aucune requête de sonde =>
+         zéro ligne d'erreur console. Bloqué => placeholder direct. -->
     <script>
       (function () {
-        function injectAdsense() {
-          if (window.adsbygoogle || window.__adsenseBlocked || document.querySelector('script[data-adsense]')) return;
+        function isAdBlocked() {
+          try {
+            if (!document.body) return false;
+            var d = document.createElement('div');
+            d.className = 'ads adsbox ad-banner pub_300x250 text-ad';
+            d.style.cssText = 'position:absolute!important;left:-9999px!important;top:0!important;width:1px!important;height:1px!important;';
+            d.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(d);
+            var blocked = false;
+            try {
+              var s = window.getComputedStyle(d);
+              blocked = (d.offsetHeight === 0) || (s && (s.display === 'none' || s.visibility === 'hidden'));
+            } catch (e) { blocked = false; }
+            d.remove();
+            return blocked;
+          } catch (e) { return false; }
+        }
+        function boot() {
+          if (window.adsbygoogle || window.__adsenseBlocked) return;
+          var blocked = false;
+          try { blocked = isAdBlocked(); } catch (e) { blocked = false; }
+          if (blocked) { window.__adsenseBlocked = true; return; }
           var s = document.createElement('script');
           s.async = true;
           s.crossOrigin = 'anonymous';
@@ -20,21 +40,8 @@
           s.onerror = function () { window.__adsenseBlocked = true; };
           document.head.appendChild(s);
         }
-        function loadAdsense() {
-          if (window.adsbygoogle || window.__adsenseBlocked) return;
-          // Sonde légère : si le domaine pub est bloqué, on reste sur le placeholder
-          // au lieu de provoquer une erreur réseau sur le gros script.
-          try {
-            var test = new Image();
-            var settled = false;
-            test.onload = function () { if (!settled) { settled = true; injectAdsense(); } };
-            test.onerror = function () { if (!settled) { settled = true; window.__adsenseBlocked = true; } };
-            test.src = 'https://pagead2.googlesyndication.com/favicon.ico?t=' + Date.now();
-            setTimeout(function () { if (!settled) { settled = true; injectAdsense(); } }, 3000);
-          } catch (e) { window.__adsenseBlocked = true; }
-        }
-        if (document.readyState === 'complete') { setTimeout(loadAdsense, 3000); }
-        else { window.addEventListener('load', function () { setTimeout(loadAdsense, 3000); }); }
+        if (document.readyState === 'complete') { setTimeout(boot, 3000); }
+        else { window.addEventListener('load', function () { setTimeout(boot, 3000); }); }
       })();
     </script>
     <style>

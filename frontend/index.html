@@ -12,31 +12,36 @@
     <meta name="google-site-verification" content="-WhOrFjQBG8wEY1VpvI9F51dTgNlE4Vo77qTozBpY_A" />
     <link rel="canonical" href="https://find-my-job-ai.netlify.app" />
 
-    <!-- Google AdSense : chargé en différé uniquement si pas d'adblocker.
-         Sans ça, ERR_BLOCKED_BY_CLIENT pollue la console et les users
-         croient que l'app est cassée. Le composant AdComponent gère déjà
-         le fallback "Espace publicitaire".
-         Note : avec un adblocker, le navigateur logue quand même
-         "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT" — c'est le
-         navigateur lui-même, aucun code ne peut le masquer. Inoffensif. -->
+    <!-- Google AdSense + Microsoft Clarity : détection adblocker 100% LOCALE
+         (élément "bait" masqué par les règles cosmétiques de l'adblocker).
+         Aucune requête réseau de sonde => zéro ligne d'erreur console.
+         - Adblocker détecté  : on ne charge rien, AdComponent affiche le
+           placeholder, Clarity reste un stub no-op. Console 100% propre.
+         - Pas d'adblocker    : injection différée des vrais scripts (ils
+           réussissent => pas d'erreur non plus).
+         Note : les requêtes bloquées par un adblocker sont loguées par le
+         navigateur lui-même (ERR_BLOCKED_BY_CLIENT) et aucun JS ne peut les
+         masquer — d'où cette approche qui évite toute requête inutile. -->
     <script>
       (function () {
-        function loadAdsense() {
-          if (window.adsbygoogle) return;
-          // Détection préalable : si une requête test est bloquée, ne pas
-          // charger AdSense du tout (évite l'erreur réseau inutile).
+        // Détection synchrone, sans réseau : les adblockers injectent des
+        // règles CSS qui masquent les éléments de classe "ads/adsbox".
+        function isAdBlocked() {
           try {
-            var test = new Image();
-            test.onerror = function () {
-              window.__adsenseBlocked = true; // bloqué => placeholder direct
-            };
-            test.onload = function () { injectAdsense(); };
-            test.src = 'https://pagead2.googlesyndication.com/pagead/imgad?id=1&t=1';
-            // Sécurité : si ni load ni error après 3s, on tente quand même.
-            setTimeout(function () {
-              if (!window.__adsenseBlocked && !window.adsbygoogle) injectAdsense();
-            }, 3000);
-          } catch (e) { /* adblock agressif : on reste sur le placeholder */ }
+            if (!document.body) return false;
+            var d = document.createElement('div');
+            d.className = 'ads adsbox ad-banner pub_300x250 text-ad';
+            d.style.cssText = 'position:absolute!important;left:-9999px!important;top:0!important;width:1px!important;height:1px!important;';
+            d.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(d);
+            var blocked = false;
+            try {
+              var s = window.getComputedStyle(d);
+              blocked = (d.offsetHeight === 0) || (s && (s.display === 'none' || s.visibility === 'hidden'));
+            } catch (e) { blocked = false; }
+            d.remove();
+            return blocked;
+          } catch (e) { return false; }
         }
         function injectAdsense() {
           if (window.adsbygoogle || window.__adsenseBlocked || document.querySelector('script[data-adsense]')) return;
@@ -45,58 +50,48 @@
           s.crossOrigin = 'anonymous';
           s.setAttribute('data-adsense', '1');
           s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9172635804207966';
-          // Si l'adblocker bloque, onerror => on ne fait rien, AdComponent affiche le placeholder.
+          // Si blocage résiduel (ex: Brave Shields non détecté par le bait),
+          // onerror => placeholder, jamais d'exception.
           s.onerror = function () { window.__adsenseBlocked = true; };
           document.head.appendChild(s);
         }
+        function injectClarity(id) {
+          if (document.querySelector('script[data-clarity]')) return;
+          try {
+            // Stub no-op : si Clarity finit bloqué, les appels clarity()
+            // restent silencieux au lieu de lever un TypeError.
+            window.clarity = window.clarity || function () { (window.clarity.q = window.clarity.q || []).push(arguments); };
+            var t = document.createElement('script');
+            t.async = true;
+            t.setAttribute('data-clarity', '1');
+            t.src = 'https://www.clarity.ms/tag/' + id;
+            t.onerror = function () {};
+            var y = document.getElementsByTagName('script')[0];
+            y.parentNode.insertBefore(t, y);
+          } catch (e) {}
+        }
+        // Un résidu Clarity partiellement chargé ne doit jamais produire
+        // d'Uncaught TypeError en console.
+        window.addEventListener('error', function (e) {
+          if (e && e.filename && e.filename.indexOf('clarity.ms') !== -1) {
+            if (e.preventDefault) e.preventDefault();
+            return true;
+          }
+        }, true);
+        function boot() {
+          var blocked = false;
+          try { blocked = isAdBlocked(); } catch (e) { blocked = false; }
+          if (blocked) {
+            window.__adsenseBlocked = true; // AdComponent => placeholder direct
+            return; // Clarity : on ne tente même pas, stub inutile (aucun appel)
+          }
+          injectAdsense();
+          injectClarity('xq6fqslzqx');
+        }
         // Différé : ne bloque jamais le premier rendu / l'analyse CV.
-        if (document.readyState === 'complete') { setTimeout(loadAdsense, 3000); }
-        else { window.addEventListener('load', function () { setTimeout(loadAdsense, 3000); }); }
+        if (document.readyState === 'complete') { setTimeout(boot, 3000); }
+        else { window.addEventListener('load', function () { setTimeout(boot, 3000); }); }
       })();
-    </script>
-
-    <!-- Microsoft Clarity : même logique, chargé en différé, jamais bloquant.
-         Le script natif Clarity peut lever "Cannot read properties of
-         undefined (reading 'v')" quand un adblocker tronque son chargement.
-         On l'encapsule : détection préalable + try/catch + stub "clarity"
-         no-op pour que d'éventuels appels window.clarity ne plantent pas. -->
-    <script type="text/javascript">
-        (function(c,l,a,r,i,t,y){
-            // Stub no-op : si Clarity est bloqué, les appels clarity() restent silencieux.
-            c[a] = c[a] || function(){ (c[a].q = c[a].q || []).push(arguments); };
-            function injectClarity(){
-              if (document.querySelector('script[data-clarity]')) return;
-              try {
-                t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-                t.setAttribute('data-clarity','1');
-                t.onerror=function(){};
-                y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-              } catch(e){}
-            }
-            function loadClarity(){
-              if (c[a] && c[a].q && c[a].q.length > 1) return; // déjà initialisé
-              try {
-                // Sonde : si clarity.ms est bloqué, on garde le stub, rien d'autre.
-                var test = new Image();
-                test.onload = function(){ injectClarity(); };
-                test.onerror = function(){};
-                test.src = 'https://www.clarity.ms/tag/favicon.ico?t=1';
-                setTimeout(function(){
-                  if (!document.querySelector('script[data-clarity]')) { /* reste bloqué : stub suffit */ }
-                }, 3000);
-              } catch(e){}
-            }
-            // Capture globale : un résidu Clarity partiellement chargé ne doit
-            // jamais faire apparaître d'Uncaught TypeError en console.
-            window.addEventListener('error', function (e) {
-              if (e && e.filename && e.filename.indexOf('clarity.ms') !== -1) {
-                e.preventDefault && e.preventDefault();
-                return true;
-              }
-            }, true);
-            if (document.readyState === 'complete') { setTimeout(loadClarity, 3000); }
-            else { window.addEventListener('load', function(){ setTimeout(loadClarity, 3000); }); }
-        })(window, document, "clarity", "script", "xq6fqslzqx");
     </script>
 
     <!-- Open Graph / Facebook -->
