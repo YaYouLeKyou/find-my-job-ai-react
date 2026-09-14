@@ -5,9 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Simulation d'Entretien - Job Bridge</title>
 
-    <!-- Google AdSense -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9172635804207966"
-         crossorigin="anonymous"></script>
+    <!-- Google AdSense : chargé en différé, jamais bloquant.
+         Avec un adblocker actif, le navigateur peut logger
+         "ERR_BLOCKED_BY_CLIENT" — inoffensif, le placeholder s'affiche. -->
+    <script>
+      (function () {
+        function injectAdsense() {
+          if (window.adsbygoogle || window.__adsenseBlocked || document.querySelector('script[data-adsense]')) return;
+          var s = document.createElement('script');
+          s.async = true;
+          s.crossOrigin = 'anonymous';
+          s.setAttribute('data-adsense', '1');
+          s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9172635804207966';
+          s.onerror = function () { window.__adsenseBlocked = true; };
+          document.head.appendChild(s);
+        }
+        function loadAdsense() {
+          if (window.adsbygoogle || window.__adsenseBlocked) return;
+          // Sonde légère : si le domaine pub est bloqué, on reste sur le placeholder
+          // au lieu de provoquer une erreur réseau sur le gros script.
+          try {
+            var test = new Image();
+            var settled = false;
+            test.onload = function () { if (!settled) { settled = true; injectAdsense(); } };
+            test.onerror = function () { if (!settled) { settled = true; window.__adsenseBlocked = true; } };
+            test.src = 'https://pagead2.googlesyndication.com/favicon.ico?t=' + Date.now();
+            setTimeout(function () { if (!settled) { settled = true; injectAdsense(); } }, 3000);
+          } catch (e) { window.__adsenseBlocked = true; }
+        }
+        if (document.readyState === 'complete') { setTimeout(loadAdsense, 3000); }
+        else { window.addEventListener('load', function () { setTimeout(loadAdsense, 3000); }); }
+      })();
+    </script>
     <style>
       * {
         margin: 0;

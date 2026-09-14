@@ -15,14 +15,35 @@
     <!-- Google AdSense : chargé en différé uniquement si pas d'adblocker.
          Sans ça, ERR_BLOCKED_BY_CLIENT pollue la console et les users
          croient que l'app est cassée. Le composant AdComponent gère déjà
-         le fallback "Espace publicitaire". -->
+         le fallback "Espace publicitaire".
+         Note : avec un adblocker, le navigateur logue quand même
+         "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT" — c'est le
+         navigateur lui-même, aucun code ne peut le masquer. Inoffensif. -->
     <script>
       (function () {
         function loadAdsense() {
           if (window.adsbygoogle) return;
+          // Détection préalable : si une requête test est bloquée, ne pas
+          // charger AdSense du tout (évite l'erreur réseau inutile).
+          try {
+            var test = new Image();
+            test.onerror = function () {
+              window.__adsenseBlocked = true; // bloqué => placeholder direct
+            };
+            test.onload = function () { injectAdsense(); };
+            test.src = 'https://pagead2.googlesyndication.com/pagead/imgad?id=1&t=1';
+            // Sécurité : si ni load ni error après 3s, on tente quand même.
+            setTimeout(function () {
+              if (!window.__adsenseBlocked && !window.adsbygoogle) injectAdsense();
+            }, 3000);
+          } catch (e) { /* adblock agressif : on reste sur le placeholder */ }
+        }
+        function injectAdsense() {
+          if (window.adsbygoogle || window.__adsenseBlocked || document.querySelector('script[data-adsense]')) return;
           var s = document.createElement('script');
           s.async = true;
           s.crossOrigin = 'anonymous';
+          s.setAttribute('data-adsense', '1');
           s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9172635804207966';
           // Si l'adblocker bloque, onerror => on ne fait rien, AdComponent affiche le placeholder.
           s.onerror = function () { window.__adsenseBlocked = true; };
@@ -34,15 +55,45 @@
       })();
     </script>
 
-    <!-- Microsoft Clarity : même logique, chargé en différé, jamais bloquant. -->
+    <!-- Microsoft Clarity : même logique, chargé en différé, jamais bloquant.
+         Le script natif Clarity peut lever "Cannot read properties of
+         undefined (reading 'v')" quand un adblocker tronque son chargement.
+         On l'encapsule : détection préalable + try/catch + stub "clarity"
+         no-op pour que d'éventuels appels window.clarity ne plantent pas. -->
     <script type="text/javascript">
         (function(c,l,a,r,i,t,y){
-            function loadClarity(){
-              if (c[a] && c[a].q && c[a].q.length) return;
-              t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-              t.onerror=function(){};
-              y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+            // Stub no-op : si Clarity est bloqué, les appels clarity() restent silencieux.
+            c[a] = c[a] || function(){ (c[a].q = c[a].q || []).push(arguments); };
+            function injectClarity(){
+              if (document.querySelector('script[data-clarity]')) return;
+              try {
+                t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+                t.setAttribute('data-clarity','1');
+                t.onerror=function(){};
+                y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+              } catch(e){}
             }
+            function loadClarity(){
+              if (c[a] && c[a].q && c[a].q.length > 1) return; // déjà initialisé
+              try {
+                // Sonde : si clarity.ms est bloqué, on garde le stub, rien d'autre.
+                var test = new Image();
+                test.onload = function(){ injectClarity(); };
+                test.onerror = function(){};
+                test.src = 'https://www.clarity.ms/tag/favicon.ico?t=1';
+                setTimeout(function(){
+                  if (!document.querySelector('script[data-clarity]')) { /* reste bloqué : stub suffit */ }
+                }, 3000);
+              } catch(e){}
+            }
+            // Capture globale : un résidu Clarity partiellement chargé ne doit
+            // jamais faire apparaître d'Uncaught TypeError en console.
+            window.addEventListener('error', function (e) {
+              if (e && e.filename && e.filename.indexOf('clarity.ms') !== -1) {
+                e.preventDefault && e.preventDefault();
+                return true;
+              }
+            }, true);
             if (document.readyState === 'complete') { setTimeout(loadClarity, 3000); }
             else { window.addEventListener('load', function(){ setTimeout(loadClarity, 3000); }); }
         })(window, document, "clarity", "script", "xq6fqslzqx");

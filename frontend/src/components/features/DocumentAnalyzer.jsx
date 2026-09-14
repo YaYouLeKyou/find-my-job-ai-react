@@ -119,7 +119,9 @@ function DocumentAnalyzer({ lang, onAnalysisSuccess, cvData: externalCvData }) {
 
             if (data.is_fallback) {
                 console.warn('[DocumentAnalyzer] MODE SECOURS = Le parsing regex a été utilisé, pas l\'IA');
-            } else {
+            } else if (import.meta.env.DEV) {
+                // Log de succès réservé au dev : en prod il pollue la console
+                // et ressemble à une erreur aux yeux des utilisateurs.
                 console.info('[DocumentAnalyzer] MODE IA = L\'analyse IA a réussi');
             }
 

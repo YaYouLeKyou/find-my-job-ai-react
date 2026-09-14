@@ -97,7 +97,8 @@ export default function CvUploader({
       console.log("[CV_ANALYSIS] Success:", data);
       if (data.is_fallback) {
         console.warn("[CV_ANALYSIS] MODE SECOURS = Le parsing regex a été utilisé, pas l'IA");
-      } else {
+      } else if (import.meta.env.DEV) {
+        // Log de succès réservé au dev : en prod il pollue la console.
         console.info("[CV_ANALYSIS] MODE IA = L'analyse IA a réussi");
       }
       onAnalysisSuccess(data);
