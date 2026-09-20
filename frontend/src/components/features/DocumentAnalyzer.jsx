@@ -78,6 +78,8 @@ function DocumentAnalyzer({ lang, onAnalysisSuccess, cvData: externalCvData }) {
             if (personalKey && personalKey.trim()) {
                 if (activeModelConfig?.provider === 'openrouter') {
                     formData.append('custom_openrouter_key', personalKey.trim());
+                } else if (activeModelConfig?.provider === 'groq') {
+                    formData.append('custom_groq_key', personalKey.trim());
                 } else {
                     formData.append('custom_gemini_key', personalKey.trim());
                 }

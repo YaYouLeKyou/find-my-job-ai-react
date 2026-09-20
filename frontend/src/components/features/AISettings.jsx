@@ -19,7 +19,7 @@ export default function AISettings({ lang }) {
     const [showApiInfo, setShowApiInfo] = useState(false);
 
     const currentModel = AI_MODELS.find(m => m.id === activeModel);
-    const isGroqDefault = currentModel?.provider === 'groq' && !currentModel?.requiresPersonalKey;
+    const isGroqDefault = currentModel?.provider === 'groq' && !isUsingPersonalKey;
 
     return (
         <div style={{

@@ -53,6 +53,7 @@ def analyze_recruiter_cv(
     groq_api_key: str = "",
     ollama_url: str = "http://localhost:11434",
     custom_gemini_key: Optional[str] = None,
+    custom_groq_key: Optional[str] = None,
     force_fallback_mode: bool = False,
 ) -> dict:
     """Analyse a CV specifically for recruiter candidate matching.
@@ -93,9 +94,10 @@ Texte du CV :
                 is_json=True,
                 gemini_api_key=gemini_api_key,
                 xai_api_key=xai_api_key,
-                groq_api_key=groq_api_key,
+                groq_api_key=groq_key,
                 ollama_url=ollama_url,
                 custom_gemini_key=custom_gemini_key,
+                custom_groq_key=custom_groq_key or "",
             )
             if response_text:
                 try:

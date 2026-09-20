@@ -1823,6 +1823,7 @@ async def analyze_cv_endpoint(
     custom_gemini_key: Optional[str] = Form(None),
     custom_xai_key: Optional[str] = Form(None),
     custom_openrouter_key: Optional[str] = Form(None),
+    custom_groq_key: Optional[str] = Form(None),
     lang_label: str = Form("français"),
     force_fallback_mode: bool = Form(False),
 ):
@@ -1859,7 +1860,7 @@ async def analyze_cv_endpoint(
 
         gemini_key = (custom_gemini_key or settings.GEMINI_API_KEY or "").strip()
         xai_key = (custom_xai_key or settings.XAI_API_KEY or "").strip()
-        groq_key = (settings.GROQ_API_KEY or "").strip()
+        groq_key = (custom_groq_key or settings.GROQ_API_KEY or "").strip()
         openrouter_key = (custom_openrouter_key or settings.OPENROUTER_API_KEY or "").strip()
         logger.info(f"[CV_ANALYSIS] request={request_id} calling analyze_cv model={selected_model} lang={target_lang} gemini_present={bool(gemini_key)} groq_present={bool(groq_key)} xai_present={bool(xai_key)} openrouter_present={bool(openrouter_key)} force_fallback={force_fallback_mode}")
 
@@ -1896,6 +1897,7 @@ async def analyze_freelance_cv_endpoint(
     file: UploadFile = File(...),
     selected_model: str = Form("Groq / Llama 3.3"),
     custom_gemini_key: Optional[str] = Form(None),
+    custom_groq_key: Optional[str] = Form(None),
     lang_label: str = Form("français"),
     force_fallback_mode: bool = Form(False),
 ):
@@ -1931,6 +1933,7 @@ async def analyze_freelance_cv_endpoint(
             target_lang = "français"
 
         gemini_key = (custom_gemini_key or settings.GEMINI_API_KEY or "").strip()
+        groq_key = (custom_groq_key or settings.GROQ_API_KEY or "").strip()
         logger.info(f"[FREELANCE_CV] request={request_id} calling analyze_freelance_cv model={selected_model} lang={target_lang}")
 
         result = await asyncio.to_thread(
@@ -1939,7 +1942,7 @@ async def analyze_freelance_cv_endpoint(
             target_lang=target_lang,
             selected_model=selected_model,
             gemini_api_key=gemini_key,
-            groq_api_key=settings.GROQ_API_KEY,
+            groq_api_key=groq_key,
             ollama_url=settings.OLLAMA_URL,
             force_fallback_mode=force_fallback_mode,
         )
@@ -1964,6 +1967,7 @@ async def analyze_recruiter_cv_endpoint(
     file: UploadFile = File(...),
     selected_model: str = Form("Groq / Llama 3.3"),
     custom_gemini_key: Optional[str] = Form(None),
+    custom_groq_key: Optional[str] = Form(None),
     lang_label: str = Form("français"),
     force_fallback_mode: bool = Form(False),
 ):
@@ -1999,6 +2003,7 @@ async def analyze_recruiter_cv_endpoint(
             target_lang = "français"
 
         gemini_key = (custom_gemini_key or settings.GEMINI_API_KEY or "").strip()
+        groq_key = (custom_groq_key or settings.GROQ_API_KEY or "").strip()
         logger.info(f"[RECRUITER_CV] request={request_id} calling analyze_recruiter_cv model={selected_model} lang={target_lang}")
 
         result = await asyncio.to_thread(
@@ -2007,7 +2012,7 @@ async def analyze_recruiter_cv_endpoint(
             target_lang=target_lang,
             selected_model=selected_model,
             gemini_api_key=gemini_key,
-            groq_api_key=settings.GROQ_API_KEY,
+            groq_api_key=groq_key,
             ollama_url=settings.OLLAMA_URL,
             force_fallback_mode=force_fallback_mode,
         )
