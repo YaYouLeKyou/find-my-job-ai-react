@@ -1296,17 +1296,21 @@ async def ai_status(custom_gemini_key: Optional[str] = Query(None)):
 
     groq_key = (settings.GROQ_API_KEY or "").strip()
     gemini_key = (custom_gemini_key or settings.GEMINI_API_KEY or "").strip()
+    openrouter_key = (settings.OPENROUTER_API_KEY or "").strip()
     ollama_url = (settings.OLLAMA_URL or "").strip()
 
     logger.info(f"[AI_STATUS] GROQ key present: {bool(groq_key)}")
     logger.info(f"[AI_STATUS] GEMINI key present: {bool(gemini_key)}")
+    logger.info(f"[AI_STATUS] OPENROUTER key present: {bool(openrouter_key)}")
     logger.info(f"[AI_STATUS] OLLAMA url: {ollama_url}")
 
     groq_ok = False
     gemini_ok = False
+    openrouter_ok = False
     ollama_ok = False
     groq_error = None
     gemini_error = None
+    openrouter_error = None
     ollama_error = None
 
     if groq_key:
@@ -1376,6 +1380,28 @@ async def ai_status(custom_gemini_key: Optional[str] = Query(None)):
     else:
         logger.warning("[AI_STATUS] Ollama skipped: no URL configured")
 
+    if openrouter_key:
+        try:
+            logger.info("[AI_STATUS] Testing OpenRouter connectivity...")
+            text = await asyncio.to_thread(
+                call_ai_provider,
+                prompt="ping",
+                selected_model="OpenRouter / Claude 3.5 Sonnet",
+                is_json=False,
+                openrouter_api_key=openrouter_key,
+            )
+            if text:
+                openrouter_ok = True
+                logger.info("[AI_STATUS] OpenRouter OK")
+            else:
+                openrouter_error = "Empty response"
+                logger.error("[AI_STATUS] OpenRouter error: empty response")
+        except Exception as e:
+            openrouter_error = str(e)
+            logger.error(f"[AI_STATUS] OpenRouter exception: {openrouter_error}")
+    else:
+        logger.warning("[AI_STATUS] OpenRouter skipped: no API key")
+
     result = {
         "groq": {
             "configured": bool(groq_key),
@@ -1386,6 +1412,11 @@ async def ai_status(custom_gemini_key: Optional[str] = Query(None)):
             "configured": bool(gemini_key),
             "online": gemini_ok,
             "error": gemini_error,
+        },
+        "openrouter": {
+            "configured": bool(openrouter_key),
+            "online": openrouter_ok,
+            "error": openrouter_error,
         },
         "ollama": {
             "configured": bool(ollama_url),
@@ -1456,6 +1487,11 @@ async def ai_call(request: Request):
             if not mistral_key:
                 return {"error": "Mistral API key is required"}
             kwargs["mistral_api_key"] = mistral_key
+        elif provider == "openrouter":
+            or_key = api_key or (settings.OPENROUTER_API_KEY or "").strip()
+            if not or_key:
+                return {"error": "OpenRouter API key is required"}
+            kwargs["openrouter_api_key"] = or_key
         else:
             return {"error": f"Unsupported provider: {provider}"}
 
@@ -1786,6 +1822,7 @@ async def analyze_cv_endpoint(
     selected_model: str = Form("Groq / Llama 3.3"),
     custom_gemini_key: Optional[str] = Form(None),
     custom_xai_key: Optional[str] = Form(None),
+    custom_openrouter_key: Optional[str] = Form(None),
     lang_label: str = Form("français"),
     force_fallback_mode: bool = Form(False),
 ):
@@ -1823,7 +1860,8 @@ async def analyze_cv_endpoint(
         gemini_key = (custom_gemini_key or settings.GEMINI_API_KEY or "").strip()
         xai_key = (custom_xai_key or settings.XAI_API_KEY or "").strip()
         groq_key = (settings.GROQ_API_KEY or "").strip()
-        logger.info(f"[CV_ANALYSIS] request={request_id} calling analyze_cv model={selected_model} lang={target_lang} gemini_present={bool(gemini_key)} groq_present={bool(groq_key)} xai_present={bool(xai_key)} force_fallback={force_fallback_mode}")
+        openrouter_key = (custom_openrouter_key or settings.OPENROUTER_API_KEY or "").strip()
+        logger.info(f"[CV_ANALYSIS] request={request_id} calling analyze_cv model={selected_model} lang={target_lang} gemini_present={bool(gemini_key)} groq_present={bool(groq_key)} xai_present={bool(xai_key)} openrouter_present={bool(openrouter_key)} force_fallback={force_fallback_mode}")
 
         result = await asyncio.to_thread(
             analyze_cv_with_fallback,
@@ -1834,6 +1872,7 @@ async def analyze_cv_endpoint(
             xai_api_key=xai_key,
             groq_api_key=groq_key,
             ollama_url=settings.OLLAMA_URL,
+            openrouter_api_key=openrouter_key,
             force_fallback_mode=force_fallback_mode,
         )
 

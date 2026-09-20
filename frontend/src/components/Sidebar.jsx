@@ -12,7 +12,7 @@ import React, { useState, useEffect } from 'react';
 import { LANGS, STRINGS } from '../utils/translations';
 import { Settings, Cpu, Key, Globe, Save, ExternalLink, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Wifi, WifiOff, Menu, X, Trash2, Zap } from 'lucide-react';
 import { useAI } from '../context/AIContext';
-import { AI_MODELS } from '../config/aiProviders';
+import { AI_MODELS, getQuotaCategoryLabel } from '../config/aiProviders';
 import { APIKeyManager } from './APIKeyManager';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -251,6 +251,7 @@ export default function Sidebar({
                         {model.label}
                         {model.isLocal ? ' 🏠' : ''}
                         {model.requiresPersonalKey ? ' 🔑' : ''}
+                        {getQuotaCategoryLabel(model.quotaCategory) ? ` | ${getQuotaCategoryLabel(model.quotaCategory)}` : ''}
                       </option>
                     ))}
                   </select>

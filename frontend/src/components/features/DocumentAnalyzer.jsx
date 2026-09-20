@@ -26,7 +26,7 @@ const API_BASE = (import.meta.env.VITE_API_URL || '').trim();
 function DocumentAnalyzer({ lang, onAnalysisSuccess, cvData: externalCvData }) {
     const S = STRINGS[LANGS[lang].code];
     const { noAiMode } = useAgent();
-    const { activeModel, getActiveApiKey } = useAI();
+    const { activeModel, activeModelConfig, getActiveApiKey } = useAI();
 
     const [dragActive, setDragActive] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -72,11 +72,15 @@ function DocumentAnalyzer({ lang, onAnalysisSuccess, cvData: externalCvData }) {
         formData.append('file', file);
         formData.append('selected_model', activeModel);
         formData.append('lang_label', LANGS[lang].label);
-        // Clé perso (Gemini/Mistral/...) si l'utilisateur en a saisi une dans AISettings
+        // Clé perso si l'utilisateur en a saisi une dans AISettings
         try {
             const personalKey = getActiveApiKey ? getActiveApiKey() : null;
             if (personalKey && personalKey.trim()) {
-                formData.append('custom_gemini_key', personalKey.trim());
+                if (activeModelConfig?.provider === 'openrouter') {
+                    formData.append('custom_openrouter_key', personalKey.trim());
+                } else {
+                    formData.append('custom_gemini_key', personalKey.trim());
+                }
             }
         } catch { /* pas de clé perso : on utilise la clé partagée backend */ }
         // Mode Sans IA → force fallback (regex parsing, no AI)

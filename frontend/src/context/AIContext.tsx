@@ -3,7 +3,7 @@
  * 
  * Version BYOK Universelle :
  * - Démarrage par défaut sur Groq / Qwen 3.6 27B (clé partagée)
- * - Support de tous les grands fournisseurs : Groq, Gemini, OpenAI, Anthropic, DeepSeek, Mistral...
+ * - Support de tous les grands fournisseurs : Groq, Gemini, OpenAI, Anthropic, DeepSeek, Mistral, OpenRouter...
  * - Propagation globale de la clé à toute l'application
  * - Basculement automatique clé partagée → clé personnelle
  * - Mapping dynamique des URLs d'obtention de clés
@@ -24,13 +24,14 @@ import {
 // TYPES
 // =============================================================================
 
-export type AIProvider = 'groq' | 'gemini' | 'openai' | 'anthropic' | 'deepseek' | 'mistral' | 'cohere' | 'perplexity' | 'xai';
+export type AIProvider = 'groq' | 'gemini' | 'openai' | 'anthropic' | 'deepseek' | 'mistral' | 'cohere' | 'perplexity' | 'xai' | 'openrouter';
 
 export interface AIModelConfig {
   id: string;
   label: string;
   provider: AIProvider;
   requiresPersonalKey: boolean;
+  quotaCategory?: string;
   description: string;
   apiKeyUrl: string;
 }
@@ -84,7 +85,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   });
 
   const [apiKeys, setApiKeysState] = useState<Record<string, APIKeyConfig>>(() => {
-    const providers: AIProvider[] = ['groq', 'gemini', 'openai', 'anthropic', 'deepseek', 'mistral', 'cohere', 'perplexity', 'xai'];
+    const providers: AIProvider[] = ['groq', 'gemini', 'openai', 'anthropic', 'deepseek', 'mistral', 'cohere', 'perplexity', 'xai', 'openrouter'];
     const defaults: Record<string, APIKeyConfig> = {};
     providers.forEach(p => {
       defaults[p] = { provider: p, key: '', isValid: false, lastValidated: null };
@@ -182,14 +183,18 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         const data = await response.json();
         const newStatus: Record<string, boolean> = {};
         if (data.groq) {
-          newStatus['Groq / Qwen 3.6 27B'] = !!data.groq.online;
-          newStatus['Groq / DeepSeek R1'] = !!data.groq.online;
-          newStatus['Groq / Qwen 3 8B'] = !!data.groq.online;
+            newStatus['Groq / Qwen 3.6 27B'] = !!data.groq.online;
+            newStatus['Groq / DeepSeek R1'] = !!data.groq.online;
+            newStatus['Groq / Qwen 3 8B'] = !!data.groq.online;
         }
         if (data.gemini) {
-          newStatus['Gemini 3.5 Pro'] = !!data.gemini.online;
-          newStatus['Gemini 2.5 Pro'] = !!data.gemini.online;
-          newStatus['Gemini 2.5 Flash'] = !!data.gemini.online;
+            newStatus['Gemini 3.5 Pro'] = !!data.gemini.online;
+            newStatus['Gemini 2.5 Pro'] = !!data.gemini.online;
+            newStatus['Gemini 2.5 Flash'] = !!data.gemini.online;
+        }
+        if (data.openrouter) {
+            newStatus['OpenRouter / Claude 3.5 Sonnet'] = !!data.openrouter.online;
+            newStatus['OpenRouter / Llama 3 70B'] = !!data.openrouter.online;
         }
         setModelStatus(newStatus);
         if (geminiKey && data.gemini) {

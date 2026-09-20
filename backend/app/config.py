@@ -26,6 +26,7 @@ class Settings:
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "").strip()
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "").strip()
     XAI_API_KEY: str = os.getenv("XAI_API_KEY", "").strip()
+    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "").strip()
     
     # Ollama
     OLLAMA_URL: str = os.getenv("OLLAMA_URL", "http://localhost:11434").strip()
@@ -79,6 +80,7 @@ class Settings:
             "groq_key_configured": bool(self.GROQ_API_KEY and self.GROQ_API_KEY.startswith("gsk_")),
             "gemini_key_configured": bool(self.GEMINI_API_KEY),
             "xai_key_configured": bool(self.XAI_API_KEY),
+            "openrouter_key_configured": bool(self.OPENROUTER_API_KEY),
             "ollama_configured": bool(self.OLLAMA_URL),
             "france_travail_configured": bool(self.FRANCE_TRAVAIL_CLIENT_ID and self.FRANCE_TRAVAIL_CLIENT_SECRET),
             "adzuna_configured": bool(self.ADZUNA_APP_ID and self.ADZUNA_APP_KEY),

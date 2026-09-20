@@ -27,7 +27,10 @@
 ### 🤖 Artificial Intelligence
 - **AI ranking** of job offers by compatibility with your profile
 - **Personalized cover letter** generation
-- Multi-model support: Groq/Llama 3.3, Gemini 2.5/3.5, Ollama (local), xAI/Grok
+- Multi-model support organized by quota category:
+  - 🆓 **Daily free quotas**: Groq (shared), Gemini, DeepSeek
+  - 🎁 **Signup bonus quotas**: Mistral, OpenRouter
+  - 💳 **Paid-only plans**: OpenAI, Anthropic, xAI/Grok
 
 ### 🌍 Multilingual
 - Interface available in **7 languages**: Français, English, Español, Deutsch, العربية, 日本語, 中文
@@ -164,12 +167,18 @@ python -m unittest shared/tests/test_utils.py -v
 
 ---
 
-## 🔑 Required API Keys
+## 🔑 API Keys & Quotas
 
-| Service | Key | Free | Registration |
-|---------|-----|------|-------------|
-| **Groq** | `GROQ_API_KEY` | ✅ Yes | [console.groq.com](https://console.groq.com) |
-| **Gemini** | `GEMINI_API_KEY` | ✅ Yes | [aistudio.google.com](https://aistudio.google.com) |
+| Service | Key | Free Type | Registration |
+|---------|-----|-----------|-------------|
+| **Groq** | `GROQ_API_KEY` | 🆓 Daily | [console.groq.com](https://console.groq.com) |
+| **Gemini** | `GEMINI_API_KEY` | 🆓 Daily | [aistudio.google.com](https://aistudio.google.com) |
+| **DeepSeek** | `DEEPSEEK_API_KEY` | 🆓 Daily | [platform.deepseek.com](https://platform.deepseek.com) |
+| **Mistral** | `MISTRAL_API_KEY` | 🎁 Signup | [console.mistral.ai](https://console.mistral.ai) |
+| **OpenRouter** | `OPENROUTER_API_KEY` | 🎁 Signup | [openrouter.ai/keys](https://openrouter.ai/keys) |
+| **OpenAI** | `OPENAI_API_KEY` | 💳 Paid | [platform.openai.com](https://platform.openai.com) |
+| **Anthropic** | `ANTHROPIC_API_KEY` | 💳 Paid | [console.anthropic.com](https://console.anthropic.com) |
+| **xAI** | `XAI_API_KEY` | 💳 Paid | [console.x.ai](https://console.x.ai) |
 | **France Travail** | `FRANCE_TRAVAIL_CLIENT_ID/SECRET` | ✅ Yes | [pole-emploi.fr](https://pole-emploi.fr) |
 | **Adzuna** | `ADZUNA_APP_ID/KEY` | ✅ Yes | [adzuna.com](https://adzuna.com) |
 | **SerpApi** | `SERPAPI_KEY` | 🆓 100 req/month | [serpapi.com](https://serpapi.com) |

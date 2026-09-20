@@ -8,7 +8,7 @@
  */
 import React, { useState } from 'react';
 import { useAI } from '../../context/AIContext';
-import { AI_MODELS, getApiKeyUrl, getProviderLabel, PROVIDER_COLORS } from '../../config/aiProviders';
+import { AI_MODELS, PROVIDER_COLORS, getQuotaCategoryLabel } from '../../config/aiProviders';
 import { APIKeyManager } from '../APIKeyManager';
 import { Cpu, Key, Info, ExternalLink, Zap, AlertTriangle, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { LANGS, STRINGS } from '../../utils/translations';
@@ -245,9 +245,10 @@ export default function AISettings({ lang }) {
                 >
                     {AI_MODELS.map((model) => {
                         const isActive = modelStatus[model.id];
+                        const quotaLabel = getQuotaCategoryLabel(model.quotaCategory);
                         return (
                             <option key={model.id} value={model.id}>
-                                {model.label} {model.requiresPersonalKey ? '🔑' : '🚀'} {!model.requiresPersonalKey && !isActive ? `(${S.shared})` : ''}
+                                {model.label} {model.requiresPersonalKey ? '🔑' : '🚀'} {!model.requiresPersonalKey && !isActive ? `(${S.shared})` : ''} {quotaLabel ? `| ${quotaLabel}` : ''}
                             </option>
                         );
                     })}

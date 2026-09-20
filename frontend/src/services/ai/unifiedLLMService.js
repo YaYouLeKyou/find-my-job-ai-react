@@ -16,7 +16,6 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const PROVIDER_ENDPOINTS = {
     groq: {
-        baseUrl: 'https://api.groq.com/openai/v1',
         modelMap: {
             'Groq / Qwen 3.6 27B': 'qwen/qwen3.6-27b',
             'Groq / DeepSeek R1': 'deepseek-r1-distill-llama-70b',
@@ -25,7 +24,6 @@ const PROVIDER_ENDPOINTS = {
         defaultModel: 'qwen/qwen3.6-27b',
     },
     gemini: {
-        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
         modelMap: {
             'Gemini 3.5 Pro': 'gemini-2.5-pro',
             'Gemini 2.5 Pro': 'gemini-2.5-pro',
@@ -34,7 +32,6 @@ const PROVIDER_ENDPOINTS = {
         defaultModel: 'gemini-2.5-flash',
     },
     openai: {
-        baseUrl: 'https://api.openai.com/v1',
         modelMap: {
             'OpenAI / GPT-4o': 'gpt-4o',
             'OpenAI / GPT-4o-mini': 'gpt-4o-mini',
@@ -44,7 +41,6 @@ const PROVIDER_ENDPOINTS = {
         defaultModel: 'gpt-4o',
     },
     anthropic: {
-        baseUrl: 'https://api.anthropic.com/v1',
         modelMap: {
             'Anthropic / Claude 3.5 Sonnet': 'claude-3-5-sonnet-20241022',
             'Anthropic / Claude 3.5 Haiku': 'claude-3-5-haiku-20241022',
@@ -52,7 +48,6 @@ const PROVIDER_ENDPOINTS = {
         defaultModel: 'claude-3-5-sonnet-20241022',
     },
     deepseek: {
-        baseUrl: 'https://api.deepseek.com/v1',
         modelMap: {
             'DeepSeek / V3': 'deepseek-chat',
             'DeepSeek / R1': 'deepseek-reasoner',
@@ -60,13 +55,19 @@ const PROVIDER_ENDPOINTS = {
         defaultModel: 'deepseek-chat',
     },
     mistral: {
-        baseUrl: 'https://api.mistral.ai/v1',
         modelMap: {
             'Mistral / Large': 'mistral-large-latest',
             'Mistral / Codestral': 'codestral-latest',
             'Mistral / Pixtral': 'pixtral-large-latest',
         },
         defaultModel: 'mistral-large-latest',
+    },
+    openrouter: {
+        modelMap: {
+            'OpenRouter / Claude 3.5 Sonnet': 'anthropic/claude-3.5-sonnet',
+            'OpenRouter / Llama 3 70B': 'meta-llama/llama-3.1-70b-instruct',
+        },
+        defaultModel: 'anthropic/claude-3.5-sonnet',
     },
 };
 
@@ -104,21 +105,18 @@ class UnifiedLLMService {
     _getActiveProviderConfig() {
         const modelId = this._activeModel;
         for (const [provider, config] of Object.entries(PROVIDER_ENDPOINTS)) {
-            if (config.modelMap[modelId] || config.defaultModel) {
+            if (config.modelMap[modelId]) {
                 return {
                     provider,
-                    modelName: config.modelMap[modelId] || config.defaultModel,
-                    baseUrl: config.baseUrl,
+                    modelName: config.modelMap[modelId],
                     apiKey: this._apiKeys[provider]?.key || null,
                     isDefault: provider === 'groq' && !this._apiKeys[provider]?.key,
                 };
             }
         }
-        // Fallback sur Groq par défaut
         return {
             provider: 'groq',
-            modelName: 'qwen/qwen3.6-27b',
-            baseUrl: PROVIDER_ENDPOINTS.groq.baseUrl,
+            modelName: PROVIDER_ENDPOINTS.groq.defaultModel,
             apiKey: null,
             isDefault: true,
         };

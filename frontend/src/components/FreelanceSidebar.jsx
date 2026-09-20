@@ -206,18 +206,18 @@ export default function FreelanceSidebar({
                 <div className="form-group" style={{ marginBottom: '12px' }}>
                   <label>🔬 Analyse du profil</label>
                   <select className="select-control freelance-select" value={analysisEngine} onChange={(e) => setAnalysisEngine(e.target.value)}>
-                    <option value="Gemini 3.5">Gemini 3.5</option>
-                    <option value="Gemini 2.5">Gemini 2.5</option>
-                    <option value="Groq / Llama 3.3">Groq / Llama 3.3</option>
+                    <option value="Gemini 3.5 Pro">Gemini 3.5 Pro</option>
+                    <option value="Gemini 2.5 Pro">Gemini 2.5 Pro</option>
+                    <option value="Groq / Qwen 3.6 27B">Groq / Qwen 3.6 27B</option>
                     <option value="Llama 3.2 (Local/dev)">Llama 3.2 (Local)</option>
                   </select>
                 </div>
                 <div className="form-group">
                   <label>⚖️ Tri & Proposition</label>
                   <select className="select-control freelance-select" value={rankingEngine} onChange={(e) => setRankingEngine(e.target.value)}>
-                    <option value="Gemini 3.5">Gemini 3.5</option>
-                    <option value="Gemini 2.5">Gemini 2.5</option>
-                    <option value="Groq / Llama 3.3">Groq / Llama 3.3</option>
+                    <option value="Gemini 3.5 Pro">Gemini 3.5 Pro</option>
+                    <option value="Gemini 2.5 Pro">Gemini 2.5 Pro</option>
+                    <option value="Groq / Qwen 3.6 27B">Groq / Qwen 3.6 27B</option>
                     <option value="Llama 3.2 (Local/dev)">Llama 3.2 (Local)</option>
                   </select>
                 </div>

@@ -116,8 +116,9 @@ def call_ai_provider(
     groq_api_key: str = "",
     ollama_url: str = "http://localhost:11434",
     custom_gemini_key: Optional[str] = None,
+    openrouter_api_key: str = "",
 ) -> Optional[str]:
-    """Fonction centralisée pour appeler Gemini, Groq, xAI ou Ollama.
+    """Fonction centralisée pour appeler Gemini, Groq, xAI, OpenRouter ou Ollama.
 
     Args:
         prompt: Le texte du prompt à envoyer.
@@ -128,6 +129,7 @@ def call_ai_provider(
         groq_api_key: Clé API Groq du .env.
         ollama_url: URL du serveur Ollama local.
         custom_gemini_key: Clé API Gemini personnalisée saisie par l'utilisateur.
+        openrouter_api_key: Clé API OpenRouter personnalisée ou serveur.
 
     Returns:
         Texte de la réponse ou None en cas d'erreur.
@@ -275,6 +277,33 @@ def call_ai_provider(
             if is_json:
                 payload["response_format"] = {"type": "json_object"}
             response = requests.post("https://api.x.ai/v1/chat/completions", headers=headers, json=payload, timeout=60)
+            response.raise_for_status()
+            return response.json()['choices'][0]['message']['content']
+
+        elif "OpenRouter" in selected_model:
+            if not openrouter_api_key:
+                raise Exception("Clé API OpenRouter manquante.")
+            headers = {
+                "Authorization": f"Bearer {openrouter_api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://findmyjob.ai",
+                "X-Title": "FindMyJobAI",
+            }
+            or_model = {
+                "OpenRouter / Claude 3.5 Sonnet": "anthropic/claude-3.5-sonnet",
+                "OpenRouter / Llama 3 70B": "meta-llama/llama-3.1-70b-instruct",
+            }.get(selected_model, "meta-llama/llama-3.1-70b-instruct")
+            payload = {
+                "model": or_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
+            }
+            if is_json:
+                payload["response_format"] = {"type": "json_object"}
+            response = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers, json=payload, timeout=90
+            )
             response.raise_for_status()
             return response.json()['choices'][0]['message']['content']
 
@@ -589,6 +618,7 @@ def analyze_cv_with_fallback(
     groq_api_key: str = "",
     ollama_url: str = "http://localhost:11434",
     custom_gemini_key: Optional[str] = None,
+    openrouter_api_key: Optional[str] = None,
     force_fallback_mode: bool = False,
 ) -> dict:
     """Analyse un CV via l'IA. Si l'IA échoue ou est désactivée, utilise un parser regex local."""
@@ -618,6 +648,7 @@ def analyze_cv_with_fallback(
                 groq_api_key=groq_api_key,
                 ollama_url=ollama_url,
                 custom_gemini_key=custom_gemini_key,
+                openrouter_api_key=openrouter_api_key or "",
             )
             if response_text:
                 logger.info(f"[CV_ANALYSIS] Réponse IA brute (premiers 2000 caractères) : {response_text[:2000]}")
@@ -686,6 +717,7 @@ def analyze_cv(
     groq_api_key: str = "",
     ollama_url: str = "http://localhost:11434",
     custom_gemini_key: Optional[str] = None,
+    openrouter_api_key: Optional[str] = None,
 ) -> Optional[dict]:
     """Analyse un CV via l'IA et retourne un dict structuré."""
     result = analyze_cv_with_fallback(
@@ -697,6 +729,7 @@ def analyze_cv(
         groq_api_key=groq_api_key,
         ollama_url=ollama_url,
         custom_gemini_key=custom_gemini_key,
+        openrouter_api_key=openrouter_api_key,
     )
     if not result:
         return None
@@ -715,6 +748,7 @@ def generate_cover_letter(
     groq_api_key: str = "",
     ollama_url: str = "http://localhost:11434",
     custom_gemini_key: Optional[str] = None,
+    openrouter_api_key: Optional[str] = None,
 ) -> Optional[str]:
     """Génère une lettre de motivation personnalisée via l'IA."""
     if not cv_data:
@@ -744,7 +778,8 @@ def generate_cover_letter(
             prompt, selected_model, is_json=False,
             gemini_api_key=gemini_api_key, xai_api_key=xai_api_key,
             groq_api_key=groq_api_key, ollama_url=ollama_url,
-            custom_gemini_key=custom_gemini_key
+            custom_gemini_key=custom_gemini_key,
+            openrouter_api_key=openrouter_api_key or "",
         )
     except Exception:
         return None
@@ -761,6 +796,7 @@ def rank_jobs_with_ai(
     groq_api_key: str = "",
     ollama_url: str = "http://localhost:11434",
     custom_gemini_key: Optional[str] = None,
+    openrouter_api_key: Optional[str] = None,
 ) -> List[dict]:
     """Utilise l'IA pour classer les offres par pertinence par rapport au CV."""
     if not jobs or not cv_data:
@@ -792,7 +828,8 @@ def rank_jobs_with_ai(
             prompt, selected_model, is_json=True,
             gemini_api_key=gemini_api_key, xai_api_key=xai_api_key,
             groq_api_key=groq_api_key, ollama_url=ollama_url,
-            custom_gemini_key=custom_gemini_key
+            custom_gemini_key=custom_gemini_key,
+            openrouter_api_key=openrouter_api_key or "",
         )
         if not response_text:
             return jobs
@@ -843,6 +880,7 @@ def estimate_workload(
     groq_api_key: str = "",
     ollama_url: str = "http://localhost:11434",
     custom_gemini_key: Optional[str] = None,
+    openrouter_api_key: Optional[str] = None,
 ) -> Optional[dict]:
     """Estime la charge de travail d'une mission freelance via l'IA."""
     
@@ -887,7 +925,8 @@ def estimate_workload(
             prompt, selected_model, is_json=True,
             gemini_api_key=gemini_api_key, xai_api_key=xai_api_key,
             groq_api_key=groq_api_key, ollama_url=ollama_url,
-            custom_gemini_key=custom_gemini_key
+            custom_gemini_key=custom_gemini_key,
+            openrouter_api_key=openrouter_api_key or "",
         )
         if not response_text:
             return None

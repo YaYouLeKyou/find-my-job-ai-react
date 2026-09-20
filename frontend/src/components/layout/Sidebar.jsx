@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { useAgent } from '../../context/AgentContext';
 import { useAI } from '../../context/AIContext';
-import { AI_MODELS } from '../../config/aiProviders';
+import { AI_MODELS, getQuotaCategoryLabel } from '../../config/aiProviders';
 import { APIKeyManager } from '../APIKeyManager';
 import { LANGS, STRINGS } from '../../utils/translations';
 
@@ -467,6 +467,7 @@ export default function Sidebar({
                                                     {model.label}
                                                     {model.isLocal ? ' 🏠' : ''}
                                                     {model.requiresPersonalKey ? ' 🔑' : ''}
+                                                    {getQuotaCategoryLabel(model.quotaCategory) ? ` | ${getQuotaCategoryLabel(model.quotaCategory)}` : ''}
                                                 </option>
                                             ))}
                                         </select>
