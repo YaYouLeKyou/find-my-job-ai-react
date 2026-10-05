@@ -318,7 +318,7 @@ def call_ai_provider(prompt, selected_model, is_json=False):
                 
             params = {
                 "messages": [{"role": "user", "content": prompt}],
-                "model": "qwen/qwen3.6-27b",
+                "model": "qwen/qwen3.8-27b",
                 "reasoning_effort": "none",
             }
             response = client.chat.completions.create(**params)

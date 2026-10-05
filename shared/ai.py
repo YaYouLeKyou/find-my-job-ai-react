@@ -311,10 +311,10 @@ def call_ai_provider(
             return response.json()['choices'][0]['message']['content']
 
         else:
-            # Groq / Qwen — mapping UI -> vrais IDs Groq (qwen3.6-27b vérifié via API).
+            # Groq / Qwen — mapping UI -> vrais IDs Groq (qwen3.8-27b vérifié via API).
             if not active_groq_key:
                 raise Exception("Clé Groq non configurée")
-            groq_model = "qwen/qwen3.6-27b"
+            groq_model = "qwen/qwen3.8-27b"
             if "DeepSeek" in selected_model:
                 groq_model = "deepseek-r1-distill-llama-70b"
             elif "8B" in selected_model or "Qwen 3 8B" in selected_model:

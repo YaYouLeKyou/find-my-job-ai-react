@@ -17,11 +17,11 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const PROVIDER_ENDPOINTS = {
     groq: {
         modelMap: {
-            'Groq / Qwen 3.6 27B': 'qwen/qwen3.6-27b',
+            'Groq / Qwen 3.8 27B': 'qwen/qwen3.8-27b',
             'Groq / DeepSeek R1': 'deepseek-r1-distill-llama-70b',
             'Groq / Qwen 3 8B': 'qwen/qwen3-8b',
         },
-        defaultModel: 'qwen/qwen3.6-27b',
+        defaultModel: 'qwen/qwen3.8-27b',
     },
     gemini: {
         modelMap: {
@@ -201,7 +201,7 @@ class UnifiedLLMService {
         for (const config of Object.values(PROVIDER_ENDPOINTS)) {
             if (config.modelMap[modelId]) return config.modelMap[modelId];
         }
-        return 'qwen/qwen3.6-27b';
+        return 'qwen/qwen3.8-27b';
     }
 }
 

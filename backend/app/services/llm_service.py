@@ -112,7 +112,7 @@ class LLMProviderManager:
             try:
                 params = {
                     "messages": [{"role": "user", "content": prompt}],
-                    "model": "qwen/qwen3.6-27b",
+                    "model": "qwen/qwen3.8-27b",
                     "reasoning_effort": "none",
                 }
 
