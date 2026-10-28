@@ -155,7 +155,7 @@ def get_source_timeout(source: str) -> float:
         "JobSpy": 30.0,        # jobspy library scraping multiple sites with 3 variations
         "Enhanced": 10.0,     # ⏱️ Timeout strict : 10s max
         "Jooble": 20.0,        # API call with potential retries
-        "Apify": 30.0,         # Apify LinkedIn scraper can be slow
+        "Apify": 120.0,        # Apify LinkedIn scraper can be slow
     }
     return extended_timeout_sources.get(source, 15.0)
 

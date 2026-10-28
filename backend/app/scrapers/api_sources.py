@@ -724,7 +724,7 @@ class JoobleSource:
             return []
 
 class ApifySource:
-    BASE_URL = "https://api.apify.com/v2/acts/apify~linkedin-jobs-scraper/run-sync-get-dataset-items"
+    BASE_URL = "https://api.apify.com/v2/acts/johnvc~linkedin-jobs-api/run-sync-get-dataset-items"
 
     def __init__(self, api_key: str):
         self.api_key = api_key
@@ -742,11 +742,11 @@ class ApifySource:
             masked_key = _mask(self.api_key)
             logger.info(f"   api_key={masked_key}")
             logger.info(f"   BASE_URL={self.BASE_URL}")
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(
                     self.BASE_URL,
                     params={"token": self.api_key},
-                    json={"searchKeywords": query, "location": location, "maxItems": limit},
+                    json={"keyword": query, "location": location, "maxJobs": limit},
                 )
             logger.info(f"   Apify response status: {response.status_code}")
             logger.info(f"   Apify response body[:300]: {response.text[:300]}")
@@ -758,13 +758,14 @@ class ApifySource:
                 {
                     "titre": item.get("title", ""),
                     "entreprise": item.get("companyName", "N/C"),
-                    "lien": item.get("url", "#"),
+                    "lien": item.get("jobUrl", "#"),
                     "location": item.get("location", location),
                     "date": "",
                     "source": "LinkedIn (Apify)",
                     "description": item.get("description", ""),
                 }
                 for item in results[:limit]
+                if not item.get("error_message")
             ]
             logger.info(f"[API:Apify] done jobs={len(jobs)}")
             return jobs

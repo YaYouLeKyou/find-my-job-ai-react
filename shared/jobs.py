@@ -250,21 +250,21 @@ def get_apify_jobs(job_title: str, location: str = "France", limit: int = 10,
     if not apify_api_key:
         return []
 
-    url = "https://api.apify.com/v2/acts/apify~linkedin-jobs-scraper/run-sync-get-dataset-items"
+    url = "https://api.apify.com/v2/acts/johnvc~linkedin-jobs-api/run-sync-get-dataset-items"
     params = {"token": apify_api_key}
-    payload = {"searchKeywords": job_title, "location": location, "maxItems": limit}
+    payload = {"keyword": job_title, "location": location, "maxJobs": limit}
     try:
-        response = requests.post(url, params=params, json=payload, timeout=30)
+        response = requests.post(url, params=params, json=payload, timeout=120)
         if response.status_code != 200:
             return []
         results = response.json()
         return [{
             "titre": res.get("title"),
             "entreprise": res.get("companyName", "N/C"),
-            "lien": res.get("url"),
+            "lien": res.get("jobUrl"),
             "location": res.get("location", ""),
             "source": "LinkedIn (Apify)"
-        } for res in results]
+        } for res in results if not res.get("error_message")]
     except Exception as e:
         logger.error(f"❌ Apify API Error: {e}")
         return []
